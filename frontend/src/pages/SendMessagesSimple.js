@@ -400,9 +400,9 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                   <div className="mt-6 space-y-4">
                     <div className="flex items-center space-x-2">
                       <Input
-                        placeholder="Country code (e.g., +1, +91)"
+                        placeholder="Country code (e.g., 91, 1, 44)"
                         value={countryCode}
-                        onChange={(e) => setCountryCode(e.target.value)}
+                        onChange={(e) => setCountryCode(e.target.value.replace(/\D/g, ''))}
                         className="flex-1"
                         data-testid="country-code-input"
                       />
