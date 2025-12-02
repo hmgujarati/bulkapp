@@ -23,6 +23,10 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [templateName, setTemplateName] = useState('');
   const [templateLanguage, setTemplateLanguage] = useState('en');
   
+  // Saved templates
+  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [selectedSavedTemplate, setSelectedSavedTemplate] = useState('');
+  
   // Template fields
   const [field1, setField1] = useState('');
   const [field2, setField2] = useState('');
