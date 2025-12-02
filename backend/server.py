@@ -348,12 +348,18 @@ async def update_user(user_id: str, update_data: UserUpdate, current_user: Token
 
 @api_router.put("/users/{user_id}/pause")
 async def pause_user(user_id: str, pause_data: UserPauseUpdate, current_user: TokenData = Depends(require_admin)):
+    # Check if user is super admin
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user['email'] == SUPER_ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Cannot pause super admin account")
+    
     result = await db.users.update_one(
         {"id": user_id},
         {"$set": {"isPaused": pause_data.isPaused, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
     
     return {"message": f"User {'paused' if pause_data.isPaused else 'unpaused'} successfully"}
 
