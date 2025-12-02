@@ -203,10 +203,10 @@ const Settings = ({ user, onLogout }) => {
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <p className="text-sm text-amber-900">
-                  <strong>Note:</strong> Using the demo API credentials provided in the requirements:
+                  <strong>Important:</strong> Each user needs their own Vendor UID and API Token from BizChat.
                 </p>
-                <p className="text-xs text-amber-800 mt-2 font-mono">
-                  Vendor UID: 9a1497da-b76f-4666-a439-70402e99db57
+                <p className="text-xs text-amber-800 mt-2">
+                  These credentials are unique to your BizChat account and required for sending messages.
                 </p>
               </div>
 
