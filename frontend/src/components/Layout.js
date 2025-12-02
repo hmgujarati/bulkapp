@@ -15,6 +15,7 @@ const Layout = ({ children, user, onLogout }) => {
   const userNav = [
     { name: 'Dashboard', path: '/dashboard', icon: MessageSquare },
     { name: 'Send Messages', path: '/send', icon: Send },
+    { name: 'My Templates', path: '/my-templates', icon: FileText },
     { name: 'Campaign History', path: '/campaigns', icon: History },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
