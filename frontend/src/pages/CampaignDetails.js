@@ -134,7 +134,7 @@ const CampaignDetails = ({ user, onLogout }) => {
     <Layout user={user} onLogout={onLogout}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center space-x-4">
             <Button variant="ghost" onClick={() => navigate('/campaigns')} data-testid="back-button">
               <ArrowLeft className="h-5 w-5" />
@@ -144,10 +144,62 @@ const CampaignDetails = ({ user, onLogout }) => {
               <p className="text-slate-600 mt-1">Campaign Details</p>
             </div>
           </div>
-          <Button variant="outline" onClick={downloadCSV} data-testid="download-csv-button">
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
+          
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={refreshing}
+              data-testid="refresh-button"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            
+            {campaign.status === 'processing' && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handlePause}
+                data-testid="pause-button"
+              >
+                <Pause className="h-4 w-4 mr-2" />
+                Pause
+              </Button>
+            )}
+            
+            {campaign.status === 'paused' && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleResume}
+                className="border-green-500 text-green-600 hover:bg-green-50"
+                data-testid="resume-button"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Resume
+              </Button>
+            )}
+            
+            {['processing', 'paused', 'pending'].includes(campaign.status) && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleCancel}
+                className="border-red-500 text-red-600 hover:bg-red-50"
+                data-testid="cancel-button"
+              >
+                <CancelIcon className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+            )}
+            
+            <Button variant="outline" size="sm" onClick={downloadCSV} data-testid="download-csv-button">
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+          </div>
         </div>
 
         {/* Summary Cards */}
