@@ -10,6 +10,7 @@ const Layout = ({ children, user, onLogout }) => {
 
   const adminNav = [
     { name: 'Dashboard', path: '/admin', icon: Users },
+    { name: 'Settings', path: '/settings', icon: Settings },
   ];
 
   const userNav = [
