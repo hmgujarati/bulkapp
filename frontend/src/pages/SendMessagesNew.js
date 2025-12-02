@@ -670,14 +670,30 @@ const SendMessagesNew = ({ user, onLogout }) => {
                   <div>
                     <p className="text-sm text-slate-600 mb-2">Preview Recipients</p>
                     <div className="bg-slate-50 rounded-lg p-3 max-h-48 overflow-y-auto">
-                      {recipients.slice(0, 5).map((r, i) => (
-                        <div key={i} className="text-sm py-1">
-                          <span className="font-medium">{r.name || 'No name'}</span>
-                          <span className="text-slate-500 ml-2">{r.phone}</span>
+                      {recipients.slice(0, 3).map((r, i) => (
+                        <div key={i} className="text-xs py-2 border-b border-slate-200 last:border-0">
+                          <p className="font-medium text-slate-900">{r.name || 'No name'}</p>
+                          <p className="text-slate-500">{r.phone}</p>
+                          {paramMode === 'global' && (
+                            <div className="mt-1 text-slate-600">
+                              {templateParams.field_1 && <p>• F1: {templateParams.field_1.substring(0, 30)}...</p>}
+                              {templateParams.field_2 && <p>• F2: {templateParams.field_2.substring(0, 30)}...</p>}
+                            </div>
+                          )}
+                          {paramMode === 'mapped' && (
+                            <div className="mt-1 text-slate-600">
+                              {columnMapping.field_1 && r[columnMapping.field_1] && (
+                                <p>• F1: {r[columnMapping.field_1]}</p>
+                              )}
+                              {columnMapping.field_2 && r[columnMapping.field_2] && (
+                                <p>• F2: {r[columnMapping.field_2]}</p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
-                      {recipients.length > 5 && (
-                        <p className="text-xs text-slate-500 mt-2">+{recipients.length - 5} more</p>
+                      {recipients.length > 3 && (
+                        <p className="text-xs text-slate-500 mt-2">+{recipients.length - 3} more</p>
                       )}
                     </div>
                   </div>
