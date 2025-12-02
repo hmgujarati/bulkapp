@@ -123,11 +123,12 @@ class Campaign(BaseModel):
     completedAt: Optional[datetime] = None
 
 class SendMessageRequest(BaseModel):
-    recipients: List[Dict[str, str]]  # [{"phone": "+123", "name": "John"}]
+    recipients: List[Dict[str, str]]  # [{"phone": "+123", "name": "John", "field_1": "value1", ...}]
     templateName: str
     campaignName: str
     countryCode: Optional[str] = None
     scheduledAt: Optional[datetime] = None
+    templateParameters: Optional[Dict[str, Any]] = None  # Template-level parameters
 
 class TemplateParameter(BaseModel):
     type: str = "text"
