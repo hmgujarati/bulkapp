@@ -42,6 +42,9 @@ JWT_EXPIRATION_HOURS = 24
 BIZCHAT_API_BASE = "https://bizchatapi.in/api"
 BIZCHAT_VENDOR_UID = "9a1497da-b76f-4666-a439-70402e99db57"
 
+# Super admin email - cannot be deleted or paused
+SUPER_ADMIN_EMAIL = "bizchatapi@gmail.com"
+
 # Models
 class Role(str, Enum):
     ADMIN = "admin"
