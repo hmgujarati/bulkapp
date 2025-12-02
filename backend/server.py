@@ -316,27 +316,7 @@ async def set_user_limit(user_id: str, limit_data: UserLimitUpdate, current_user
     
     return {"message": "Daily limit updated successfully"}
 
-# Template Routes
-@api_router.get("/templates")
-async def get_templates(current_user: TokenData = Depends(get_current_user)):
-    user = await db.users.find_one({"id": current_user.userId})
-    if not user or not user.get('bizChatToken'):
-        raise HTTPException(status_code=400, detail="BizChat API token not configured")
-    if not user.get('bizChatVendorUID'):
-        raise HTTPException(status_code=400, detail="BizChat Vendor UID not configured")
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            url = f"{BIZCHAT_API_BASE}/{user['bizChatVendorUID']}/templates?token={user['bizChatToken']}"
-            response = await client.get(url, timeout=30.0)
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail="Failed to fetch templates")
-            
-            data = response.json()
-            return data
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Error connecting to BizChat API: {str(e)}")
+# Templates endpoint removed - users enter template name directly
 
 # Message Routes
 async def send_whatsapp_message(
