@@ -4,7 +4,7 @@ import '@/App.css';
 import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
-import SendMessages from './pages/SendMessagesNew';
+import SendMessages from './pages/SendMessagesSimple';
 import Templates from './pages/Templates';
 import CampaignHistory from './pages/CampaignHistory';
 import CampaignDetails from './pages/CampaignDetails';
