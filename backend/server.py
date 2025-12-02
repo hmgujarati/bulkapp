@@ -592,6 +592,12 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
             }
         }
     )
+    
+    # Update user's daily usage - ONLY count successfully sent messages (not failed)
+    await db.users.update_one(
+        {"id": campaign['userId']},
+        {"$inc": {"dailyUsage": sent_count}}
+    )
 
 @api_router.post("/messages/send")
 async def send_messages(
