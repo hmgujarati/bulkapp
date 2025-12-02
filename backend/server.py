@@ -627,11 +627,11 @@ async def send_messages(
         )
     
     # Check if user can send these messages
-    if daily_usage + len(request.recipients) > daily_limit:
-        remaining = daily_limit - daily_usage
+    remaining = daily_limit - daily_usage
+    if len(request.recipients) > remaining:
         raise HTTPException(
             status_code=400,
-            detail=f"Daily limit exceeded. You can send {remaining} more messages today. Limit: {daily_limit}/day"
+            detail=f"Cannot send campaign. You need {len(request.recipients)} messages but only {remaining} available today. Daily limit: {daily_limit}/day"
         )
     
     # Normalize phone numbers and prepare recipients with template data
