@@ -100,6 +100,16 @@ const App = () => {
             }
           />
           <Route
+            path="/my-templates"
+            element={
+              user ? (
+                <MyTemplates user={user} onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
             path="/campaigns"
             element={
               user ? (
