@@ -33,7 +33,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   // Recipients
   const [recipients, setRecipients] = useState([]);
   const [textInput, setTextInput] = useState('');
-  const [countryCode, setCountryCode] = useState('+1');
+  const [countryCode, setCountryCode] = useState('91');
   
   // Schedule
   const [scheduledDate, setScheduledDate] = useState('');
