@@ -11,6 +11,7 @@ const UserDashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userInfo, setUserInfo] = useState(null);
 
   useEffect(() => {
     fetchRecentCampaigns();
