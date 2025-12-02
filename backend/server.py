@@ -337,30 +337,31 @@ async def send_whatsapp_message(
                 "template_language": recipient_data.get("template_language", "en")
             }
             
-            # Build components array for WhatsApp Business API format that BizChat uses
-            components = []
+            # BizChat expects BOTH formats:
+            # 1. Direct field_1, field_2, etc. for their validation
+            # 2. Components array for WhatsApp Business API
             
-            # Add BODY component with parameters
+            # Add direct field_1 through field_5 parameters
             body_params = []
             for i in range(1, 6):  # field_1 through field_5
                 field_key = f"field_{i}"
                 if field_key in recipient_data and recipient_data[field_key]:
                     value = str(recipient_data[field_key]).strip()
                     if value:
+                        # Add as direct field
+                        payload[field_key] = value
+                        # Also add to body parameters for components array
                         body_params.append({
                             "type": "text",
                             "text": value
                         })
             
+            # Add components array for WhatsApp format
             if body_params:
-                components.append({
+                payload["components"] = [{
                     "type": "body",
                     "parameters": body_params
-                })
-            
-            # Add components array to payload
-            if components:
-                payload["components"] = components
+                }]
             
             # Add other direct parameters (header_image, header_video, buttons, etc.)
             for key, value in recipient_data.items():
