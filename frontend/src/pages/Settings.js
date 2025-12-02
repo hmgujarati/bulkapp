@@ -15,6 +15,7 @@ const Settings = ({ user, onLogout }) => {
     email: ''
   });
   const [bizChatToken, setBizChatToken] = useState('');
+  const [bizChatVendorUID, setBizChatVendorUID] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
