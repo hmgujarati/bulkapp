@@ -102,8 +102,9 @@ class WhatsAppBulkMessengerTester:
             return False
 
         timestamp = datetime.now().strftime("%H%M%S")
+        self.test_user_email = f"testuser{timestamp}@example.com"
         user_data = {
-            "email": f"testuser{timestamp}@example.com",
+            "email": self.test_user_email,
             "password": "testpass123",
             "firstName": "Test",
             "lastName": "User",
@@ -122,6 +123,7 @@ class WhatsAppBulkMessengerTester:
         if success and 'userId' in response:
             self.test_user_id = response['userId']
             print(f"   Created user ID: {self.test_user_id}")
+            print(f"   Created user email: {self.test_user_email}")
             return True
         return False
 
