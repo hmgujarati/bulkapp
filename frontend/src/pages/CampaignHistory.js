@@ -29,6 +29,20 @@ const CampaignHistory = ({ user, onLogout }) => {
     }
   };
 
+  const handleDelete = async (campaignId) => {
+    if (!window.confirm('Are you sure you want to delete this campaign? This will not affect your daily message count.')) {
+      return;
+    }
+    
+    try {
+      await api.delete(`/campaigns/${campaignId}`);
+      toast.success('Campaign deleted successfully');
+      fetchCampaigns();
+    } catch (error) {
+      toast.error('Failed to delete campaign');
+    }
+  };
+
   const getStatusBadge = (status) => {
     const badges = {
       completed: <Badge variant="success">Completed</Badge>,
