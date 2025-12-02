@@ -639,7 +639,19 @@ const SendMessagesNew = ({ user, onLogout }) => {
 
                 <div>
                   <p className="text-sm text-slate-600">Template</p>
-                  <p className="font-medium text-slate-900">{selectedTemplate || 'Not selected'}</p>
+                  <p className="font-medium text-slate-900">
+                    {templateMode === 'manual' ? (manualTemplateName || 'Not entered') : (selectedTemplate || 'Not selected')}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Language: {templateLanguage}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-slate-600">Parameter Mode</p>
+                  <p className="font-medium text-slate-900">
+                    {paramMode === 'global' ? 'Same for All' : 'Column Mapping'}
+                  </p>
                 </div>
 
                 <div>
