@@ -532,11 +532,15 @@ const SendMessagesNew = ({ user, onLogout }) => {
             </Card>
 
             {/* Template Parameters */}
-            {selectedTemplate && (
+            {(selectedTemplate || manualTemplateName) && (
               <Card className="shadow-lg border-0">
                 <CardHeader>
                   <CardTitle>Template Configuration</CardTitle>
-                  <CardDescription>Configure dynamic fields for your template</CardDescription>
+                  <CardDescription>
+                    {paramMode === 'global' 
+                      ? 'Write what you want to send in each field (same for all recipients)' 
+                      : 'Map your Excel columns to template fields'}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {renderTemplateParameterInputs()}
