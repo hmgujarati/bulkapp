@@ -129,17 +129,16 @@ class WhatsAppBulkMessengerTester:
 
     def test_user_login(self):
         """Test user login"""
-        if not self.test_user_id:
+        if not self.test_user_id or not self.test_user_email:
             print("❌ Skipping - No test user created")
             return False
 
-        timestamp = datetime.now().strftime("%H%M%S")
         success, response = self.run_test(
             "User Login",
             "POST",
             "auth/login",
             200,
-            data={"email": f"testuser{timestamp}@example.com", "password": "testpass123"}
+            data={"email": self.test_user_email, "password": "testpass123"}
         )
         
         if success and 'token' in response:
