@@ -301,7 +301,7 @@ class WhatsAppBulkMessengerTester:
             "Unauthorized Access",
             "GET",
             "users",
-            401,  # Should fail with 401
+            403,  # Should fail with 403 (Not authenticated)
         )
         return success
 
