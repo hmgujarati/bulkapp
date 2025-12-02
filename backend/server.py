@@ -330,18 +330,41 @@ async def send_whatsapp_message(
         async with httpx.AsyncClient() as client:
             url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
             
-            # Build payload with all recipient-specific parameters
-            # BizChat API expects direct field_1, field_2, etc. format (not body.parameters array)
+            # Build payload according to BizChat API documentation
             payload = {
                 "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
                 "template_name": template_name,
                 "template_language": recipient_data.get("template_language", "en")
             }
             
-            # Add all fields directly (field_1, field_2, field_3, field_4, field_5, etc.)
+            # Build components array for WhatsApp Business API format that BizChat uses
+            components = []
+            
+            # Add BODY component with parameters
+            body_params = []
+            for i in range(1, 6):  # field_1 through field_5
+                field_key = f"field_{i}"
+                if field_key in recipient_data and recipient_data[field_key]:
+                    value = str(recipient_data[field_key]).strip()
+                    if value:
+                        body_params.append({
+                            "type": "text",
+                            "text": value
+                        })
+            
+            if body_params:
+                components.append({
+                    "type": "body",
+                    "parameters": body_params
+                })
+            
+            # Add components array to payload
+            if components:
+                payload["components"] = components
+            
+            # Add other direct parameters (header_image, header_video, buttons, etc.)
             for key, value in recipient_data.items():
-                if key not in ["phone", "name", "template_language"]:
-                    # Only add non-empty values
+                if key not in ["phone", "name", "template_language"] and not key.startswith("field_"):
                     if value and str(value).strip():
                         payload[key] = str(value).strip()
             
