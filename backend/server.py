@@ -902,12 +902,12 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup_event():
     # Create default admin user if not exists
-    admin = await db.users.find_one({"email": "admin@masswhatsapp.com"})
+    admin = await db.users.find_one({"email": "bizchatapi@gmail.com"})
     if not admin:
         admin_user = User(
-            email="admin@masswhatsapp.com",
-            firstName="Admin",
-            lastName="User",
+            email="bizchatapi@gmail.com",
+            firstName="BizChat",
+            lastName="Admin",
             role=Role.ADMIN
         )
         admin_dict = admin_user.model_dump()
@@ -915,7 +915,7 @@ async def startup_event():
         admin_dict['createdAt'] = admin_dict['createdAt'].isoformat()
         admin_dict['updatedAt'] = admin_dict['updatedAt'].isoformat()
         await db.users.insert_one(admin_dict)
-        logger.info("Default admin user created: admin@masswhatsapp.com / admin123")
+        logger.info("Default admin user created: bizchatapi@gmail.com / admin123")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
