@@ -626,6 +626,83 @@ async def get_campaign_stats(campaign_id: str, current_user: TokenData = Depends
         "status": campaign['status']
     }
 
+@api_router.post("/campaigns/{campaign_id}/pause")
+async def pause_campaign(campaign_id: str, current_user: TokenData = Depends(get_current_user)):
+    campaign = await db.campaigns.find_one({"id": campaign_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Check access
+    if current_user.role != Role.ADMIN and campaign['userId'] != current_user.userId:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if campaign['status'] != CampaignStatus.PROCESSING.value:
+        raise HTTPException(status_code=400, detail="Only processing campaigns can be paused")
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"status": CampaignStatus.PAUSED.value}}
+    )
+    
+    return {"message": "Campaign paused successfully"}
+
+@api_router.post("/campaigns/{campaign_id}/resume")
+async def resume_campaign(
+    campaign_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: TokenData = Depends(get_current_user)
+):
+    campaign = await db.campaigns.find_one({"id": campaign_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Check access
+    if current_user.role != Role.ADMIN and campaign['userId'] != current_user.userId:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if campaign['status'] != CampaignStatus.PAUSED.value:
+        raise HTTPException(status_code=400, detail="Only paused campaigns can be resumed")
+    
+    # Get user credentials
+    user = await db.users.find_one({"id": campaign['userId']})
+    if not user or not user.get('bizChatToken') or not user.get('bizChatVendorUID'):
+        raise HTTPException(status_code=400, detail="User BizChat credentials not configured")
+    
+    # Resume processing
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"status": CampaignStatus.PROCESSING.value}}
+    )
+    
+    background_tasks.add_task(
+        process_campaign,
+        campaign_id,
+        user['bizChatToken'],
+        user['bizChatVendorUID']
+    )
+    
+    return {"message": "Campaign resumed successfully"}
+
+@api_router.post("/campaigns/{campaign_id}/cancel")
+async def cancel_campaign(campaign_id: str, current_user: TokenData = Depends(get_current_user)):
+    campaign = await db.campaigns.find_one({"id": campaign_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Check access
+    if current_user.role != Role.ADMIN and campaign['userId'] != current_user.userId:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if campaign['status'] in [CampaignStatus.COMPLETED.value, CampaignStatus.CANCELLED.value]:
+        raise HTTPException(status_code=400, detail="Campaign already completed or cancelled")
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"status": CampaignStatus.CANCELLED.value}}
+    )
+    
+    return {"message": "Campaign cancelled successfully"}
+
 # Include the router in the main app
 app.include_router(api_router)
 
