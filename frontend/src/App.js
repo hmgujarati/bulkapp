@@ -6,6 +6,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
 import SendMessages from './pages/SendMessagesSimple';
 import Templates from './pages/Templates';
+import MyTemplates from './pages/MyTemplates';
 import CampaignHistory from './pages/CampaignHistory';
 import CampaignDetails from './pages/CampaignDetails';
 import Settings from './pages/Settings';
