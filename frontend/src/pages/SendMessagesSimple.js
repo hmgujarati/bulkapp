@@ -266,6 +266,27 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                 <CardDescription>Configure your campaign and template</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {savedTemplates.length > 0 && (
+                  <div className="space-y-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <Label htmlFor="loadTemplate">Load Saved Template (Optional)</Label>
+                    <Select value={selectedSavedTemplate} onValueChange={handleLoadTemplate}>
+                      <SelectTrigger data-testid="load-template-select">
+                        <SelectValue placeholder="Select a saved template..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {savedTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-blue-700">
+                      Select a template to auto-fill all fields below
+                    </p>
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   <Label htmlFor="campaignName">Campaign Name *</Label>
                   <Input
