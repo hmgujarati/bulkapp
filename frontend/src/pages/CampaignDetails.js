@@ -204,6 +204,35 @@ const CampaignDetails = ({ user, onLogout }) => {
           </div>
         </div>
 
+        {/* Real-time Progress */}
+        {campaign.status === 'processing' && (
+          <Alert className="bg-blue-50 border-blue-200">
+            <AlertDescription>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-medium">
+                  <span>Campaign in progress...</span>
+                  <span>{campaign.sentCount + campaign.failedCount}/{campaign.totalCount}</span>
+                </div>
+                <Progress 
+                  value={((campaign.sentCount + campaign.failedCount) / campaign.totalCount) * 100} 
+                  className="h-2"
+                />
+                <p className="text-xs text-slate-600">
+                  Sending at 29 messages/second • Est. remaining: ~{Math.ceil(campaign.pendingCount / 29)}s
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {campaign.status === 'paused' && (
+          <Alert className="bg-amber-50 border-amber-200">
+            <AlertDescription className="text-amber-900">
+              Campaign is paused. Click "Resume" to continue sending messages.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="shadow-lg border-0 bg-gradient-to-br from-slate-50 to-slate-100">
