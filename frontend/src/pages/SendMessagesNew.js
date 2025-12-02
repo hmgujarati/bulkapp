@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { Upload, Send, FileText, Calendar, Pause, Play, AlertCircle } from 'lucide-react';
+import { Upload, Send, FileText, Calendar, Pause, Play, AlertCircle, RefreshCw } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
