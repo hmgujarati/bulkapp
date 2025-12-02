@@ -163,6 +163,20 @@ const Settings = ({ user, onLogout }) => {
           <CardContent>
             <form onSubmit={handleUpdateToken} className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="bizChatVendorUID">Vendor UID</Label>
+                <Input
+                  id="bizChatVendorUID"
+                  placeholder="e.g., 9a1497da-b76f-4666-a439-70402e99db57"
+                  value={bizChatVendorUID}
+                  onChange={(e) => setBizChatVendorUID(e.target.value)}
+                  data-testid="bizchat-vendor-uid-input"
+                />
+                <p className="text-sm text-slate-600">
+                  Your unique Vendor UID from BizChat dashboard
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="bizChatToken">API Token</Label>
                 <Input
                   id="bizChatToken"
@@ -172,9 +186,8 @@ const Settings = ({ user, onLogout }) => {
                   onChange={(e) => setBizChatToken(e.target.value)}
                   data-testid="bizchat-token-input"
                 />
-                <p className="text-sm text-slate-600 mt-2">
-                  Your BizChat API token is required to send WhatsApp messages. You can find it in your BizChat
-                  dashboard.
+                <p className="text-sm text-slate-600">
+                  Your BizChat API token for authentication
                 </p>
               </div>
 
