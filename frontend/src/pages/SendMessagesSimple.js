@@ -43,6 +43,34 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [scheduledDate, setScheduledDate] = useState('');
   const [sending, setSending] = useState(false);
 
+  useEffect(() => {
+    fetchSavedTemplates();
+  }, []);
+
+  const fetchSavedTemplates = async () => {
+    try {
+      const response = await api.get('/saved-templates');
+      setSavedTemplates(response.data.templates);
+    } catch (error) {
+      console.error('Failed to fetch saved templates');
+    }
+  };
+
+  const handleLoadTemplate = (templateId) => {
+    const template = savedTemplates.find(t => t.id === templateId);
+    if (template) {
+      setSelectedSavedTemplate(templateId);
+      setTemplateName(template.templateName);
+      setTemplateLanguage(template.templateLanguage);
+      setField1(template.field1 || '');
+      setField2(template.field2 || '');
+      setField3(template.field3 || '');
+      setField4(template.field4 || '');
+      setField5(template.field5 || '');
+      toast.success(`Template "${template.name}" loaded`);
+    }
+  };
+
   // Excel upload
   const onDrop = async (acceptedFiles) => {
     const file = acceptedFiles[0];
