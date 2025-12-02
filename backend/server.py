@@ -840,6 +840,21 @@ async def cancel_campaign(campaign_id: str, current_user: TokenData = Depends(ge
     
     return {"message": "Campaign cancelled successfully"}
 
+@api_router.delete("/campaigns/{campaign_id}")
+async def delete_campaign(campaign_id: str, current_user: TokenData = Depends(get_current_user)):
+    campaign = await db.campaigns.find_one({"id": campaign_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Check access
+    if current_user.role != Role.ADMIN and campaign['userId'] != current_user.userId:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Delete campaign (does NOT affect daily usage count - that stays as is)
+    await db.campaigns.delete_one({"id": campaign_id})
+    
+    return {"message": "Campaign deleted successfully"}
+
 # Include the router in the main app
 app.include_router(api_router)
 
