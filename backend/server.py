@@ -670,11 +670,8 @@ async def send_messages(
     
     await db.campaigns.insert_one(campaign_dict)
     
-    # Update daily usage
-    await db.users.update_one(
-        {"id": current_user.userId},
-        {"$inc": {"dailyUsage": len(recipients)}}
-    )
+    # Note: Daily usage will be updated AFTER sending, counting only successful messages
+    # Not counting here to avoid counting failed messages
     
     # Process immediately if not scheduled
     if not request.scheduledAt:
