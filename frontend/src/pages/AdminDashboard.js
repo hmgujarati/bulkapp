@@ -72,6 +72,20 @@ const AdminDashboard = ({ user, onLogout }) => {
   };
 
   const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user? This will also delete all their campaigns and templates.')) {
+      return;
+    }
+    
+    try {
+      await api.delete(`/users/${userId}`);
+      toast.success('User deleted successfully');
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete user');
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
         await api.delete(`/users/${userId}`);
