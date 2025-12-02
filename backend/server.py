@@ -337,9 +337,28 @@ async def send_whatsapp_message(
                 "template_language": recipient_data.get("template_language", "en")
             }
             
-            # Add all dynamic fields from recipient_data (skip empty values)
+            # Build body parameters array for WhatsApp template variables
+            # WhatsApp expects body params as: {"type": "text", "text": "value"}
+            body_params = []
+            for i in range(1, 6):  # field_1 through field_5
+                field_key = f"field_{i}"
+                if field_key in recipient_data and recipient_data[field_key]:
+                    value = str(recipient_data[field_key]).strip()
+                    if value:
+                        body_params.append({
+                            "type": "text",
+                            "text": value
+                        })
+            
+            # Add body parameters if any exist
+            if body_params:
+                payload["body"] = {
+                    "parameters": body_params
+                }
+            
+            # Add other parameters (header, buttons, etc.)
             for key, value in recipient_data.items():
-                if key not in ["phone", "name", "template_language"]:
+                if key not in ["phone", "name", "template_language"] and not key.startswith("field_"):
                     # Only add non-empty values
                     if value and str(value).strip():
                         payload[key] = str(value).strip()
