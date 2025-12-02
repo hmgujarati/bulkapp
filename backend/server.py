@@ -337,10 +337,12 @@ async def send_whatsapp_message(
                 "template_language": recipient_data.get("template_language", "en")
             }
             
-            # Add all dynamic fields from recipient_data
+            # Add all dynamic fields from recipient_data (skip empty values)
             for key, value in recipient_data.items():
                 if key not in ["phone", "name", "template_language"]:
-                    payload[key] = value
+                    # Only add non-empty values
+                    if value and str(value).strip():
+                        payload[key] = str(value).strip()
             
             response = await client.post(url, json=payload, timeout=30.0)
             
