@@ -15,7 +15,17 @@ const UserDashboard = ({ user, onLogout }) => {
 
   useEffect(() => {
     fetchRecentCampaigns();
+    fetchUserInfo();
   }, []);
+
+  const fetchUserInfo = async () => {
+    try {
+      const response = await api.get('/auth/me');
+      setUserInfo(response.data);
+    } catch (error) {
+      console.error('Failed to fetch user info');
+    }
+  };
 
   const fetchRecentCampaigns = async () => {
     try {
