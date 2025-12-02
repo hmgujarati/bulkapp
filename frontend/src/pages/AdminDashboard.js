@@ -229,16 +229,20 @@ const AdminDashboard = ({ user, onLogout }) => {
                           </Badge>
                         </td>
                         <td className="py-3 px-4 text-sm">
-                          <Input
-                            type="number"
-                            defaultValue={u.dailyLimit}
-                            className="w-24"
-                            onBlur={(e) => {
-                              if (e.target.value !== u.dailyLimit.toString()) {
-                                handleUpdateLimit(u.id, e.target.value);
-                              }
-                            }}
-                          />
+                          <Select
+                            defaultValue={u.dailyLimit.toString()}
+                            onValueChange={(value) => handleUpdateLimit(u.id, value)}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="250">250 (Tier 1)</SelectItem>
+                              <SelectItem value="1000">1,000 (Tier 2)</SelectItem>
+                              <SelectItem value="10000">10,000 (Tier 3)</SelectItem>
+                              <SelectItem value="100000">100,000 (Tier 4)</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="py-3 px-4 text-sm">
                           <Button
