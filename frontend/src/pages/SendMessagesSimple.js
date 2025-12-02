@@ -111,19 +111,20 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
     let addedCount = 0;
     const updated = recipients.map(r => {
-      // Check if number already has country code (starts with + or has 10+ digits)
-      const cleanPhone = r.phone.replace(/\D/g, ''); // Remove all non-digits
-      
-      // If phone already starts with + or country code, skip it
-      if (r.phone.startsWith('+') || cleanPhone.length > 10) {
+      // Only check if number already starts with +
+      // If it has +, it already has a country code, skip it
+      if (r.phone.trim().startsWith('+')) {
         return r;
       }
       
-      // Add country code (remove leading zeros first)
+      // Remove leading zeros and any non-digit characters except +
+      const cleanPhone = r.phone.replace(/^0+/, '').replace(/[^\d]/g, '');
+      
+      // Add country code
       addedCount++;
       return {
         ...r,
-        phone: `+${countryCode}${r.phone.replace(/^0+/, '')}`
+        phone: `+${countryCode}${cleanPhone}`
       };
     });
 
