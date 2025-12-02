@@ -437,26 +437,82 @@ const SendMessagesNew = ({ user, onLogout }) => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="template">WhatsApp Template</Label>
-                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                    <SelectTrigger data-testid="template-select">
-                      <SelectValue placeholder="Select a template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {loading ? (
-                        <SelectItem value="loading" disabled>Loading templates...</SelectItem>
-                      ) : templates.length === 0 ? (
-                        <SelectItem value="none" disabled>No templates available</SelectItem>
-                      ) : (
-                        templates.map((template) => (
-                          <SelectItem key={template.name} value={template.name}>
-                            {template.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-3">
+                  <Label>Template Mode</Label>
+                  <Tabs value={templateMode} onValueChange={setTemplateMode} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+                      <TabsTrigger value="fetch">Fetch from BizChat</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="manual" className="space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="manualTemplateName">Template Name</Label>
+                        <Input
+                          id="manualTemplateName"
+                          placeholder="e.g., order_confirmation"
+                          value={manualTemplateName}
+                          onChange={(e) => setManualTemplateName(e.target.value)}
+                        />
+                        <p className="text-xs text-slate-500">
+                          Enter the exact template name approved in your BizChat account
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="templateLanguage">Template Language</Label>
+                        <Select value={templateLanguage} onValueChange={setTemplateLanguage}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="en">English (en)</SelectItem>
+                            <SelectItem value="en_US">English US (en_US)</SelectItem>
+                            <SelectItem value="en_GB">English UK (en_GB)</SelectItem>
+                            <SelectItem value="hi">Hindi (hi)</SelectItem>
+                            <SelectItem value="es">Spanish (es)</SelectItem>
+                            <SelectItem value="fr">French (fr)</SelectItem>
+                            <SelectItem value="de">German (de)</SelectItem>
+                            <SelectItem value="pt">Portuguese (pt)</SelectItem>
+                            <SelectItem value="ar">Arabic (ar)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="fetch" className="space-y-2">
+                      <Label htmlFor="template">Select Template</Label>
+                      <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                        <SelectTrigger data-testid="template-select">
+                          <SelectValue placeholder="Select a template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {loading ? (
+                            <SelectItem value="loading" disabled>Loading templates...</SelectItem>
+                          ) : templates.length === 0 ? (
+                            <SelectItem value="none" disabled>No templates available</SelectItem>
+                          ) : (
+                            templates.map((template) => (
+                              <SelectItem key={template.name} value={template.name}>
+                                {template.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchTemplates}
+                        disabled={loading}
+                        className="w-full"
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh Templates
+                      </Button>
+                    </TabsContent>
+                  </Tabs>
                 </div>
 
                 <div className="space-y-2">
