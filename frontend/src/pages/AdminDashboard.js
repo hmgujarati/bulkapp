@@ -85,18 +85,6 @@ const AdminDashboard = ({ user, onLogout }) => {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
-    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      try {
-        await api.delete(`/users/${userId}`);
-        toast.success('User deleted successfully');
-        fetchUsers();
-      } catch (error) {
-        toast.error('Failed to delete user');
-      }
-    }
-  };
-
   const stats = {
     totalUsers: users.length,
     activeUsers: users.filter(u => !u.isPaused).length,
