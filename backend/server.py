@@ -78,6 +78,7 @@ class UserUpdate(BaseModel):
     firstName: Optional[str] = None
     lastName: Optional[str] = None
     bizChatToken: Optional[str] = None
+    bizChatVendorUID: Optional[str] = None
 
 class UserPauseUpdate(BaseModel):
     isPaused: bool
