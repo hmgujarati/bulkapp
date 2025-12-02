@@ -91,6 +91,8 @@ class CampaignStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     SCHEDULED = "scheduled"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
 
 class MessageStatus(str, Enum):
     PENDING = "pending"
