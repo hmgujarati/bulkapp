@@ -55,7 +55,10 @@ class User(BaseModel):
     lastName: str
     role: Role = Role.USER
     bizChatToken: Optional[str] = None
+    bizChatVendorUID: Optional[str] = None
     dailyLimit: int = 1000
+    dailyUsage: int = 0
+    lastResetDate: Optional[str] = None
     isPaused: bool = False
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
