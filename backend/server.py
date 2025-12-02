@@ -39,11 +39,11 @@ JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24
 
 # BizChat API configuration
-BIZCHAT_API_BASE = "https://bizchatapi.in/api"
-BIZCHAT_VENDOR_UID = "9a1497da-b76f-4666-a439-70402e99db57"
+BIZCHAT_API_BASE = os.environ.get('BIZCHAT_API_BASE', 'https://bizchatapi.in/api')
+BIZCHAT_VENDOR_UID = os.environ.get('BIZCHAT_VENDOR_UID', '9a1497da-b76f-4666-a439-70402e99db57')
 
 # Super admin email - cannot be deleted or paused
-SUPER_ADMIN_EMAIL = "bizchatapi@gmail.com"
+SUPER_ADMIN_EMAIL = os.environ.get('SUPER_ADMIN_EMAIL', 'bizchatapi@gmail.com')
 
 # Models
 class Role(str, Enum):
