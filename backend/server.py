@@ -376,14 +376,21 @@ async def set_user_limit(user_id: str, limit_data: UserLimitUpdate, current_user
 
 @api_router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: TokenData = Depends(require_admin)):
+    # Get user to check if super admin
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prevent deleting super admin
+    if user['email'] == SUPER_ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Cannot delete super admin account")
+    
     # Prevent deleting yourself
     if user_id == current_user.userId:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     
     # Delete user
     result = await db.users.delete_one({"id": user_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
     
     # Also delete user's campaigns, templates, and other data
     await db.campaigns.delete_many({"userId": user_id})
