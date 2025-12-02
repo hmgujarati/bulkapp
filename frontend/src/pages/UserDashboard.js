@@ -93,7 +93,28 @@ const UserDashboard = ({ user, onLogout }) => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="shadow-lg border-0 bg-gradient-to-br from-blue-50 to-blue-100">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-blue-900">Available Today</CardTitle>
+              <Clock className="h-5 w-5 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              {userInfo ? (
+                <>
+                  <div className="text-3xl font-bold text-blue-900">
+                    {userInfo.dailyLimit - (userInfo.dailyUsage || 0)}
+                  </div>
+                  <p className="text-xs text-blue-700 mt-1">
+                    of {userInfo.dailyLimit} daily limit
+                  </p>
+                </>
+              ) : (
+                <div className="text-3xl font-bold text-blue-900">-</div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="shadow-lg border-0 bg-gradient-to-br from-purple-50 to-purple-100">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-purple-900">Total Campaigns</CardTitle>
