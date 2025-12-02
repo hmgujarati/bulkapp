@@ -76,15 +76,15 @@ const UserDashboard = ({ user, onLogout }) => {
 
           <Card
             className="shadow-lg border-0 bg-gradient-to-br from-emerald-600 to-teal-700 text-white cursor-pointer hover:shadow-xl transition-shadow"
-            onClick={() => navigate('/templates')}
+            onClick={() => navigate('/my-templates')}
             data-testid="quick-action-templates"
           >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-emerald-100 text-sm font-medium">Explore</p>
-                  <h3 className="text-2xl font-bold mt-1">View Templates</h3>
-                  <p className="text-emerald-100 text-sm mt-2">See approved templates</p>
+                  <p className="text-emerald-100 text-sm font-medium">Manage</p>
+                  <h3 className="text-2xl font-bold mt-1">My Templates</h3>
+                  <p className="text-emerald-100 text-sm mt-2">Create and save templates</p>
                 </div>
                 <MessageSquare className="h-12 w-12 opacity-80" />
               </div>
