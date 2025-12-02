@@ -29,16 +29,57 @@ const CampaignDetails = ({ user, onLogout }) => {
     return () => clearInterval(interval);
   }, [id, campaign]);
 
-  const fetchCampaign = async () => {
+  const fetchCampaign = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const response = await api.get(`/campaigns/${id}`);
       setCampaign(response.data);
     } catch (error) {
-      toast.error('Failed to fetch campaign details');
-      navigate('/campaigns');
+      if (!silent) {
+        toast.error('Failed to fetch campaign details');
+        navigate('/campaigns');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handlePause = async () => {
+    try {
+      await api.post(`/campaigns/${id}/pause`);
+      toast.success('Campaign paused');
+      fetchCampaign(true);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to pause campaign');
+    }
+  };
+
+  const handleResume = async () => {
+    try {
+      await api.post(`/campaigns/${id}/resume`);
+      toast.success('Campaign resumed');
+      fetchCampaign(true);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to resume campaign');
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!window.confirm('Are you sure you want to cancel this campaign?')) return;
+    
+    try {
+      await api.post(`/campaigns/${id}/cancel`);
+      toast.success('Campaign cancelled');
+      fetchCampaign(true);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to cancel campaign');
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchCampaign(true);
   };
 
   const downloadCSV = () => {
