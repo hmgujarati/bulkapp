@@ -27,8 +27,25 @@ const SendMessagesNew = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   
-  // Template parameters
-  const [templateParams, setTemplateParams] = useState({});
+  // Template mode: 'fetch' or 'manual'
+  const [templateMode, setTemplateMode] = useState('manual');
+  const [manualTemplateName, setManualTemplateName] = useState('');
+  const [templateLanguage, setTemplateLanguage] = useState('en');
+  
+  // Template parameters - can be global or column-mapped
+  const [paramMode, setParamMode] = useState('global'); // 'global' or 'mapped'
+  const [templateParams, setTemplateParams] = useState({
+    field_1: '',
+    field_2: '',
+    field_3: '',
+    field_4: '',
+    field_5: '',
+    header_image: '',
+    header_video: '',
+    header_document: '',
+    button_0: '',
+    button_1: ''
+  });
   const [excelColumns, setExcelColumns] = useState([]);
   const [columnMapping, setColumnMapping] = useState({});
 
