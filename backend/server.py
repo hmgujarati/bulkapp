@@ -373,13 +373,15 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     delay_between_messages = 1.0 / 29  # ~0.034 seconds
     
     batch_size = 100  # Process in batches for better control
+    pause_check_interval = 10  # Check for pause every 10 messages instead of every message
     
     for i, recipient in enumerate(campaign['recipients']):
-        # Check if campaign is paused
-        current_campaign = await db.campaigns.find_one({"id": campaign_id})
-        if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
-            logger.info(f"Campaign {campaign_id} paused at message {i}")
-            return
+        # Check if campaign is paused - only every 10 messages to avoid DB overhead
+        if i % pause_check_interval == 0:
+            current_campaign = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
+            if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
+                logger.info(f"Campaign {campaign_id} paused at message {i}")
+                return
         
         if recipient['status'] != MessageStatus.PENDING.value:
             continue
