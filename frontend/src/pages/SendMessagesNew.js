@@ -148,10 +148,14 @@ const SendMessagesNew = ({ user, onLogout }) => {
       toast.error('Please enter a campaign name');
       return;
     }
-    if (!selectedTemplate) {
-      toast.error('Please select a template');
+    
+    // Check template based on mode
+    const templateName = templateMode === 'manual' ? manualTemplateName : selectedTemplate;
+    if (!templateName) {
+      toast.error('Please enter or select a template name');
       return;
     }
+    
     if (recipients.length === 0) {
       toast.error('Please add recipients');
       return;
@@ -163,19 +167,40 @@ const SendMessagesNew = ({ user, onLogout }) => {
 
     setSending(true);
     try {
-      // Apply country code to all recipients
-      const recipientsWithCountryCode = recipients.map(r => ({
-        ...r,
-        phone: r.phone.startsWith('+') ? r.phone : `${countryCode}${r.phone}`,
-      }));
+      // Apply country code and template parameters to all recipients
+      const recipientsWithData = recipients.map(r => {
+        const recipientData = {
+          phone: r.phone.startsWith('+') ? r.phone : `${countryCode}${r.phone}`,
+          name: r.name || '',
+          template_language: templateLanguage
+        };
+        
+        // If using global parameters, apply to all recipients
+        if (paramMode === 'global') {
+          Object.keys(templateParams).forEach(key => {
+            if (templateParams[key]) {
+              recipientData[key] = templateParams[key];
+            }
+          });
+        } else {
+          // If using column mapping, get values from recipient's Excel data
+          Object.keys(columnMapping).forEach(paramKey => {
+            const columnName = columnMapping[paramKey];
+            if (columnName && r[columnName]) {
+              recipientData[paramKey] = r[columnName];
+            }
+          });
+        }
+        
+        return recipientData;
+      });
 
       const payload = {
         campaignName,
-        templateName: selectedTemplate,
-        recipients: recipientsWithCountryCode,
+        templateName: templateName,
+        recipients: recipientsWithData,
         countryCode: null, // Already applied above
-        scheduledAt: isScheduled ? new Date(scheduledDate).toISOString() : null,
-        templateParameters: templateParams
+        scheduledAt: isScheduled ? new Date(scheduledDate).toISOString() : null
       };
 
       const response = await api.post('/messages/send', payload);
