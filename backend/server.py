@@ -462,27 +462,59 @@ async def send_messages(
     background_tasks: BackgroundTasks,
     current_user: TokenData = Depends(get_current_user)
 ):
-    # Get user's BizChat token
+    # Get user's BizChat credentials
     user = await db.users.find_one({"id": current_user.userId})
     if not user or not user.get('bizChatToken'):
         raise HTTPException(status_code=400, detail="BizChat API token not configured")
+    if not user.get('bizChatVendorUID'):
+        raise HTTPException(status_code=400, detail="BizChat Vendor UID not configured")
     
-    # Normalize phone numbers
+    # Check daily limit
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last_reset = user.get('lastResetDate')
+    daily_usage = user.get('dailyUsage', 0)
+    daily_limit = user.get('dailyLimit', 1000)
+    
+    # Reset daily usage if it's a new day
+    if last_reset != today:
+        daily_usage = 0
+        await db.users.update_one(
+            {"id": current_user.userId},
+            {"$set": {"dailyUsage": 0, "lastResetDate": today}}
+        )
+    
+    # Check if user can send these messages
+    if daily_usage + len(request.recipients) > daily_limit:
+        remaining = daily_limit - daily_usage
+        raise HTTPException(
+            status_code=400,
+            detail=f"Daily limit exceeded. You can send {remaining} more messages today. Limit: {daily_limit}/day"
+        )
+    
+    # Normalize phone numbers and prepare recipients with template data
     recipients = []
     for recipient in request.recipients:
         phone = normalize_phone_number(recipient['phone'], request.countryCode)
-        recipients.append(RecipientInfo(
+        recipient_info = RecipientInfo(
             phone=phone,
             name=recipient.get('name', ''),
             status=MessageStatus.PENDING
-        ))
+        )
+        
+        # Convert to dict and add all template parameters
+        recipient_dict = recipient_info.model_dump()
+        for key, value in recipient.items():
+            if key not in ['phone', 'name']:
+                recipient_dict[key] = value
+        
+        recipients.append(recipient_dict)
     
     # Create campaign
     campaign = Campaign(
         userId=current_user.userId,
         name=request.campaignName,
         templateName=request.templateName,
-        recipients=recipients,
+        recipients=[RecipientInfo(**r) for r in recipients],
         totalCount=len(recipients),
         pendingCount=len(recipients),
         scheduledAt=request.scheduledAt,
@@ -496,22 +528,32 @@ async def send_messages(
     if campaign_dict.get('completedAt'):
         campaign_dict['completedAt'] = campaign_dict['completedAt'].isoformat()
     
-    # Convert recipients to dict format
-    campaign_dict['recipients'] = [r.model_dump() for r in recipients]
-    for r in campaign_dict['recipients']:
-        if r.get('sentAt'):
-            r['sentAt'] = r['sentAt'].isoformat()
+    # Store recipients with all template parameters
+    campaign_dict['recipients'] = recipients
     
     await db.campaigns.insert_one(campaign_dict)
     
+    # Update daily usage
+    await db.users.update_one(
+        {"id": current_user.userId},
+        {"$inc": {"dailyUsage": len(recipients)}}
+    )
+    
     # Process immediately if not scheduled
     if not request.scheduledAt:
-        background_tasks.add_task(process_campaign, campaign.id, user['bizChatToken'])
+        background_tasks.add_task(
+            process_campaign,
+            campaign.id,
+            user['bizChatToken'],
+            user['bizChatVendorUID']
+        )
     
     return {
         "message": "Campaign created successfully",
         "campaignId": campaign.id,
-        "status": "processing" if not request.scheduledAt else "scheduled"
+        "status": "processing" if not request.scheduledAt else "scheduled",
+        "dailyUsage": daily_usage + len(recipients),
+        "dailyLimit": daily_limit
     }
 
 @api_router.post("/messages/upload")
