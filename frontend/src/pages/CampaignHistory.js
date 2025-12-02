@@ -98,15 +98,26 @@ const CampaignHistory = ({ user, onLogout }) => {
                         {campaign.createdAt ? format(new Date(campaign.createdAt), 'MMM d, yyyy HH:mm') : 'N/A'}
                       </CardDescription>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                      data-testid={`view-campaign-${campaign.id}`}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
-                    </Button>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                        data-testid={`view-campaign-${campaign.id}`}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleDelete(campaign.id)}
+                        data-testid={`delete-campaign-${campaign.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
