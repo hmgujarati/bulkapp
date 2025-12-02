@@ -341,7 +341,87 @@ async def set_user_limit(user_id: str, limit_data: UserLimitUpdate, current_user
     
     return {"message": "Daily limit updated successfully"}
 
-# Templates endpoint removed - users enter template name directly
+# Saved Templates Routes (user's custom template presets)
+@api_router.post("/saved-templates")
+async def create_saved_template(template_data: SavedTemplateCreate, current_user: TokenData = Depends(get_current_user)):
+    # Check if name already exists for this user
+    existing = await db.saved_templates.find_one({"userId": current_user.userId, "name": template_data.name})
+    if existing:
+        raise HTTPException(status_code=400, detail="Template name already exists")
+    
+    template = SavedTemplate(
+        userId=current_user.userId,
+        **template_data.model_dump()
+    )
+    
+    template_dict = template.model_dump()
+    template_dict['createdAt'] = template_dict['createdAt'].isoformat()
+    template_dict['updatedAt'] = template_dict['updatedAt'].isoformat()
+    
+    await db.saved_templates.insert_one(template_dict)
+    
+    return {"message": "Template saved successfully", "templateId": template.id}
+
+@api_router.get("/saved-templates")
+async def get_saved_templates(current_user: TokenData = Depends(get_current_user)):
+    templates = await db.saved_templates.find(
+        {"userId": current_user.userId},
+        {"_id": 0}
+    ).sort("createdAt", -1).to_list(100)
+    
+    return {"templates": templates}
+
+@api_router.get("/saved-templates/{template_id}")
+async def get_saved_template(template_id: str, current_user: TokenData = Depends(get_current_user)):
+    template = await db.saved_templates.find_one(
+        {"id": template_id, "userId": current_user.userId},
+        {"_id": 0}
+    )
+    
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    return template
+
+@api_router.put("/saved-templates/{template_id}")
+async def update_saved_template(
+    template_id: str,
+    template_data: SavedTemplateCreate,
+    current_user: TokenData = Depends(get_current_user)
+):
+    # Check ownership
+    template = await db.saved_templates.find_one({"id": template_id, "userId": current_user.userId})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    # Check if new name conflicts with another template
+    if template_data.name != template['name']:
+        existing = await db.saved_templates.find_one({
+            "userId": current_user.userId,
+            "name": template_data.name,
+            "id": {"$ne": template_id}
+        })
+        if existing:
+            raise HTTPException(status_code=400, detail="Template name already exists")
+    
+    update_dict = template_data.model_dump()
+    update_dict['updatedAt'] = datetime.now(timezone.utc).isoformat()
+    
+    await db.saved_templates.update_one(
+        {"id": template_id},
+        {"$set": update_dict}
+    )
+    
+    return {"message": "Template updated successfully"}
+
+@api_router.delete("/saved-templates/{template_id}")
+async def delete_saved_template(template_id: str, current_user: TokenData = Depends(get_current_user)):
+    result = await db.saved_templates.delete_one({"id": template_id, "userId": current_user.userId})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    return {"message": "Template deleted successfully"}
 
 # Message Routes
 async def send_whatsapp_message(
