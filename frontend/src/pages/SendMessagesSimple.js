@@ -109,13 +109,26 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       return;
     }
 
-    const updated = recipients.map(r => ({
-      ...r,
-      phone: r.phone.startsWith('+') ? r.phone : `${countryCode}${r.phone.replace(/^0+/, '')}`
-    }));
+    let addedCount = 0;
+    const updated = recipients.map(r => {
+      // Check if number already has country code (starts with + or has 10+ digits)
+      const cleanPhone = r.phone.replace(/\D/g, ''); // Remove all non-digits
+      
+      // If phone already starts with + or country code, skip it
+      if (r.phone.startsWith('+') || cleanPhone.length > 10) {
+        return r;
+      }
+      
+      // Add country code (remove leading zeros first)
+      addedCount++;
+      return {
+        ...r,
+        phone: `+${countryCode}${r.phone.replace(/^0+/, '')}`
+      };
+    });
 
     setRecipients(updated);
-    toast.success('Country code added to all numbers');
+    toast.success(`Country code +${countryCode} added to ${addedCount} number(s)`);
   };
 
   // Remove duplicates
