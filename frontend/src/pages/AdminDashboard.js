@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Users, UserPlus, Pause, Play, Settings as SettingsIcon } from 'lucide-react';
+import { Users, UserPlus, Pause, Play, Settings as SettingsIcon, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
