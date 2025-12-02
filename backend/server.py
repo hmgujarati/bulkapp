@@ -344,15 +344,21 @@ async def send_whatsapp_message(
                     if value and str(value).strip():
                         payload[key] = str(value).strip()
             
+            logger.info(f"Sending to BizChat - Phone: {phone}, Template: {template_name}, Payload keys: {list(payload.keys())}")
+            
             response = await client.post(url, json=payload, timeout=30.0)
             
             if response.status_code in [200, 201]:
                 data = response.json()
                 return {"success": True, "data": data}
             else:
-                return {"success": False, "error": response.text}
+                error_msg = f"BizChat API Error: Status {response.status_code}, Response: {response.text}"
+                logger.error(error_msg)
+                return {"success": False, "error": error_msg}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        error_msg = f"Exception sending message: {str(e)}"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
 
 async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     """Process campaign with rate limiting (29 messages/second)"""
