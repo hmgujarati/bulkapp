@@ -18,22 +18,7 @@ const CampaignDetails = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchCampaign();
-  }, [id]);
-
-  useEffect(() => {
-    // Auto-refresh for processing campaigns
-    if (campaign && campaign.status === 'processing') {
-      const interval = setInterval(() => {
-        fetchCampaign(true);
-      }, 3000); // Refresh every 3 seconds
-      
-      return () => clearInterval(interval);
-    }
-  }, [campaign?.status]);
-
-  const fetchCampaign = async (silent = false) => {
+  const fetchCampaign = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
       const response = await api.get(`/campaigns/${id}`);
@@ -47,7 +32,22 @@ const CampaignDetails = ({ user, onLogout }) => {
       if (!silent) setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    fetchCampaign();
+  }, [fetchCampaign]);
+
+  useEffect(() => {
+    // Auto-refresh for processing campaigns
+    if (campaign && campaign.status === 'processing') {
+      const interval = setInterval(() => {
+        fetchCampaign(true);
+      }, 3000); // Refresh every 3 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [campaign?.status, fetchCampaign]);
 
   const handlePause = async () => {
     try {
