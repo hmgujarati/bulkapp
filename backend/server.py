@@ -80,6 +80,10 @@ class UserUpdate(BaseModel):
     bizChatToken: Optional[str] = None
     bizChatVendorUID: Optional[str] = None
 
+class PasswordChange(BaseModel):
+    currentPassword: str
+    newPassword: str
+
 class UserPauseUpdate(BaseModel):
     isPaused: bool
 
