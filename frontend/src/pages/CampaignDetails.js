@@ -20,16 +20,18 @@ const CampaignDetails = ({ user, onLogout }) => {
 
   useEffect(() => {
     fetchCampaign();
-    
+  }, [id]);
+
+  useEffect(() => {
     // Auto-refresh for processing campaigns
-    const interval = setInterval(() => {
-      if (campaign && campaign.status === 'processing') {
+    if (campaign && campaign.status === 'processing') {
+      const interval = setInterval(() => {
         fetchCampaign(true);
-      }
-    }, 3000); // Refresh every 3 seconds
-    
-    return () => clearInterval(interval);
-  }, [id, campaign]);
+      }, 3000); // Refresh every 3 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [campaign?.status]);
 
   const fetchCampaign = async (silent = false) => {
     if (!silent) setLoading(true);
