@@ -14,6 +14,7 @@ const CampaignDetails = ({ user, onLogout }) => {
   const { id } = useParams();
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchCampaign();
