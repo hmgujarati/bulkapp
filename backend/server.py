@@ -339,17 +339,28 @@ async def get_templates(current_user: TokenData = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Error connecting to BizChat API: {str(e)}")
 
 # Message Routes
-async def send_whatsapp_message(phone: str, template_name: str, token: str, name: str = "") -> Dict[str, Any]:
+async def send_whatsapp_message(
+    phone: str,
+    template_name: str,
+    token: str,
+    vendor_uid: str,
+    recipient_data: Dict[str, Any]
+) -> Dict[str, Any]:
     try:
         async with httpx.AsyncClient() as client:
-            url = f"{BIZCHAT_API_BASE}/{BIZCHAT_VENDOR_UID}/contact/send-template-message?token={token}"
+            url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
             
+            # Build payload with all recipient-specific parameters
             payload = {
-                "phone_number": phone.replace('+', '').replace('-', ''),
+                "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
                 "template_name": template_name,
-                "template_language": "en",
-                "field_1": name
+                "template_language": recipient_data.get("template_language", "en")
             }
+            
+            # Add all dynamic fields from recipient_data
+            for key, value in recipient_data.items():
+                if key not in ["phone", "name", "template_language"]:
+                    payload[key] = value
             
             response = await client.post(url, json=payload, timeout=30.0)
             
