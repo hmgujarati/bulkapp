@@ -132,6 +132,31 @@ class SendMessageRequest(BaseModel):
     scheduledAt: Optional[datetime] = None
     templateParameters: Optional[Dict[str, Any]] = None  # Template-level parameters
 
+class SavedTemplate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    userId: str
+    name: str  # User-friendly name for this saved template
+    templateName: str  # BizChat template name
+    templateLanguage: str = "en"
+    field1: Optional[str] = None
+    field2: Optional[str] = None
+    field3: Optional[str] = None
+    field4: Optional[str] = None
+    field5: Optional[str] = None
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SavedTemplateCreate(BaseModel):
+    name: str
+    templateName: str
+    templateLanguage: str = "en"
+    field1: Optional[str] = None
+    field2: Optional[str] = None
+    field3: Optional[str] = None
+    field4: Optional[str] = None
+    field5: Optional[str] = None
+
 class TemplateParameter(BaseModel):
     type: str = "text"
     text: str
