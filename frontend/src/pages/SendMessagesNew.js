@@ -218,16 +218,41 @@ const SendMessagesNew = ({ user, onLogout }) => {
   };
 
   const renderTemplateParameterInputs = () => {
-    if (!selectedTemplate) return null;
+    const templateName = templateMode === 'manual' ? manualTemplateName : selectedTemplate;
+    if (!templateName) return null;
 
     return (
       <div className="space-y-4">
-        <h4 className="font-medium text-slate-900">Template Parameters</h4>
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-slate-900">Template Parameters</h4>
+          <div className="flex items-center space-x-2">
+            <Button
+              type="button"
+              variant={paramMode === 'global' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setParamMode('global')}
+            >
+              Same for All
+            </Button>
+            <Button
+              type="button"
+              variant={paramMode === 'mapped' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setParamMode('mapped')}
+              disabled={excelColumns.length === 0}
+            >
+              Map Columns
+            </Button>
+          </div>
+        </div>
+        
         <p className="text-sm text-slate-600">
-          Map your Excel columns to template fields. Use column names from your uploaded file.
+          {paramMode === 'global' 
+            ? 'Write values that will be used for ALL recipients' 
+            : 'Map Excel columns to template fields'}
         </p>
         
-        {excelColumns.length > 0 && (
+        {excelColumns.length > 0 && paramMode === 'mapped' && (
           <div className="bg-blue-50 p-3 rounded-lg">
             <p className="text-sm font-medium text-blue-900 mb-2">Available columns:</p>
             <div className="flex flex-wrap gap-2">
@@ -244,53 +269,139 @@ const SendMessagesNew = ({ user, onLogout }) => {
           {['field_1', 'field_2', 'field_3', 'field_4', 'field_5'].map((field, idx) => (
             <div key={field} className="space-y-2">
               <Label htmlFor={field}>Body Field {idx + 1}</Label>
-              <Input
-                id={field}
-                placeholder={`Column name for ${field} (e.g., first_name)`}
-                value={templateParams[field] || ''}
-                onChange={(e) => setTemplateParams({...templateParams, [field]: e.target.value})}
-              />
+              {paramMode === 'global' ? (
+                <Textarea
+                  id={field}
+                  placeholder={`Enter text for ${field} (same for all recipients)`}
+                  rows={2}
+                  value={templateParams[field] || ''}
+                  onChange={(e) => setTemplateParams({...templateParams, [field]: e.target.value})}
+                />
+              ) : (
+                <Select
+                  value={columnMapping[field] || ''}
+                  onValueChange={(value) => setColumnMapping({...columnMapping, [field]: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select column" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {excelColumns.map(col => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           ))}
 
           <div className="space-y-2">
             <Label htmlFor="header_image">Header Image URL</Label>
-            <Input
-              id="header_image"
-              placeholder="https://example.com/image.jpg"
-              value={templateParams.header_image || ''}
-              onChange={(e) => setTemplateParams({...templateParams, header_image: e.target.value})}
-            />
+            {paramMode === 'global' ? (
+              <Input
+                id="header_image"
+                placeholder="https://example.com/image.jpg"
+                value={templateParams.header_image || ''}
+                onChange={(e) => setTemplateParams({...templateParams, header_image: e.target.value})}
+              />
+            ) : (
+              <Select
+                value={columnMapping.header_image || ''}
+                onValueChange={(value) => setColumnMapping({...columnMapping, header_image: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select column" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {excelColumns.map(col => (
+                    <SelectItem key={col} value={col}>{col}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="header_video">Header Video URL</Label>
-            <Input
-              id="header_video"
-              placeholder="https://example.com/video.mp4"
-              value={templateParams.header_video || ''}
-              onChange={(e) => setTemplateParams({...templateParams, header_video: e.target.value})}
-            />
+            {paramMode === 'global' ? (
+              <Input
+                id="header_video"
+                placeholder="https://example.com/video.mp4"
+                value={templateParams.header_video || ''}
+                onChange={(e) => setTemplateParams({...templateParams, header_video: e.target.value})}
+              />
+            ) : (
+              <Select
+                value={columnMapping.header_video || ''}
+                onValueChange={(value) => setColumnMapping({...columnMapping, header_video: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select column" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {excelColumns.map(col => (
+                    <SelectItem key={col} value={col}>{col}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="button_0">Button 0 Parameter</Label>
-            <Input
-              id="button_0"
-              placeholder="Column name for button"
-              value={templateParams.button_0 || ''}
-              onChange={(e) => setTemplateParams({...templateParams, button_0: e.target.value})}
-            />
+            {paramMode === 'global' ? (
+              <Input
+                id="button_0"
+                placeholder="Button parameter value"
+                value={templateParams.button_0 || ''}
+                onChange={(e) => setTemplateParams({...templateParams, button_0: e.target.value})}
+              />
+            ) : (
+              <Select
+                value={columnMapping.button_0 || ''}
+                onValueChange={(value) => setColumnMapping({...columnMapping, button_0: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select column" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {excelColumns.map(col => (
+                    <SelectItem key={col} value={col}>{col}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="button_1">Button 1 Parameter</Label>
-            <Input
-              id="button_1"
-              placeholder="Column name for button"
-              value={templateParams.button_1 || ''}
-              onChange={(e) => setTemplateParams({...templateParams, button_1: e.target.value})}
-            />
+            {paramMode === 'global' ? (
+              <Input
+                id="button_1"
+                placeholder="Button parameter value"
+                value={templateParams.button_1 || ''}
+                onChange={(e) => setTemplateParams({...templateParams, button_1: e.target.value})}
+              />
+            ) : (
+              <Select
+                value={columnMapping.button_1 || ''}
+                onValueChange={(value) => setColumnMapping({...columnMapping, button_1: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select column" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {excelColumns.map(col => (
+                    <SelectItem key={col} value={col}>{col}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
       </div>
