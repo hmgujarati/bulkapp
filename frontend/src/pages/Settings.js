@@ -33,6 +33,7 @@ const Settings = ({ user, onLogout }) => {
         email: userData.email
       });
       setBizChatToken(userData.bizChatToken || '');
+      setBizChatVendorUID(userData.bizChatVendorUID || '');
     } catch (error) {
       toast.error('Failed to fetch user data');
     } finally {
