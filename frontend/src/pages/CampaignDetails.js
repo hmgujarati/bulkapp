@@ -18,7 +18,16 @@ const CampaignDetails = ({ user, onLogout }) => {
 
   useEffect(() => {
     fetchCampaign();
-  }, [id]);
+    
+    // Auto-refresh for processing campaigns
+    const interval = setInterval(() => {
+      if (campaign && campaign.status === 'processing') {
+        fetchCampaign(true);
+      }
+    }, 3000); // Refresh every 3 seconds
+    
+    return () => clearInterval(interval);
+  }, [id, campaign]);
 
   const fetchCampaign = async () => {
     try {
