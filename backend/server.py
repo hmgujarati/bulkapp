@@ -372,7 +372,10 @@ async def send_whatsapp_message(
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-async def process_campaign(campaign_id: str, user_token: str):
+async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
+    """Process campaign with rate limiting (29 messages/second)"""
+    import asyncio
+    
     campaign = await db.campaigns.find_one({"id": campaign_id})
     if not campaign:
         return
@@ -383,18 +386,31 @@ async def process_campaign(campaign_id: str, user_token: str):
         {"$set": {"status": CampaignStatus.PROCESSING.value}}
     )
     
-    sent_count = 0
-    failed_count = 0
+    sent_count = campaign.get('sentCount', 0)
+    failed_count = campaign.get('failedCount', 0)
+    
+    # Rate limiting: 29 messages per second
+    delay_between_messages = 1.0 / 29  # ~0.034 seconds
+    
+    batch_size = 100  # Process in batches for better control
     
     for i, recipient in enumerate(campaign['recipients']):
+        # Check if campaign is paused
+        current_campaign = await db.campaigns.find_one({"id": campaign_id})
+        if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
+            logger.info(f"Campaign {campaign_id} paused at message {i}")
+            return
+        
         if recipient['status'] != MessageStatus.PENDING.value:
             continue
         
+        # Send message with recipient-specific data
         result = await send_whatsapp_message(
             recipient['phone'],
             campaign['templateName'],
             user_token,
-            recipient['name']
+            vendor_uid,
+            recipient
         )
         
         if result['success']:
@@ -406,8 +422,26 @@ async def process_campaign(campaign_id: str, user_token: str):
             failed_count += 1
             campaign['recipients'][i]['status'] = MessageStatus.FAILED.value
             campaign['recipients'][i]['error'] = result['error']
+        
+        # Update campaign every batch or when significant change
+        if (i + 1) % batch_size == 0 or (i + 1) == len(campaign['recipients']):
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {
+                    "$set": {
+                        "recipients": campaign['recipients'],
+                        "sentCount": sent_count,
+                        "failedCount": failed_count,
+                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                        "updatedAt": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            )
+        
+        # Rate limiting
+        await asyncio.sleep(delay_between_messages)
     
-    # Update campaign
+    # Final update - mark as completed
     await db.campaigns.update_one(
         {"id": campaign_id},
         {
