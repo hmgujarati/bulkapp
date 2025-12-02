@@ -110,15 +110,22 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     }
 
     let addedCount = 0;
+    let skippedCount = 0;
+    
     const updated = recipients.map(r => {
-      // Only check if number already starts with +
-      // If it has +, it already has a country code, skip it
-      if (r.phone.trim().startsWith('+')) {
+      const phone = r.phone.trim();
+      
+      // Remove all non-digit characters to check the raw number
+      const digitsOnly = phone.replace(/\D/g, '');
+      
+      // Check if number already has + sign OR already starts with the country code
+      if (phone.startsWith('+') || digitsOnly.startsWith(countryCode)) {
+        skippedCount++;
         return r;
       }
       
-      // Remove leading zeros and any non-digit characters except +
-      const cleanPhone = r.phone.replace(/^0+/, '').replace(/[^\d]/g, '');
+      // Remove leading zeros
+      const cleanPhone = digitsOnly.replace(/^0+/, '');
       
       // Add country code
       addedCount++;
@@ -129,7 +136,12 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     });
 
     setRecipients(updated);
-    toast.success(`Country code +${countryCode} added to ${addedCount} number(s)`);
+    
+    if (addedCount > 0) {
+      toast.success(`Country code +${countryCode} added to ${addedCount} number(s). ${skippedCount} already had it.`);
+    } else {
+      toast.info(`All ${skippedCount} numbers already have country code ${countryCode}`);
+    }
   };
 
   // Remove duplicates
