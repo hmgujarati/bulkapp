@@ -64,10 +64,10 @@ const Settings = ({ user, onLogout }) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.put(`/users/${user.id}`, { bizChatToken });
-      toast.success('BizChat API token updated successfully');
+      await api.put(`/users/${user.id}`, { bizChatToken, bizChatVendorUID });
+      toast.success('BizChat API credentials updated successfully');
     } catch (error) {
-      toast.error('Failed to update API token');
+      toast.error('Failed to update API credentials');
     } finally {
       setSaving(false);
     }
