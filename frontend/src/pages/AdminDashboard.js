@@ -257,14 +257,25 @@ const AdminDashboard = ({ user, onLogout }) => {
                           </Select>
                         </td>
                         <td className="py-3 px-4 text-sm">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handlePauseUser(u.id, u.isPaused)}
-                            data-testid={`pause-user-${u.id}`}
-                          >
-                            {u.isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                          </Button>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handlePauseUser(u.id, u.isPaused)}
+                              data-testid={`pause-user-${u.id}`}
+                            >
+                              {u.isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleDeleteUser(u.id)}
+                              data-testid={`delete-user-${u.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
