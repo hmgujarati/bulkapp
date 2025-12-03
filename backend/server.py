@@ -646,6 +646,55 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         {"$inc": {"dailyUsage": sent_count}}
     )
 
+
+async def check_scheduled_campaigns():
+    """Background task to check and process scheduled campaigns"""
+    while True:
+        try:
+            # Find campaigns that are scheduled and whose time has come
+            now = datetime.now(timezone.utc)
+            
+            scheduled_campaigns = await db.campaigns.find({
+                "status": CampaignStatus.SCHEDULED.value,
+                "scheduledAt": {"$lte": now.isoformat()}
+            }).to_list(100)
+            
+            for campaign in scheduled_campaigns:
+                logger.info(f"Processing scheduled campaign: {campaign['id']}")
+                
+                # Get user's BizChat credentials
+                user = await db.users.find_one({"id": campaign['userId']})
+                if not user or not user.get('bizChatToken') or not user.get('bizChatVendorUID'):
+                    logger.error(f"User {campaign['userId']} missing BizChat credentials")
+                    # Mark campaign as failed
+                    await db.campaigns.update_one(
+                        {"id": campaign['id']},
+                        {"$set": {"status": CampaignStatus.COMPLETED.value, "completedAt": now.isoformat()}}
+                    )
+                    continue
+                
+                # Update status to processing
+                await db.campaigns.update_one(
+                    {"id": campaign['id']},
+                    {"$set": {"status": CampaignStatus.PROCESSING.value}}
+                )
+                
+                # Process campaign in background
+                asyncio.create_task(
+                    process_campaign(
+                        campaign['id'],
+                        user['bizChatToken'],
+                        user['bizChatVendorUID']
+                    )
+                )
+            
+        except Exception as e:
+            logger.error(f"Error in check_scheduled_campaigns: {str(e)}")
+        
+        # Check every minute
+        await asyncio.sleep(60)
+
+
 @api_router.post("/messages/send")
 async def send_messages(
     request: SendMessageRequest,
