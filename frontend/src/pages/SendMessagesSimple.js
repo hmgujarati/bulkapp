@@ -342,6 +342,14 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                 <CardDescription>Enter values for template variables (same for all recipients)</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <Alert className="bg-emerald-50 border-emerald-200">
+                  <AlertCircle className="h-4 w-4 text-emerald-600" />
+                  <AlertDescription className="text-emerald-800">
+                    <strong>💡 Personalization:</strong> Use <code className="bg-emerald-100 px-1 rounded">{'{name}'}</code> to insert recipient's name from Excel.
+                    <br />
+                    <span className="text-sm">Example: "Hi {'{name}'}, your order is ready!" becomes "Hi John, your order is ready!"</span>
+                  </AlertDescription>
+                </Alert>
                 <div className="space-y-2">
                   <Label htmlFor="field1">Field 1</Label>
                   <Textarea
