@@ -95,11 +95,6 @@ const LoginPage = ({ onLogin }) => {
             </form>
           </CardContent>
         </Card>
-
-        {/* Footer Note */}
-        <p className="text-center text-sm text-slate-600 mt-6">
-          Powered by BizChat API
-        </p>
       </div>
     </div>
   );
