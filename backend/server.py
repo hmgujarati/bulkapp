@@ -505,11 +505,17 @@ async def send_whatsapp_message(
             
             # Add direct field_1 through field_5 parameters
             body_params = []
+            recipient_name = recipient_data.get('name', '')
+            
             for i in range(1, 6):  # field_1 through field_5
                 field_key = f"field_{i}"
                 if field_key in recipient_data and recipient_data[field_key]:
                     value = str(recipient_data[field_key]).strip()
                     if value:
+                        # Replace {name} placeholder with actual name
+                        if '{name}' in value and recipient_name:
+                            value = value.replace('{name}', recipient_name)
+                        
                         # Add as direct field
                         payload[field_key] = value
                         # Also add to body parameters for components array
