@@ -988,6 +988,10 @@ async def startup_event():
         admin_dict['updatedAt'] = admin_dict['updatedAt'].isoformat()
         await db.users.insert_one(admin_dict)
         logger.info("Default admin user created: bizchatapi@gmail.com / admin123")
+    
+    # Start scheduled campaigns checker in background
+    asyncio.create_task(check_scheduled_campaigns())
+    logger.info("Scheduled campaigns checker started")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
