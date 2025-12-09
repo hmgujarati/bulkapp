@@ -623,19 +623,32 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                 {mediaType === 'document' && (
                   <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                     <h3 className="font-semibold text-purple-900">📄 Document Upload</h3>
-                    <div className="space-y-2">
-                      <Label htmlFor="headerDocument">Header Document</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="headerDocument"
-                          type="file"
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-                          onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'document')}
-                          disabled={uploading}
-                        />
-                        {headerDocument && <Button variant="outline" size="sm" onClick={() => window.open(headerDocument)}>Download</Button>}
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="headerDocument">Upload Document File</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="headerDocument"
+                            type="file"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                            onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'document')}
+                            disabled={uploading}
+                          />
+                          {headerDocument && <Button variant="outline" size="sm" onClick={() => window.open(headerDocument)}>Preview</Button>}
+                        </div>
+                        {headerDocument && <p className="text-xs text-purple-600">✓ Document uploaded</p>}
                       </div>
-                      {headerDocument && <p className="text-xs text-purple-600">✓ Document uploaded: {headerDocumentName}</p>}
+                      
+                      <div>
+                        <Label htmlFor="headerDocumentName">Document Name</Label>
+                        <Input
+                          id="headerDocumentName"
+                          placeholder="e.g., catalog.pdf or {'{name}'}"
+                          value={headerDocumentName}
+                          onChange={(e) => setHeaderDocumentName(e.target.value)}
+                        />
+                        <p className="text-xs text-slate-500">Name shown to recipient. Use {'{name}'} for personalization</p>
+                      </div>
                     </div>
                     {uploading && <p className="text-sm text-blue-600">⏳ Uploading...</p>}
                   </div>
