@@ -59,6 +59,20 @@ const MyTemplates = ({ user, onLogout }) => {
   const handleOpenDialog = (template = null) => {
     if (template) {
       setEditingTemplate(template);
+      
+      // Detect media type
+      if (template.header_image) {
+        setMediaType('image');
+      } else if (template.header_video) {
+        setMediaType('video');
+      } else if (template.header_document) {
+        setMediaType('document');
+      } else if (template.location_latitude && template.location_longitude) {
+        setMediaType('location');
+      } else {
+        setMediaType('none');
+      }
+      
       setFormData({
         name: template.name,
         templateName: template.templateName,
