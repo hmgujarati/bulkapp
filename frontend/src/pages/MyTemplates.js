@@ -343,13 +343,6 @@ const MyTemplates = ({ user, onLogout }) => {
                         value={formData.header_document_name}
                         onChange={(e) => setFormData({...formData, header_document_name: e.target.value})}
                       />
-                      <Label htmlFor="header_field_1">Header Field 1 (Optional)</Label>
-                      <Input
-                        id="header_field_1"
-                        placeholder="Use {'{name}'}"
-                        value={formData.header_field_1}
-                        onChange={(e) => setFormData({...formData, header_field_1: e.target.value})}
-                      />
                     </div>
                   )}
 
