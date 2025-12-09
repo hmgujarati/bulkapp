@@ -349,25 +349,47 @@ const MyTemplates = ({ user, onLogout }) => {
                   {/* Show fields based on type */}
                   {mediaType === 'image' && (
                     <div className="space-y-2">
-                      <Label htmlFor="header_image">Image URL</Label>
+                      <Label htmlFor="header_image_file">Upload Image</Label>
+                      <Input
+                        id="header_image_file"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'image')}
+                        disabled={uploading}
+                      />
+                      {uploading && <p className="text-xs text-blue-600">⏳ Uploading...</p>}
+                      
+                      <Label htmlFor="header_image">Image URL (or manually paste)</Label>
                       <Input
                         id="header_image"
                         placeholder="https://domain.com/uploads/images/..."
                         value={formData.header_image}
                         onChange={(e) => setFormData({...formData, header_image: e.target.value})}
                       />
+                      {formData.header_image && <p className="text-xs text-emerald-600">✓ Image URL set</p>}
                     </div>
                   )}
 
                   {mediaType === 'video' && (
                     <div className="space-y-2">
-                      <Label htmlFor="header_video">Video URL</Label>
+                      <Label htmlFor="header_video_file">Upload Video</Label>
+                      <Input
+                        id="header_video_file"
+                        type="file"
+                        accept="video/*"
+                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'video')}
+                        disabled={uploading}
+                      />
+                      {uploading && <p className="text-xs text-blue-600">⏳ Uploading...</p>}
+                      
+                      <Label htmlFor="header_video">Video URL (or manually paste)</Label>
                       <Input
                         id="header_video"
                         placeholder="https://domain.com/uploads/videos/..."
                         value={formData.header_video}
                         onChange={(e) => setFormData({...formData, header_video: e.target.value})}
                       />
+                      {formData.header_video && <p className="text-xs text-emerald-600">✓ Video URL set</p>}
                     </div>
                   )}
 
