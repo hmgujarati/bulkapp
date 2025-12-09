@@ -250,7 +250,9 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       
       // Convert relative URL to absolute URL using backend URL
       const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
-      const fullUrl = backendUrl + response.data.url;
+      // Add /api prefix for uploads to work through the proxy
+      const urlWithApi = response.data.url.replace('/uploads/', '/api/uploads/');
+      const fullUrl = backendUrl + urlWithApi;
       
       if (type === 'image') {
         setHeaderImage(fullUrl);
