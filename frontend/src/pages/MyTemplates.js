@@ -75,7 +75,9 @@ const MyTemplates = ({ user, onLogout }) => {
       
       // Convert relative URL to absolute URL
       const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
-      const fullUrl = backendUrl + response.data.url;
+      // Add /api prefix for uploads to work through the proxy
+      const urlWithApi = response.data.url.replace('/uploads/', '/api/uploads/');
+      const fullUrl = backendUrl + urlWithApi;
       
       // Update formData with the uploaded file URL
       if (type === 'image') {
