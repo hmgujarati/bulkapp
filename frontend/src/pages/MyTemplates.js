@@ -96,6 +96,7 @@ const MyTemplates = ({ user, onLogout }) => {
       });
     } else {
       setEditingTemplate(null);
+      setMediaType('none');
       setFormData({
         name: '',
         templateName: '',
