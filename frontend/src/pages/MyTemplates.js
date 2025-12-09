@@ -263,6 +263,113 @@ const MyTemplates = ({ user, onLogout }) => {
                   </div>
                 </div>
 
+
+                {/* Media & Location Fields */}
+                <div className="space-y-4 pt-4 border-t mt-4">
+                  <h3 className="font-semibold text-slate-900">Media & Location (Optional)</h3>
+                  
+                  {/* Media URLs */}
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <Label htmlFor="header_image">Header Image URL</Label>
+                      <Input
+                        id="header_image"
+                        placeholder="https://example.com/image.jpg"
+                        value={formData.header_image}
+                        onChange={(e) => setFormData({...formData, header_image: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="header_video">Header Video URL</Label>
+                      <Input
+                        id="header_video"
+                        placeholder="https://example.com/video.mp4"
+                        value={formData.header_video}
+                        onChange={(e) => setFormData({...formData, header_video: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="header_document">Header Document URL</Label>
+                      <Input
+                        id="header_document"
+                        placeholder="https://example.com/document.pdf"
+                        value={formData.header_document}
+                        onChange={(e) => setFormData({...formData, header_document: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="header_document_name">Document Name</Label>
+                      <Input
+                        id="header_document_name"
+                        placeholder="e.g., catalog.pdf"
+                        value={formData.header_document_name}
+                        onChange={(e) => setFormData({...formData, header_document_name: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="header_field_1">Header Field 1</Label>
+                      <Input
+                        id="header_field_1"
+                        placeholder="Use {'{name}'} for personalization"
+                        value={formData.header_field_1}
+                        onChange={(e) => setFormData({...formData, header_field_1: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Location Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                    <div>
+                      <Label htmlFor="location_latitude">Latitude</Label>
+                      <Input
+                        id="location_latitude"
+                        placeholder="e.g., 22.22"
+                        value={formData.location_latitude}
+                        onChange={(e) => setFormData({...formData, location_latitude: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="location_longitude">Longitude</Label>
+                      <Input
+                        id="location_longitude"
+                        placeholder="e.g., 22.22"
+                        value={formData.location_longitude}
+                        onChange={(e) => setFormData({...formData, location_longitude: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="location_name">Location Name</Label>
+                      <Input
+                        id="location_name"
+                        placeholder="e.g., Our Store"
+                        value={formData.location_name}
+                        onChange={(e) => setFormData({...formData, location_name: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="location_address">Location Address</Label>
+                      <Input
+                        id="location_address"
+                        placeholder="e.g., 123 Main St"
+                        value={formData.location_address}
+                        onChange={(e) => setFormData({...formData, location_address: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-500 pt-2">
+                    💡 Tip: Upload media files in Send Messages page, then copy URLs here for reuse
+                  </p>
+                </div>
+
+
                 <div className="flex space-x-2 pt-4">
                   <Button type="submit" className="flex-1">
                     {editingTemplate ? 'Update Template' : 'Save Template'}
