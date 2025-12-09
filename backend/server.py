@@ -704,6 +704,56 @@ async def check_scheduled_campaigns():
         await asyncio.sleep(60)
 
 
+
+@api_router.post("/upload/media")
+async def upload_media(
+    file: UploadFile = File(...),
+    media_type: str = "image",  # image, video, document
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Upload media file and return URL"""
+    try:
+        # Validate media type
+        if media_type not in ["image", "video", "document"]:
+            raise HTTPException(status_code=400, detail="Invalid media type")
+        
+        # Validate file type
+        allowed_extensions = {
+            "image": [".jpg", ".jpeg", ".png", ".gif", ".webp"],
+            "video": [".mp4", ".mov", ".avi", ".mkv", ".webm"],
+            "document": [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv"]
+        }
+        
+        file_ext = Path(file.filename).suffix.lower()
+        if file_ext not in allowed_extensions[media_type]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions[media_type])}"
+            )
+        
+        # Generate unique filename
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = UPLOAD_DIR / f"{media_type}s" / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Generate URL (will work with REACT_APP_BACKEND_URL)
+        file_url = f"/uploads/{media_type}s/{unique_filename}"
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "url": file_url,
+            "type": media_type
+        }
+    
+    except Exception as e:
+        logger.error(f"Error uploading file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+
+
 @api_router.post("/messages/send")
 async def send_messages(
     request: SendMessageRequest,
