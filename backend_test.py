@@ -39,6 +39,8 @@ class WhatsAppBulkMessengerTester:
                     response = requests.post(url, json=data, headers=test_headers, timeout=30)
             elif method == 'PUT':
                 response = requests.put(url, json=data, headers=test_headers, timeout=30)
+            elif method == 'DELETE':
+                response = requests.delete(url, headers=test_headers, timeout=30)
 
             success = response.status_code == expected_status
             if success:
