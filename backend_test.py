@@ -1,6 +1,7 @@
 import requests
 import sys
 import json
+import io
 from datetime import datetime
 
 class WhatsAppBulkMessengerTester:
@@ -10,6 +11,7 @@ class WhatsAppBulkMessengerTester:
         self.user_token = None
         self.test_user_id = None
         self.test_user_email = None
+        self.test_template_id = None
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []
