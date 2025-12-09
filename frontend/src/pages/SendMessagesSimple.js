@@ -363,14 +363,11 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       // Add ONLY the selected media type
       if (mediaType === 'image' && headerImage) {
         payload.header_image = headerImage;
-        if (headerField1) payload.header_field_1 = headerField1;
       } else if (mediaType === 'video' && headerVideo) {
         payload.header_video = headerVideo;
-        if (headerField1) payload.header_field_1 = headerField1;
       } else if (mediaType === 'document' && headerDocument) {
         payload.header_document = headerDocument;
         if (headerDocumentName) payload.header_document_name = headerDocumentName;
-        if (headerField1) payload.header_field_1 = headerField1;
       } else if (mediaType === 'location' && locationLatitude && locationLongitude) {
         payload.location_latitude = locationLatitude;
         payload.location_longitude = locationLongitude;
