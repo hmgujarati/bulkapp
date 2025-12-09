@@ -25,7 +25,18 @@ const MyTemplates = ({ user, onLogout }) => {
     field2: '',
     field3: '',
     field4: '',
-    field5: ''
+    field5: '',
+    // Media fields
+    header_image: '',
+    header_video: '',
+    header_document: '',
+    header_document_name: '',
+    header_field_1: '',
+    // Location fields
+    location_latitude: '',
+    location_longitude: '',
+    location_name: '',
+    location_address: ''
   });
 
   useEffect(() => {
