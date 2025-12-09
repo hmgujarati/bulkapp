@@ -65,7 +65,18 @@ const MyTemplates = ({ user, onLogout }) => {
         field2: template.field2 || '',
         field3: template.field3 || '',
         field4: template.field4 || '',
-        field5: template.field5 || ''
+        field5: template.field5 || '',
+        // Media fields
+        header_image: template.header_image || '',
+        header_video: template.header_video || '',
+        header_document: template.header_document || '',
+        header_document_name: template.header_document_name || '',
+        header_field_1: template.header_field_1 || '',
+        // Location fields
+        location_latitude: template.location_latitude || '',
+        location_longitude: template.location_longitude || '',
+        location_name: template.location_name || '',
+        location_address: template.location_address || ''
       });
     } else {
       setEditingTemplate(null);
