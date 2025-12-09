@@ -42,7 +42,6 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [headerVideo, setHeaderVideo] = useState('');
   const [headerDocument, setHeaderDocument] = useState('');
   const [headerDocumentName, setHeaderDocumentName] = useState('');
-  const [headerField1, setHeaderField1] = useState('');
   const [uploading, setUploading] = useState(false);
   
   // Location fields
