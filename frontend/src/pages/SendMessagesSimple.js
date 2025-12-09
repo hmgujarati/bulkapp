@@ -320,14 +320,11 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       // Add ONLY the selected media type to template
       if (mediaType === 'image' && headerImage) {
         templateData.header_image = headerImage;
-        if (headerField1) templateData.header_field_1 = headerField1;
       } else if (mediaType === 'video' && headerVideo) {
         templateData.header_video = headerVideo;
-        if (headerField1) templateData.header_field_1 = headerField1;
       } else if (mediaType === 'document' && headerDocument) {
         templateData.header_document = headerDocument;
         if (headerDocumentName) templateData.header_document_name = headerDocumentName;
-        if (headerField1) templateData.header_field_1 = headerField1;
       } else if (mediaType === 'location' && locationLatitude && locationLongitude) {
         templateData.location_latitude = locationLatitude;
         templateData.location_longitude = locationLongitude;
