@@ -312,13 +312,6 @@ const MyTemplates = ({ user, onLogout }) => {
                         value={formData.header_image}
                         onChange={(e) => setFormData({...formData, header_image: e.target.value})}
                       />
-                      <Label htmlFor="header_field_1">Header Field 1 (Optional)</Label>
-                      <Input
-                        id="header_field_1"
-                        placeholder="Use {'{name}'}"
-                        value={formData.header_field_1}
-                        onChange={(e) => setFormData({...formData, header_field_1: e.target.value})}
-                      />
                     </div>
                   )}
 
@@ -330,13 +323,6 @@ const MyTemplates = ({ user, onLogout }) => {
                         placeholder="https://domain.com/uploads/videos/..."
                         value={formData.header_video}
                         onChange={(e) => setFormData({...formData, header_video: e.target.value})}
-                      />
-                      <Label htmlFor="header_field_1">Header Field 1 (Optional)</Label>
-                      <Input
-                        id="header_field_1"
-                        placeholder="Use {'{name}'}"
-                        value={formData.header_field_1}
-                        onChange={(e) => setFormData({...formData, header_field_1: e.target.value})}
                       />
                     </div>
                   )}
