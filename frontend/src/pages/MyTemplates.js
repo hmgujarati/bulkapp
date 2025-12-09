@@ -17,6 +17,8 @@ const MyTemplates = ({ user, onLogout }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   
+  const [mediaType, setMediaType] = useState('none'); // Track selected media type
+  
   const [formData, setFormData] = useState({
     name: '',
     templateName: '',
