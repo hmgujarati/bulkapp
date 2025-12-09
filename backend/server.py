@@ -1066,11 +1066,12 @@ async def delete_campaign(campaign_id: str, current_user: TokenData = Depends(ge
     
     return {"message": "Campaign deleted successfully"}
 
+# Mount static files on both root and api paths for compatibility
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="api_uploads")
+
 # Include the router in the main app
 app.include_router(api_router)
-
-# Mount static files for uploaded media - AFTER api_router
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
