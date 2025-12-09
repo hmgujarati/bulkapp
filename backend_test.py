@@ -619,10 +619,12 @@ def main():
     tester = WhatsAppBulkMessengerTester()
     
     # Authentication Tests
-    print("\n📋 AUTHENTICATION TESTS")
-    print("-" * 30)
+    print("\n📋 AUTHENTICATION & ADMIN TESTS")
+    print("-" * 40)
     tester.test_admin_login()
     tester.test_admin_me()
+    tester.test_password_change()
+    tester.test_super_admin_protection()
     tester.test_invalid_login()
     tester.test_unauthorized_access()
     
@@ -637,20 +639,36 @@ def main():
     tester.test_unpause_user()
     tester.test_update_user_profile()
     
-    # Template Tests
-    print("\n📄 TEMPLATE TESTS")
+    # Media Upload Tests
+    print("\n📁 MEDIA UPLOAD TESTS")
     print("-" * 30)
-    tester.test_get_templates_no_token()
+    tester.test_upload_media_image()
+    tester.test_upload_media_document()
+    
+    # Template Management Tests
+    print("\n📄 TEMPLATE MANAGEMENT TESTS")
+    print("-" * 35)
+    tester.test_create_saved_template_with_media()
+    tester.test_get_saved_templates()
+    tester.test_get_saved_template_by_id()
+    tester.test_update_saved_template()
+    tester.test_create_template_with_location()
     
     # Campaign Tests
     print("\n📊 CAMPAIGN TESTS")
     print("-" * 30)
     tester.test_get_campaigns()
+    tester.test_send_message_with_media()
     
     # File Upload Tests
-    print("\n📁 FILE UPLOAD TESTS")
+    print("\n📋 RECIPIENT UPLOAD TESTS")
     print("-" * 30)
     tester.test_upload_recipients()
+    
+    # Cleanup Tests
+    print("\n🧹 CLEANUP TESTS")
+    print("-" * 20)
+    tester.test_delete_saved_template()
     
     # Print Results
     print("\n" + "=" * 60)
