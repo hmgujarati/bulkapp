@@ -16,6 +16,7 @@ const MyTemplates = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
+  const [uploading, setUploading] = useState(false);
   
   const [mediaType, setMediaType] = useState('none'); // Track selected media type
   
