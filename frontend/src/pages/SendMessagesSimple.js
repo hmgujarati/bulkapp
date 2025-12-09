@@ -207,6 +207,45 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     toast.success(`Removed ${removed} duplicate(s). ${unique.length} unique recipients.`);
   };
 
+
+
+  // Handle file upload
+  const handleFileUpload = async (file, type) => {
+    if (!file) return;
+    
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('media_type', type);
+      
+      const response = await api.post('/upload/media', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        params: { media_type: type }
+      });
+      
+      // Convert relative URL to absolute URL using backend URL
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
+      const fullUrl = backendUrl + response.data.url;
+      
+      if (type === 'image') {
+        setHeaderImage(fullUrl);
+        toast.success('Image uploaded successfully');
+      } else if (type === 'video') {
+        setHeaderVideo(fullUrl);
+        toast.success('Video uploaded successfully');
+      } else if (type === 'document') {
+        setHeaderDocument(fullUrl);
+        setHeaderDocumentName(file.name);
+        toast.success('Document uploaded successfully');
+      }
+    } catch (error) {
+      toast.error(`Failed to upload ${type}: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // Send messages
   const handleSend = async (isScheduled = false) => {
     // Validation
