@@ -816,6 +816,26 @@ async def send_messages(
             if key not in ['phone', 'name']:
                 recipient_dict[key] = value
         
+        # Add campaign-level media and location fields to each recipient
+        if request.header_image:
+            recipient_dict['header_image'] = request.header_image
+        if request.header_video:
+            recipient_dict['header_video'] = request.header_video
+        if request.header_document:
+            recipient_dict['header_document'] = request.header_document
+        if request.header_document_name:
+            recipient_dict['header_document_name'] = request.header_document_name
+        if request.header_field_1:
+            recipient_dict['header_field_1'] = request.header_field_1
+        if request.location_latitude:
+            recipient_dict['location_latitude'] = request.location_latitude
+        if request.location_longitude:
+            recipient_dict['location_longitude'] = request.location_longitude
+        if request.location_name:
+            recipient_dict['location_name'] = request.location_name
+        if request.location_address:
+            recipient_dict['location_address'] = request.location_address
+        
         recipients.append(recipient_dict)
     
     # Create campaign
