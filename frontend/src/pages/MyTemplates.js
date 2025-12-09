@@ -373,20 +373,33 @@ const MyTemplates = ({ user, onLogout }) => {
 
                   {mediaType === 'document' && (
                     <div className="space-y-2">
-                      <Label htmlFor="header_document">Document URL</Label>
+                      <Label htmlFor="header_document_file">Upload Document</Label>
+                      <Input
+                        id="header_document_file"
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'document')}
+                        disabled={uploading}
+                      />
+                      {uploading && <p className="text-xs text-blue-600">⏳ Uploading...</p>}
+                      
+                      <Label htmlFor="header_document">Document URL (or manually paste)</Label>
                       <Input
                         id="header_document"
                         placeholder="https://domain.com/uploads/documents/..."
                         value={formData.header_document}
                         onChange={(e) => setFormData({...formData, header_document: e.target.value})}
                       />
+                      {formData.header_document && <p className="text-xs text-emerald-600">✓ Document URL set</p>}
+                      
                       <Label htmlFor="header_document_name">Document Name</Label>
                       <Input
                         id="header_document_name"
-                        placeholder="e.g., catalog.pdf"
+                        placeholder="e.g., catalog.pdf or {'{name}'}"
                         value={formData.header_document_name}
                         onChange={(e) => setFormData({...formData, header_document_name: e.target.value})}
                       />
+                      <p className="text-xs text-slate-500">Can use {'{name}'} for personalization</p>
                     </div>
                   )}
 
