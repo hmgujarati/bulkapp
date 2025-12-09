@@ -81,7 +81,18 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       setField3(template.field3 || '');
       setField4(template.field4 || '');
       setField5(template.field5 || '');
-      toast.success(`Template "${template.name}" loaded`);
+      // Load media fields
+      setHeaderImage(template.header_image || '');
+      setHeaderVideo(template.header_video || '');
+      setHeaderDocument(template.header_document || '');
+      setHeaderDocumentName(template.header_document_name || '');
+      setHeaderField1(template.header_field_1 || '');
+      // Load location fields
+      setLocationLatitude(template.location_latitude || '');
+      setLocationLongitude(template.location_longitude || '');
+      setLocationName(template.location_name || '');
+      setLocationAddress(template.location_address || '');
+      toast.success(`Template "${template.name}" loaded with media & location`);
     }
   };
 
