@@ -307,6 +307,311 @@ class WhatsAppBulkMessengerTester:
         )
         return success
 
+    def test_password_change(self):
+        """Test password change functionality"""
+        if not self.admin_token:
+            print("❌ Skipping - No admin token")
+            return False
+
+        # Test with wrong current password
+        success, response = self.run_test(
+            "Password Change (Wrong Current)",
+            "POST",
+            "auth/change-password",
+            400,  # Should fail with wrong current password
+            data={"currentPassword": "wrongpassword", "newPassword": "newpass123"},
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success:
+            return False
+
+        # Test with correct current password
+        success, response = self.run_test(
+            "Password Change (Correct)",
+            "POST",
+            "auth/change-password",
+            200,
+            data={"currentPassword": "adminpassword", "newPassword": "newpass123"},
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if success:
+            # Change it back
+            self.run_test(
+                "Password Change (Revert)",
+                "POST",
+                "auth/change-password",
+                200,
+                data={"currentPassword": "newpass123", "newPassword": "adminpassword"},
+                headers={'Authorization': f'Bearer {self.admin_token}'}
+            )
+        
+        return success
+
+    def test_super_admin_protection(self):
+        """Test super admin protection (cannot pause/delete bizchatapi@gmail.com)"""
+        if not self.admin_token:
+            print("❌ Skipping - No admin token")
+            return False
+
+        # Get admin user ID
+        success, response = self.run_test(
+            "Get Admin Profile for Protection Test",
+            "GET",
+            "auth/me",
+            200,
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success or 'id' not in response:
+            return False
+        
+        admin_user_id = response['id']
+
+        # Try to pause super admin (should fail)
+        success, response = self.run_test(
+            "Try Pause Super Admin (Should Fail)",
+            "PUT",
+            f"users/{admin_user_id}/pause",
+            403,  # Should fail with 403
+            data={"isPaused": True},
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success:
+            return False
+
+        # Try to delete super admin (should fail)
+        success, response = self.run_test(
+            "Try Delete Super Admin (Should Fail)",
+            "DELETE",
+            f"users/{admin_user_id}",
+            403,  # Should fail with 403
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        return success
+
+    def test_upload_media_image(self):
+        """Test media upload - image"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Create a simple test image (1x1 pixel PNG)
+        png_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\tpHYs\x00\x00\x0b\x13\x00\x00\x0b\x13\x01\x00\x9a\x9c\x18\x00\x00\x00\x12IDATx\x9cc```bPPP\x00\x02\xac\x01\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82'
+        
+        success, response = self.run_test(
+            "Upload Image Media",
+            "POST",
+            "upload/media?media_type=image",
+            200,
+            files={'file': ('test.png', png_data, 'image/png')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success and 'url' in response:
+            print(f"   Image uploaded: {response['url']}")
+        
+        return success
+
+    def test_upload_media_document(self):
+        """Test media upload - document"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Create a simple test PDF content
+        pdf_content = b'%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n>>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer\n<<\n/Size 4\n/Root 1 0 R\n>>\nstartxref\n174\n%%EOF'
+        
+        success, response = self.run_test(
+            "Upload Document Media",
+            "POST",
+            "upload/media?media_type=document",
+            200,
+            files={'file': ('test.pdf', pdf_content, 'application/pdf')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success and 'url' in response:
+            print(f"   Document uploaded: {response['url']}")
+        
+        return success
+
+    def test_create_saved_template_with_media(self):
+        """Test creating saved template with media fields"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        template_data = {
+            "name": "Test Template with Image",
+            "templateName": "test_template",
+            "templateLanguage": "en",
+            "field1": "Hello {name}",
+            "field2": "Welcome to our service",
+            "field3": "Thank you for choosing us",
+            "header_image": "https://whatsapp-bulk-7.preview.emergentagent.com/uploads/images/test.jpg"
+        }
+
+        success, response = self.run_test(
+            "Create Saved Template with Media",
+            "POST",
+            "saved-templates",
+            200,
+            data=template_data,
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success and 'templateId' in response:
+            self.test_template_id = response['templateId']
+            print(f"   Template created: {self.test_template_id}")
+        
+        return success
+
+    def test_get_saved_templates(self):
+        """Test getting saved templates"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        success, response = self.run_test(
+            "Get Saved Templates",
+            "GET",
+            "saved-templates",
+            200,
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success and 'templates' in response:
+            print(f"   Found {len(response['templates'])} templates")
+        
+        return success
+
+    def test_get_saved_template_by_id(self):
+        """Test getting specific saved template"""
+        if not self.user_token or not self.test_template_id:
+            print("❌ Skipping - No user token or template ID")
+            return False
+
+        success, response = self.run_test(
+            "Get Saved Template by ID",
+            "GET",
+            f"saved-templates/{self.test_template_id}",
+            200,
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success:
+            print(f"   Template name: {response.get('name', 'N/A')}")
+            print(f"   Has image: {'Yes' if response.get('header_image') else 'No'}")
+        
+        return success
+
+    def test_update_saved_template(self):
+        """Test updating saved template"""
+        if not self.user_token or not self.test_template_id:
+            print("❌ Skipping - No user token or template ID")
+            return False
+
+        update_data = {
+            "name": "Updated Test Template",
+            "templateName": "test_template_updated",
+            "templateLanguage": "en",
+            "field1": "Updated Hello {name}",
+            "field2": "Updated welcome message",
+            "header_video": "https://whatsapp-bulk-7.preview.emergentagent.com/uploads/videos/test.mp4"
+        }
+
+        success, response = self.run_test(
+            "Update Saved Template",
+            "PUT",
+            f"saved-templates/{self.test_template_id}",
+            200,
+            data=update_data,
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        return success
+
+    def test_create_template_with_location(self):
+        """Test creating template with location data"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        template_data = {
+            "name": "Location Template",
+            "templateName": "location_template",
+            "templateLanguage": "en",
+            "field1": "Visit our store",
+            "location_latitude": "22.5726",
+            "location_longitude": "88.3639",
+            "location_name": "Our Store",
+            "location_address": "123 Main Street, Kolkata, India"
+        }
+
+        success, response = self.run_test(
+            "Create Template with Location",
+            "POST",
+            "saved-templates",
+            200,
+            data=template_data,
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        return success
+
+    def test_send_message_with_media(self):
+        """Test sending message with media (without actually sending)"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # This will fail because user doesn't have BizChat token configured
+        # But we can test the API structure
+        message_data = {
+            "campaignName": "Test Campaign with Media",
+            "templateName": "test_template",
+            "recipients": [
+                {
+                    "phone": "+1234567890",
+                    "name": "Test User",
+                    "field_1": "Hello Test",
+                    "field_2": "Welcome"
+                }
+            ],
+            "header_image": "https://whatsapp-bulk-7.preview.emergentagent.com/uploads/images/test.jpg"
+        }
+
+        success, response = self.run_test(
+            "Send Message with Media (Expected to Fail - No BizChat Token)",
+            "POST",
+            "messages/send",
+            400,  # Expected to fail due to missing BizChat token
+            data=message_data,
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        return success
+
+    def test_delete_saved_template(self):
+        """Test deleting saved template"""
+        if not self.user_token or not self.test_template_id:
+            print("❌ Skipping - No user token or template ID")
+            return False
+
+        success, response = self.run_test(
+            "Delete Saved Template",
+            "DELETE",
+            f"saved-templates/{self.test_template_id}",
+            200,
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        return success
+
 def main():
     print("🚀 Starting WhatsApp Bulk Messenger API Tests")
     print("=" * 60)
