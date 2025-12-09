@@ -195,6 +195,17 @@ class SavedTemplateCreate(BaseModel):
     field3: Optional[str] = None
     field4: Optional[str] = None
     field5: Optional[str] = None
+    # Media fields
+    header_image: Optional[str] = None
+    header_video: Optional[str] = None
+    header_document: Optional[str] = None
+    header_document_name: Optional[str] = None
+    header_field_1: Optional[str] = None
+    # Location fields
+    location_latitude: Optional[str] = None
+    location_longitude: Optional[str] = None
+    location_name: Optional[str] = None
+    location_address: Optional[str] = None
 
 class TemplateParameter(BaseModel):
     type: str = "text"
