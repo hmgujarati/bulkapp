@@ -476,6 +476,139 @@ const SendMessagesSimple = ({ user, onLogout }) => {
               </CardContent>
             </Card>
 
+
+
+            {/* Media & Location (Optional) */}
+            <Card className="shadow-lg border-0">
+              <CardHeader>
+                <CardTitle>Media & Location (Optional)</CardTitle>
+                <CardDescription>Add images, videos, documents, or location data to your message</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Media Section */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-slate-900">Media Attachments</h3>
+                  
+                  {/* Header Image */}
+                  <div className="space-y-2">
+                    <Label htmlFor="headerImage">Header Image</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="headerImage"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'image')}
+                        disabled={uploading}
+                      />
+                      {headerImage && <Button variant="outline" size="sm" onClick={() => window.open(headerImage)}>Preview</Button>}
+                    </div>
+                    {headerImage && <p className="text-xs text-emerald-600">✓ Image uploaded</p>}
+                  </div>
+
+                  {/* Header Video */}
+                  <div className="space-y-2">
+                    <Label htmlFor="headerVideo">Header Video</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="headerVideo"
+                        type="file"
+                        accept="video/*"
+                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'video')}
+                        disabled={uploading}
+                      />
+                      {headerVideo && <Button variant="outline" size="sm" onClick={() => window.open(headerVideo)}>Preview</Button>}
+                    </div>
+                    {headerVideo && <p className="text-xs text-emerald-600">✓ Video uploaded</p>}
+                  </div>
+
+                  {/* Header Document */}
+                  <div className="space-y-2">
+                    <Label htmlFor="headerDocument">Header Document</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="headerDocument"
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'document')}
+                        disabled={uploading}
+                      />
+                      {headerDocument && <Button variant="outline" size="sm" onClick={() => window.open(headerDocument)}>Download</Button>}
+                    </div>
+                    {headerDocument && <p className="text-xs text-emerald-600">✓ Document uploaded: {headerDocumentName}</p>}
+                  </div>
+
+                  {/* Header Field 1 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="headerField1">Header Field 1</Label>
+                    <Input
+                      id="headerField1"
+                      placeholder="Enter header field value"
+                      value={headerField1}
+                      onChange={(e) => setHeaderField1(e.target.value)}
+                    />
+                    <p className="text-xs text-slate-500">Use {'{name}'} for personalization</p>
+                  </div>
+
+                  {uploading && <p className="text-sm text-blue-600">⏳ Uploading file...</p>}
+                </div>
+
+                {/* Location Section */}
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="font-semibold text-slate-900">Location Data</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="locationLatitude">Latitude</Label>
+                      <Input
+                        id="locationLatitude"
+                        placeholder="e.g., 22.22"
+                        value={locationLatitude}
+                        onChange={(e) => setLocationLatitude(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="locationLongitude">Longitude</Label>
+                      <Input
+                        id="locationLongitude"
+                        placeholder="e.g., 22.22"
+                        value={locationLongitude}
+                        onChange={(e) => setLocationLongitude(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="locationName">Location Name</Label>
+                    <Input
+                      id="locationName"
+                      placeholder="e.g., Our Store"
+                      value={locationName}
+                      onChange={(e) => setLocationName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="locationAddress">Location Address</Label>
+                    <Textarea
+                      id="locationAddress"
+                      placeholder="e.g., 123 Main St, City, State"
+                      rows={2}
+                      value={locationAddress}
+                      onChange={(e) => setLocationAddress(e.target.value)}
+                    />
+                  </div>
+
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <AlertCircle className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800 text-sm">
+                      <strong>Note:</strong> Media and location fields are optional. They will be sent with all recipients in this campaign.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Add Recipients */}
             <Card className="shadow-lg border-0">
               <CardHeader>
