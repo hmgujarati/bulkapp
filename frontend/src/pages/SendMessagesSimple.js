@@ -318,19 +318,26 @@ const SendMessagesSimple = ({ user, onLogout }) => {
         field2: field2,
         field3: field3,
         field4: field4,
-        field5: field5,
-        // Media fields
-        header_image: headerImage,
-        header_video: headerVideo,
-        header_document: headerDocument,
-        header_document_name: headerDocumentName,
-        header_field_1: headerField1,
-        // Location fields
-        location_latitude: locationLatitude,
-        location_longitude: locationLongitude,
-        location_name: locationName,
-        location_address: locationAddress
+        field5: field5
       };
+
+      // Add ONLY the selected media type to template
+      if (mediaType === 'image' && headerImage) {
+        templateData.header_image = headerImage;
+        if (headerField1) templateData.header_field_1 = headerField1;
+      } else if (mediaType === 'video' && headerVideo) {
+        templateData.header_video = headerVideo;
+        if (headerField1) templateData.header_field_1 = headerField1;
+      } else if (mediaType === 'document' && headerDocument) {
+        templateData.header_document = headerDocument;
+        if (headerDocumentName) templateData.header_document_name = headerDocumentName;
+        if (headerField1) templateData.header_field_1 = headerField1;
+      } else if (mediaType === 'location' && locationLatitude && locationLongitude) {
+        templateData.location_latitude = locationLatitude;
+        templateData.location_longitude = locationLongitude;
+        if (locationName) templateData.location_name = locationName;
+        if (locationAddress) templateData.location_address = locationAddress;
+      }
 
       await api.post('/saved-templates', templateData);
       toast.success('Template saved successfully!');
