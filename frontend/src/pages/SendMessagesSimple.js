@@ -798,6 +798,17 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                   <p className="text-sm text-slate-600">Rate</p>
                   <p className="text-sm font-medium text-slate-900">29 messages/second</p>
                   <p className="text-xs text-slate-500 mt-1">
+
+
+                  <Button
+                    onClick={handleSaveAsTemplate}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Save as Template
+                  </Button>
+
                     Est. time: ~{Math.ceil(recipients.length / 29)} seconds
                   </p>
                 </div>
