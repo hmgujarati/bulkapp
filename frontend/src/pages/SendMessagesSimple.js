@@ -34,6 +34,20 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [field4, setField4] = useState('');
   const [field5, setField5] = useState('');
   
+  // Media fields
+  const [headerImage, setHeaderImage] = useState('');
+  const [headerVideo, setHeaderVideo] = useState('');
+  const [headerDocument, setHeaderDocument] = useState('');
+  const [headerDocumentName, setHeaderDocumentName] = useState('');
+  const [headerField1, setHeaderField1] = useState('');
+  const [uploading, setUploading] = useState(false);
+  
+  // Location fields
+  const [locationLatitude, setLocationLatitude] = useState('');
+  const [locationLongitude, setLocationLongitude] = useState('');
+  const [locationName, setLocationName] = useState('');
+  const [locationAddress, setLocationAddress] = useState('');
+  
   // Recipients
   const [recipients, setRecipients] = useState([]);
   const [textInput, setTextInput] = useState('');
