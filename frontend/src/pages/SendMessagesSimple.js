@@ -338,7 +338,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     } finally {
       setSending(false);
     }
-
+  };
 
   // Save current configuration as a template
   const handleSaveAsTemplate = async () => {
