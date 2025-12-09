@@ -338,6 +338,55 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     } finally {
       setSending(false);
     }
+
+
+  // Save current configuration as a template
+  const handleSaveAsTemplate = async () => {
+    // Validation
+    if (!templateName) {
+      toast.error('Please enter template name first');
+      return;
+    }
+
+    const templateNamePrompt = prompt('Enter a name for this template:');
+    if (!templateNamePrompt) return;
+
+    try {
+      const templateData = {
+        name: templateNamePrompt,
+        templateName: templateName,
+        templateLanguage: templateLanguage,
+        field1: field1,
+        field2: field2,
+        field3: field3,
+        field4: field4,
+        field5: field5
+      };
+
+      // Add ONLY the selected media type to template
+      if (mediaType === 'image' && headerImage) {
+        templateData.header_image = headerImage;
+      } else if (mediaType === 'video' && headerVideo) {
+        templateData.header_video = headerVideo;
+      } else if (mediaType === 'document' && headerDocument) {
+        templateData.header_document = headerDocument;
+        if (headerDocumentName) templateData.header_document_name = headerDocumentName;
+      } else if (mediaType === 'location' && locationLatitude && locationLongitude) {
+        templateData.location_latitude = locationLatitude;
+        templateData.location_longitude = locationLongitude;
+        if (locationName) templateData.location_name = locationName;
+        if (locationAddress) templateData.location_address = locationAddress;
+      }
+
+      await api.post('/saved-templates', templateData);
+      toast.success('Template saved successfully!');
+      // Refresh templates list
+      fetchSavedTemplates();
+    } catch (error) {
+      toast.error('Failed to save template: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
   };
 
   return (
