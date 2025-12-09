@@ -34,6 +34,9 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [field4, setField4] = useState('');
   const [field5, setField5] = useState('');
   
+  // Media type selection
+  const [mediaType, setMediaType] = useState('none'); // none, image, video, document, location
+  
   // Media fields
   const [headerImage, setHeaderImage] = useState('');
   const [headerVideo, setHeaderVideo] = useState('');
