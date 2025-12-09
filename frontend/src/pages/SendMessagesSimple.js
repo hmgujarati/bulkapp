@@ -84,18 +84,32 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       setField3(template.field3 || '');
       setField4(template.field4 || '');
       setField5(template.field5 || '');
-      // Load media fields
-      setHeaderImage(template.header_image || '');
-      setHeaderVideo(template.header_video || '');
-      setHeaderDocument(template.header_document || '');
-      setHeaderDocumentName(template.header_document_name || '');
-      setHeaderField1(template.header_field_1 || '');
-      // Load location fields
-      setLocationLatitude(template.location_latitude || '');
-      setLocationLongitude(template.location_longitude || '');
-      setLocationName(template.location_name || '');
-      setLocationAddress(template.location_address || '');
-      toast.success(`Template "${template.name}" loaded with media & location`);
+      
+      // Detect and set media type based on what's in the template
+      if (template.header_image) {
+        setMediaType('image');
+        setHeaderImage(template.header_image);
+        setHeaderField1(template.header_field_1 || '');
+      } else if (template.header_video) {
+        setMediaType('video');
+        setHeaderVideo(template.header_video);
+        setHeaderField1(template.header_field_1 || '');
+      } else if (template.header_document) {
+        setMediaType('document');
+        setHeaderDocument(template.header_document);
+        setHeaderDocumentName(template.header_document_name || '');
+        setHeaderField1(template.header_field_1 || '');
+      } else if (template.location_latitude && template.location_longitude) {
+        setMediaType('location');
+        setLocationLatitude(template.location_latitude);
+        setLocationLongitude(template.location_longitude);
+        setLocationName(template.location_name || '');
+        setLocationAddress(template.location_address || '');
+      } else {
+        setMediaType('none');
+      }
+      
+      toast.success(`Template "${template.name}" loaded`);
     }
   };
 
