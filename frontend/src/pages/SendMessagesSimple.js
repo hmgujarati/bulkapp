@@ -245,7 +245,18 @@ const SendMessagesSimple = ({ user, onLogout }) => {
         campaignName,
         templateName,
         recipients: recipientsWithData,
-        scheduledAt: isScheduled ? new Date(scheduledDate).toISOString() : null
+        scheduledAt: isScheduled ? new Date(scheduledDate).toISOString() : null,
+        // Add media fields if provided
+        ...(headerImage && { header_image: headerImage }),
+        ...(headerVideo && { header_video: headerVideo }),
+        ...(headerDocument && { header_document: headerDocument }),
+        ...(headerDocumentName && { header_document_name: headerDocumentName }),
+        ...(headerField1 && { header_field_1: headerField1 }),
+        // Add location fields if provided
+        ...(locationLatitude && { location_latitude: locationLatitude }),
+        ...(locationLongitude && { location_longitude: locationLongitude }),
+        ...(locationName && { location_name: locationName }),
+        ...(locationAddress && { location_address: locationAddress })
       };
 
       const response = await api.post('/messages/send', payload);
