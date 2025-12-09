@@ -88,16 +88,13 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       if (template.header_image) {
         setMediaType('image');
         setHeaderImage(template.header_image);
-        setHeaderField1(template.header_field_1 || '');
       } else if (template.header_video) {
         setMediaType('video');
         setHeaderVideo(template.header_video);
-        setHeaderField1(template.header_field_1 || '');
       } else if (template.header_document) {
         setMediaType('document');
         setHeaderDocument(template.header_document);
         setHeaderDocumentName(template.header_document_name || '');
-        setHeaderField1(template.header_field_1 || '');
       } else if (template.location_latitude && template.location_longitude) {
         setMediaType('location');
         setLocationLatitude(template.location_latitude);
