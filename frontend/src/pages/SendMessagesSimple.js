@@ -688,20 +688,6 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                   </div>
                 )}
 
-                {/* Header Field 1 - Common for all types except location */}
-                {mediaType !== 'none' && mediaType !== 'location' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="headerField1">Header Field 1 (Optional)</Label>
-                    <Input
-                      id="headerField1"
-                      placeholder="Use {'{name}'} for personalization"
-                      value={headerField1}
-                      onChange={(e) => setHeaderField1(e.target.value)}
-                    />
-                    <p className="text-xs text-slate-500">This field can be used with media headers</p>
-                  </div>
-                )}
-
                 <Alert className="bg-blue-50 border-blue-200">
                   <AlertCircle className="h-4 w-4 text-blue-600" />
                   <AlertDescription className="text-blue-800 text-sm">
