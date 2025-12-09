@@ -387,8 +387,6 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     }
   };
 
-  };
-
   return (
     <Layout user={user} onLogout={onLogout}>
       <div className="space-y-6">
