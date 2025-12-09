@@ -68,13 +68,13 @@ class WhatsAppBulkMessengerTester:
             return False, {}
 
     def test_admin_login(self):
-        """Test admin login"""
+        """Test admin login with correct credentials"""
         success, response = self.run_test(
             "Admin Login",
             "POST",
             "auth/login",
             200,
-            data={"email": "admin@masswhatsapp.com", "password": "admin123"}
+            data={"email": "bizchatapi@gmail.com", "password": "adminpassword"}
         )
         if success and 'token' in response:
             self.admin_token = response['token']
