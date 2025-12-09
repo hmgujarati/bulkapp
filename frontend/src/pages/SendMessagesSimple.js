@@ -279,6 +279,51 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
     setSending(true);
     try {
+
+
+  // Save current configuration as a template
+  const handleSaveAsTemplate = async () => {
+    // Validation
+    if (!templateName) {
+      toast.error('Please enter template name first');
+      return;
+    }
+
+    const templateNamePrompt = prompt('Enter a name for this template:');
+    if (!templateNamePrompt) return;
+
+    try {
+      const templateData = {
+        name: templateNamePrompt,
+        templateName: templateName,
+        templateLanguage: templateLanguage,
+        field1: field1,
+        field2: field2,
+        field3: field3,
+        field4: field4,
+        field5: field5,
+        // Media fields
+        header_image: headerImage,
+        header_video: headerVideo,
+        header_document: headerDocument,
+        header_document_name: headerDocumentName,
+        header_field_1: headerField1,
+        // Location fields
+        location_latitude: locationLatitude,
+        location_longitude: locationLongitude,
+        location_name: locationName,
+        location_address: locationAddress
+      };
+
+      await api.post('/saved-templates', templateData);
+      toast.success('Template saved successfully!');
+      // Refresh templates list
+      fetchSavedTemplates();
+    } catch (error) {
+      toast.error('Failed to save template: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
       // Prepare recipients with template data
       const recipientsWithData = recipients.map(r => ({
         phone: r.phone,
