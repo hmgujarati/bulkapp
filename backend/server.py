@@ -172,6 +172,17 @@ class SavedTemplate(BaseModel):
     field3: Optional[str] = None
     field4: Optional[str] = None
     field5: Optional[str] = None
+    # Media fields
+    header_image: Optional[str] = None
+    header_video: Optional[str] = None
+    header_document: Optional[str] = None
+    header_document_name: Optional[str] = None
+    header_field_1: Optional[str] = None
+    # Location fields
+    location_latitude: Optional[str] = None
+    location_longitude: Optional[str] = None
+    location_name: Optional[str] = None
+    location_address: Optional[str] = None
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
