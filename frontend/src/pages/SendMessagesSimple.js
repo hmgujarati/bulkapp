@@ -541,130 +541,155 @@ const SendMessagesSimple = ({ user, onLogout }) => {
             <Card className="shadow-lg border-0">
               <CardHeader>
                 <CardTitle>Media & Location (Optional)</CardTitle>
-                <CardDescription>Add images, videos, documents, or location data to your message</CardDescription>
+                <CardDescription>Choose ONE type: Image, Video, Document, or Location</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Media Section */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-slate-900">Media Attachments</h3>
-                  
-                  {/* Header Image */}
-                  <div className="space-y-2">
-                    <Label htmlFor="headerImage">Header Image</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="headerImage"
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'image')}
-                        disabled={uploading}
-                      />
-                      {headerImage && <Button variant="outline" size="sm" onClick={() => window.open(headerImage)}>Preview</Button>}
-                    </div>
-                    {headerImage && <p className="text-xs text-emerald-600">✓ Image uploaded</p>}
-                  </div>
+              <CardContent className="space-y-4">
+                {/* Media Type Selector */}
+                <div className="space-y-2">
+                  <Label htmlFor="mediaType">Select Media/Location Type</Label>
+                  <Select value={mediaType} onValueChange={setMediaType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="None (Text only)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (Text only)</SelectItem>
+                      <SelectItem value="image">📷 Image</SelectItem>
+                      <SelectItem value="video">🎥 Video</SelectItem>
+                      <SelectItem value="document">📄 Document</SelectItem>
+                      <SelectItem value="location">📍 Location</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  {/* Header Video */}
-                  <div className="space-y-2">
-                    <Label htmlFor="headerVideo">Header Video</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="headerVideo"
-                        type="file"
-                        accept="video/*"
-                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'video')}
-                        disabled={uploading}
-                      />
-                      {headerVideo && <Button variant="outline" size="sm" onClick={() => window.open(headerVideo)}>Preview</Button>}
+                {/* Show fields based on selected type */}
+                {mediaType === 'image' && (
+                  <div className="space-y-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <h3 className="font-semibold text-emerald-900">📷 Image Upload</h3>
+                    <div className="space-y-2">
+                      <Label htmlFor="headerImage">Header Image</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="headerImage"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'image')}
+                          disabled={uploading}
+                        />
+                        {headerImage && <Button variant="outline" size="sm" onClick={() => window.open(headerImage)}>Preview</Button>}
+                      </div>
+                      {headerImage && <p className="text-xs text-emerald-600">✓ Image uploaded</p>}
                     </div>
-                    {headerVideo && <p className="text-xs text-emerald-600">✓ Video uploaded</p>}
+                    {uploading && <p className="text-sm text-blue-600">⏳ Uploading...</p>}
                   </div>
+                )}
 
-                  {/* Header Document */}
-                  <div className="space-y-2">
-                    <Label htmlFor="headerDocument">Header Document</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="headerDocument"
-                        type="file"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-                        onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'document')}
-                        disabled={uploading}
-                      />
-                      {headerDocument && <Button variant="outline" size="sm" onClick={() => window.open(headerDocument)}>Download</Button>}
+                {mediaType === 'video' && (
+                  <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h3 className="font-semibold text-blue-900">🎥 Video Upload</h3>
+                    <div className="space-y-2">
+                      <Label htmlFor="headerVideo">Header Video</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="headerVideo"
+                          type="file"
+                          accept="video/*"
+                          onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'video')}
+                          disabled={uploading}
+                        />
+                        {headerVideo && <Button variant="outline" size="sm" onClick={() => window.open(headerVideo)}>Preview</Button>}
+                      </div>
+                      {headerVideo && <p className="text-xs text-blue-600">✓ Video uploaded</p>}
                     </div>
-                    {headerDocument && <p className="text-xs text-emerald-600">✓ Document uploaded: {headerDocumentName}</p>}
+                    {uploading && <p className="text-sm text-blue-600">⏳ Uploading...</p>}
                   </div>
+                )}
 
-                  {/* Header Field 1 */}
+                {mediaType === 'document' && (
+                  <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <h3 className="font-semibold text-purple-900">📄 Document Upload</h3>
+                    <div className="space-y-2">
+                      <Label htmlFor="headerDocument">Header Document</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="headerDocument"
+                          type="file"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                          onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'document')}
+                          disabled={uploading}
+                        />
+                        {headerDocument && <Button variant="outline" size="sm" onClick={() => window.open(headerDocument)}>Download</Button>}
+                      </div>
+                      {headerDocument && <p className="text-xs text-purple-600">✓ Document uploaded: {headerDocumentName}</p>}
+                    </div>
+                    {uploading && <p className="text-sm text-blue-600">⏳ Uploading...</p>}
+                  </div>
+                )}
+
+                {mediaType === 'location' && (
+                  <div className="space-y-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
+                    <h3 className="font-semibold text-orange-900">📍 Location Data</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="locationLatitude">Latitude</Label>
+                        <Input
+                          id="locationLatitude"
+                          placeholder="e.g., 22.22"
+                          value={locationLatitude}
+                          onChange={(e) => setLocationLatitude(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="locationLongitude">Longitude</Label>
+                        <Input
+                          id="locationLongitude"
+                          placeholder="e.g., 22.22"
+                          value={locationLongitude}
+                          onChange={(e) => setLocationLongitude(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="locationName">Location Name</Label>
+                      <Input
+                        id="locationName"
+                        placeholder="e.g., Our Store"
+                        value={locationName}
+                        onChange={(e) => setLocationName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="locationAddress">Location Address</Label>
+                      <Textarea
+                        id="locationAddress"
+                        placeholder="e.g., 123 Main St, City, State"
+                        rows={2}
+                        value={locationAddress}
+                        onChange={(e) => setLocationAddress(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Header Field 1 - Common for all types except location */}
+                {mediaType !== 'none' && mediaType !== 'location' && (
                   <div className="space-y-2">
-                    <Label htmlFor="headerField1">Header Field 1</Label>
+                    <Label htmlFor="headerField1">Header Field 1 (Optional)</Label>
                     <Input
                       id="headerField1"
-                      placeholder="Enter header field value"
+                      placeholder="Use {'{name}'} for personalization"
                       value={headerField1}
                       onChange={(e) => setHeaderField1(e.target.value)}
                     />
-                    <p className="text-xs text-slate-500">Use {'{name}'} for personalization</p>
+                    <p className="text-xs text-slate-500">This field can be used with media headers</p>
                   </div>
+                )}
 
-                  {uploading && <p className="text-sm text-blue-600">⏳ Uploading file...</p>}
-                </div>
-
-                {/* Location Section */}
-                <div className="space-y-4 pt-4 border-t">
-                  <h3 className="font-semibold text-slate-900">Location Data</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="locationLatitude">Latitude</Label>
-                      <Input
-                        id="locationLatitude"
-                        placeholder="e.g., 22.22"
-                        value={locationLatitude}
-                        onChange={(e) => setLocationLatitude(e.target.value)}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="locationLongitude">Longitude</Label>
-                      <Input
-                        id="locationLongitude"
-                        placeholder="e.g., 22.22"
-                        value={locationLongitude}
-                        onChange={(e) => setLocationLongitude(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="locationName">Location Name</Label>
-                    <Input
-                      id="locationName"
-                      placeholder="e.g., Our Store"
-                      value={locationName}
-                      onChange={(e) => setLocationName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="locationAddress">Location Address</Label>
-                    <Textarea
-                      id="locationAddress"
-                      placeholder="e.g., 123 Main St, City, State"
-                      rows={2}
-                      value={locationAddress}
-                      onChange={(e) => setLocationAddress(e.target.value)}
-                    />
-                  </div>
-
-                  <Alert className="bg-blue-50 border-blue-200">
-                    <AlertCircle className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-800 text-sm">
-                      <strong>Note:</strong> Media and location fields are optional. They will be sent with all recipients in this campaign.
-                    </AlertDescription>
-                  </Alert>
-                </div>
+                <Alert className="bg-blue-50 border-blue-200">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800 text-sm">
+                    <strong>WhatsApp Rule:</strong> You can send only ONE type at a time (Image OR Video OR Document OR Location)
+                  </AlertDescription>
+                </Alert>
               </CardContent>
             </Card>
 
