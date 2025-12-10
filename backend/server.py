@@ -764,13 +764,34 @@ async def upload_media(
                 detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions[media_type])}"
             )
         
+        # File size limits (in bytes)
+        size_limits = {
+            "image": 5 * 1024 * 1024,      # 5 MB
+            "video": 16 * 1024 * 1024,     # 16 MB
+            "document": 10 * 1024 * 1024   # 10 MB
+        }
+        
+        # Read file content to check size
+        file_content = await file.read()
+        file_size = len(file_content)
+        
+        # Validate file size
+        max_size = size_limits[media_type]
+        if file_size > max_size:
+            max_size_mb = max_size / (1024 * 1024)
+            actual_size_mb = file_size / (1024 * 1024)
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size for {media_type}: {max_size_mb:.1f}MB. Your file: {actual_size_mb:.1f}MB"
+            )
+        
         # Generate unique filename
         unique_filename = f"{uuid.uuid4()}{file_ext}"
         file_path = UPLOAD_DIR / f"{media_type}s" / unique_filename
         
         # Save file
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(file_content)
         
         # Generate URL (will work with REACT_APP_BACKEND_URL)
         file_url = f"/uploads/{media_type}s/{unique_filename}"
