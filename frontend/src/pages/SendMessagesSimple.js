@@ -237,6 +237,22 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const handleFileUpload = async (file, type) => {
     if (!file) return;
     
+    // File size limits (in MB)
+    const sizeLimits = {
+      image: 5,
+      video: 16,
+      document: 10
+    };
+    
+    // Check file size
+    const fileSizeMB = file.size / (1024 * 1024);
+    const maxSize = sizeLimits[type];
+    
+    if (fileSizeMB > maxSize) {
+      toast.error(`File too large! Maximum size for ${type}: ${maxSize}MB. Your file: ${fileSizeMB.toFixed(1)}MB`);
+      return;
+    }
+    
     setUploading(true);
     try {
       const formData = new FormData();
