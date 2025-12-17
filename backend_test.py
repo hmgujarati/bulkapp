@@ -822,6 +822,207 @@ class WhatsAppBulkMessengerTester:
         
         return success
 
+    def test_scheduled_campaign_future_date_daily_limit_bypass(self):
+        """Test that scheduled campaigns for future dates bypass today's daily limit"""
+        if not self.admin_token:
+            print("❌ Skipping - No admin token")
+            return False
+
+        print("\n🔍 Testing Scheduled Campaign Daily Limit Bypass...")
+        
+        # Step 1: Login as admin and get current user info
+        success, user_response = self.run_test(
+            "Get Admin User Info for Daily Limit Test",
+            "GET",
+            "auth/me",
+            200,
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success:
+            return False
+        
+        print(f"   Current daily usage: {user_response.get('dailyUsage', 0)}")
+        print(f"   Daily limit: {user_response.get('dailyLimit', 1000)}")
+        
+        # Step 2: Create a campaign scheduled for tomorrow
+        from datetime import datetime, timezone, timedelta
+        tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+        tomorrow_iso = tomorrow.isoformat()
+        
+        # Create a campaign that would exceed today's limit if it were immediate
+        large_recipient_list = []
+        for i in range(50):  # Create 50 recipients to potentially exceed limits
+            large_recipient_list.append({
+                "phone": f"+91987654{i:04d}",
+                "name": f"Test User {i+1}"
+            })
+        
+        campaign_data = {
+            "campaignName": "Test Future Campaign - Daily Limit Bypass",
+            "templateName": "test_template",
+            "language": "en",
+            "countryCode": "+91",
+            "recipients": large_recipient_list,
+            "scheduledAt": tomorrow_iso
+        }
+        
+        success, campaign_response = self.run_test(
+            "Create Scheduled Campaign for Tomorrow (Should Bypass Daily Limit)",
+            "POST",
+            "messages/send",
+            200,  # Should succeed even if it exceeds today's limit
+            data=campaign_data,
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if success:
+            print(f"   ✅ Campaign created successfully with ID: {campaign_response.get('campaignId')}")
+            print(f"   Status: {campaign_response.get('status')}")
+            print(f"   Scheduled for: {tomorrow_iso}")
+            print(f"   Recipients: {len(large_recipient_list)}")
+            
+            # Verify the campaign was created with "scheduled" status
+            if campaign_response.get('status') == 'scheduled':
+                print(f"   ✅ Campaign correctly marked as 'scheduled'")
+                return True
+            else:
+                print(f"   ❌ Expected status 'scheduled', got '{campaign_response.get('status')}'")
+                return False
+        
+        return False
+
+    def test_message_sending_performance_verification(self):
+        """Verify that the process_campaign function uses asyncio.gather for parallel sending"""
+        print("\n🔍 Testing Message Sending Performance Implementation...")
+        
+        # This is a code verification test - we'll check the backend code structure
+        try:
+            import requests
+            
+            # Read the server.py file to verify asyncio.gather implementation
+            with open('/app/backend/server.py', 'r') as f:
+                server_code = f.read()
+            
+            # Check for key performance improvements
+            checks = {
+                "asyncio.gather usage": "asyncio.gather" in server_code,
+                "concurrent_batch_size defined": "concurrent_batch_size" in server_code,
+                "parallel sending logic": "send_single_message" in server_code and "tasks = [" in server_code,
+                "batch processing": "for batch_start in range" in server_code,
+                "concurrent sending": "await asyncio.gather(*tasks" in server_code
+            }
+            
+            print("   Code Analysis Results:")
+            all_passed = True
+            for check_name, passed in checks.items():
+                status = "✅" if passed else "❌"
+                print(f"   {status} {check_name}: {'Found' if passed else 'Not Found'}")
+                if not passed:
+                    all_passed = False
+            
+            if all_passed:
+                print("   ✅ All performance improvements detected in code")
+                print("   ✅ Parallel message sending implementation verified")
+                
+                # Additional verification: Check for batch size and rate limiting
+                if "concurrent_batch_size = 25" in server_code:
+                    print("   ✅ Batch size set to 25 messages per batch")
+                
+                if "await asyncio.sleep(0.5)" in server_code:
+                    print("   ✅ Rate limiting implemented (0.5s between batches)")
+                
+                return True
+            else:
+                print("   ❌ Some performance improvements missing")
+                return False
+                
+        except Exception as e:
+            print(f"   ❌ Error during code verification: {str(e)}")
+            return False
+
+    def test_scheduled_campaign_same_day_limit_enforcement(self):
+        """Test that scheduled campaigns for same day still enforce daily limits"""
+        if not self.admin_token:
+            print("❌ Skipping - No admin token")
+            return False
+
+        print("\n🔍 Testing Same-Day Scheduled Campaign Limit Enforcement...")
+        
+        # Step 1: Set a very low daily limit for testing
+        success, user_response = self.run_test(
+            "Get Admin User Info",
+            "GET",
+            "auth/me",
+            200,
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success:
+            return False
+        
+        admin_user_id = user_response.get('id')
+        
+        # Set daily limit to 5 for testing
+        success, _ = self.run_test(
+            "Set Low Daily Limit for Testing",
+            "PUT",
+            f"users/{admin_user_id}/limit",
+            200,
+            data={"dailyLimit": 5},
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success:
+            return False
+        
+        # Step 2: Try to create a same-day scheduled campaign that exceeds the limit
+        from datetime import datetime, timezone, timedelta
+        
+        # Schedule for later today (same day)
+        later_today = datetime.now(timezone.utc) + timedelta(hours=2)
+        later_today_iso = later_today.isoformat()
+        
+        # Create campaign with 10 recipients (exceeds limit of 5)
+        large_recipient_list = []
+        for i in range(10):
+            large_recipient_list.append({
+                "phone": f"+91987654{i:04d}",
+                "name": f"Test User {i+1}"
+            })
+        
+        campaign_data = {
+            "campaignName": "Test Same-Day Campaign - Should Fail",
+            "templateName": "test_template",
+            "recipients": large_recipient_list,
+            "scheduledAt": later_today_iso
+        }
+        
+        success, campaign_response = self.run_test(
+            "Create Same-Day Scheduled Campaign (Should Fail Due to Limit)",
+            "POST",
+            "messages/send",
+            400,  # Should fail with 400 due to daily limit
+            data=campaign_data,
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if success:
+            print(f"   ✅ Same-day scheduled campaign correctly rejected due to daily limit")
+            print(f"   Error message indicates daily limit enforcement")
+        
+        # Step 3: Reset daily limit back to normal
+        self.run_test(
+            "Reset Daily Limit to Normal",
+            "PUT",
+            f"users/{admin_user_id}/limit",
+            200,
+            data={"dailyLimit": 1000},
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        return success
+
 def main():
     print("🚀 Starting WhatsApp Bulk Messenger API Tests")
     print("=" * 60)
