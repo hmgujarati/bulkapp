@@ -245,7 +245,7 @@ const CampaignDetails = ({ user, onLogout }) => {
                   className="h-2"
                 />
                 <p className="text-xs text-slate-600">
-                  Sending at 29 messages/second • Est. remaining: ~{Math.ceil(campaign.pendingCount / 29)}s
+                  Sending at ~12 messages/second • Est. remaining: ~{Math.ceil(campaign.pendingCount / 12)}s
                 </p>
               </div>
             </AlertDescription>
