@@ -3,190 +3,192 @@ The user wants to build a full-stack website for sending bulk WhatsApp messages 
 
 **PRODUCT REQUIREMENTS:**
 - **Admin Panel:**
-    - Create, pause, and delete user accounts.
-    - Set daily message sending limits for each user.
-    - The admin account  should be a super admin that cannot be paused or deleted.
+    - Create, pause, and delete user accounts. Set daily message sending limits.
+    - Admin  is a super admin that cannot be paused or deleted.
+    - Admin can change their own password via a Settings page.
 - **User Features:**
-    - Users can upload an Excel file or copy-paste a list of phone numbers.
-    - An option to add a default country code (e.g., 91) to numbers that don't already have one. Duplicates should be removed.
-    - Users should be able to manage their own API credentials (Vendor UID and API Token) in a settings page.
-    - Users can change their own password.
-    - The UI should display the user's remaining daily message limit.
+    - Upload an Excel file or copy-paste phone numbers. Add a default country code and remove duplicates.
+    - Manage their own API credentials (Vendor UID and API Token).
+    - Change their own password.
+    - View remaining daily message limit.
 - **Campaign Management:**
-    - A simple form to send messages with fields: Campaign Name, Template Name, Template Language, and custom fields (Field 1-5).
-    - A My Templates feature to save, load, and manage frequently used template content to avoid re-typing.
-    - Real-time campaign progress tracking (sent, failed, pending) with pause/resume functionality.
-    - Campaign history page where users can view and delete past campaigns.
-    - Deleting a campaign should not affect the daily message usage stats.
-- **System Logic:**
-    - The system must handle high-volume sending (e.g., 100,000 messages) with rate limiting (29 messages/second).
-    - Failed messages should not count against the user's daily sending limit.
-    - Prevent a campaign from starting if the number of recipients exceeds the user's available daily limit.
+    - A form to send messages with: Campaign Name, Template Name, Language, and custom fields.
+    - **Personalization:** Use a  placeholder in messages, populated from an Excel column.
+    - **Media & Location:** Send campaigns with a single media type: Image, Video, Document, or Location.
+        - Media files should be uploaded to the server and the link used in the campaign.
+        - Document uploads require a file and a document name.
+        - Uploads must be limited to 5MB.
+    - **Scheduled Campaigns:** Ability to schedule a campaign for a future date and time, with a backend cron/scheduler to process it.
+    - **My Templates:** Save, load, and manage frequently used templates, including all media and location fields.
+    - Real-time campaign progress tracking and a campaign history page.
 - **UI/UX:**
-    - The login page should be clean, without pre-filled demo credentials.
+    - Remove all Made with Emergent branding from the final application.
+- **Deployment:**
+    - Provide a detailed guide for hosting on a CloudPanel VPS.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application (FastAPI backend, React frontend) has been developed. Key features implemented include:
-- JWT-based authentication with admin and user roles.
-- Admin dashboard for complete user lifecycle management (create, pause, delete, set limits).
-- User dashboard displaying messaging statistics.
-- A My Templates page for creating and reusing message templates.
-- A simplified Send Message page that loads saved templates and allows recipient list management (Excel upload, copy-paste, add country code, remove duplicates).
-- A Campaign History page with options to view details and delete campaigns.
-- A Settings page for users to manage their API credentials and change their password.
-- The backend includes logic for rate-limited, asynchronous message sending, and daily usage tracking.
-- Super admin protection has been coded to prevent the  account from being modified or deleted.
-- The login page UI has been modified to remove demo credentials.
+A full-stack application (FastAPI backend, React frontend) with JWT authentication.
+- **Admin:** A full admin panel exists for user management, including super-admin protection. The admin now has a Settings page to change their password.
+- **Users:** Users can manage settings, API keys, and their password.
+- **Campaigns:** The core feature is a Send Message page that supports:
+    - Recipient management (Excel upload with name extraction).
+    - Personalized messages using a  placeholder.
+    - Scheduled campaigns via a background job () that runs every minute.
+    - Sending media (image, video, document) or location data. A UI dropdown ensures only one media type is selected per campaign.
+    - File uploads for media are stored on the server and served via an API endpoint. File size is limited to 5MB.
+- **Templates:** A My Templates feature allows saving and loading of full campaign configurations, including media and location data.
+- **Branding:** All Made with Emergent branding has been removed from the application's codebase ().
+- **Deployment:** Multiple guides have been created, including for deployment (), password changes, and new features. The application has been hardened for deployment by removing hardcoded secrets.
 
 **Last working item**:
-- **Last item agent was working:** Implementing security and UI enhancements requested by the user. This included:
-    1.  Adding backend logic to protect the super admin () from being paused or deleted.
-    2.  Removing the hardcoded demo credentials from the  component.
+- **Last item agent was working:** Implementing a 5MB file size limit for all media uploads. The agent added the validation logic on both the backend () to reject large files and the frontend (, ) to prevent the upload from being attempted.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
 - **Which testing method agent to use?** both
-    - **Frontend:** Use the screenshot tool on the login page to verify the demo credentials have been removed.
-    - **Backend:** Use  to log in as the admin and attempt to pause or delete the  user, expecting a  error.
+    - **Backend:** Use  to attempt an upload of a file larger than 5MB to the  endpoint and expect a  error.
+    - **Frontend:** Manually attempt to upload a file >5MB in the UI and verify that a toast error message appears and the upload does not proceed.
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Verify Super Admin Protection and Login Page Cleanup (P0)**
--   **Issue 2: Critical Login/Session Instability (P1)**
+-   **Issue 1: Verify File Size Limit Implementation (P0)**
 
 **Issues Detail:**
 -   **Issue 1:**
-    -   **Description:** The agent implemented the code for super admin protection and removed demo credentials from the login page but did not restart the services or perform any verification. The changes are not live.
-    -   **Attempted fixes:** Code was written and committed.
+    -   **Description:** The agent added backend and frontend code to enforce a 5MB file size limit on uploads but did not restart the services or test the implementation. The changes are not yet live or verified.
+    -   **Attempted fixes:** Code was written and committed to , , and .
     -   **Next debug checklist:**
         1.  Run backend: stopped
-frontend: ERROR (not running)
+frontend: stopped
 backend: started
-frontend: started to apply the latest code changes.
-        2.  Take a screenshot of the login page to confirm the demo credentials are gone.
-        3.  Log in as admin () and attempt to pause/delete the same account via the Admin Dashboard UI or . Verify that the action is blocked.
-    -   **Why fix this issue and what will be achieved with the fix?** To complete the user's latest request and ensure the admin account is secure.
+frontend: ERROR (abnormal termination) to apply the latest code changes.
+        2.  On the Send Messages page, attempt to upload a file larger than 5MB. Confirm a toast notification appears and the upload is blocked.
+        3.  Use a  command to post a large file to the  endpoint and confirm a 413 status code is returned.
+    -   **Why fix this issue and what will be achieved with the fix?** To prevent large files from consuming server storage and causing potential performance issues, as requested by the user.
     -   **Status:** IN PROGRESS
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?** Both
-    -   **Blocked on other issue:** None.
-
--   **Issue 2:**
-    -   **Description:** Throughout the session, the agent noted that the application fails to maintain the user's session after login, frequently redirecting the user back to the login page. This makes the application unusable.
-    -   **Attempted fixes:** None. The agent observed this multiple times but never investigated the root cause, instead using  as a workaround.
-    -   **Next debug checklist:**
-        1.  Examine  to verify how the authentication token is stored (e.g., ) and attached to API request headers.
-        2.  Inspect  and any private route components to understand how authentication state is managed and checked.
-        3.  After logging in, use browser developer tools (or instruct the testing agent to do so) to check if the token is present in  and if it's being sent in the  header for subsequent API calls.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a critical bug blocking all user interaction with the application. Fixing it will make the app functional.
-    -   **Status:** NOT STARTED
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** Frontend
     -   **Blocked on other issue:** None.
 
 **In progress Task List**:
 - None.
 
 **Upcoming and Future Tasks**
-- No new features are planned. The immediate priority is to stabilize the application by fixing the session/login issue and verifying the last set of changes.
+- No new features were discussed. The next step is to test and finalize the last implementation.
 
 **Completed work in this session**
-- **Core Functionality:**
-    - Built a full-stack bulk WhatsApp messaging application (DONE)
-    - Implemented user authentication with admin/user roles (DONE)
-    - Created an admin panel for user management (create, pause, delete, set limits) (DONE)
-    - Developed a campaign sending system with rate limiting and async processing (DONE)
-    - Created a My Templates feature to save and reuse message content (DONE)
-    - Implemented a Settings page for API credentials and password changes (DONE)
-    - Added Super Admin protection for the primary admin account (DONE)
-- **Bug Fixes:**
-    - Fixed slow campaign processing by optimizing database queries in the send loop (DONE)
-    - Corrected the  payload format to handle template variables (DONE)
-    - Resolved a crash on the  page caused by a  infinite loop (DONE)
-    - Refined country code logic to handle various number formats correctly (DONE)
-    - Fixed a JavaScript error in  from a duplicate function declaration (DONE)
-    - Fixed a crash on the  page by adding a missing  import (DONE)
+- **Feature Implementation:**
+    - **Admin Password Change:** Enabled the Settings page for the admin role ().
+    - **Deployment Hardening:** Replaced hardcoded secrets in  with environment variables from  and secured the .
+    -**Personalized Messaging:** Implemented  placeholder replacement in .
+    - **Branding Removal:** Removed all Emergent branding and analytics from .
+    - **Scheduled Campaigns:** Integrated  in  to create a background job that processes scheduled campaigns.
+    - **Media & Location Sending:** Added functionality to send campaigns with images, videos, documents, or location data (, ).
+    - **Server-Side File Uploads:** Created an endpoint () and storage directories for media files.
+    - **Templates with Media:** Extended the My Templates feature to save and load media/location data ().
+- **Bug Fixes & Refactoring:**
+    - **UI Refactoring:** Replaced multiple media input fields with a single dropdown to enforce a one-media-type-per-message rule.
+    - **Critical React Bugs:** Fixed a series of cascading JavaScript errors in  related to incorrect function placement, missing closing braces, and missing icon imports, which were causing the page to crash.
+    - **Broken Media URLs:** Diagnosed and fixed a critical bug where uploaded file URLs were returning 404. The fix involved:
+        1.  Correcting the URL path on the frontend to include the  prefix.
+        2.  Running a database migration script to fix incorrect URLs in existing saved templates.
+- **Testing:**
+    - Used the backend testing agent to run a full suite of 28 automated tests, all of which passed after the major features were implemented.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: Critical Login/Session Instability**
-    -   **Debug checklist:** See Issue 2 in the **All Pending/In progress Issue list** section.
-    -   **Why to solve this issue and what will be achieved with this?** The application is currently unusable because users cannot stay logged in. This fix is essential for basic functionality.
+-   **Issue 1: Potential Login/Session Instability**
+    -   **Debug checklist:**
+        1.  Thoroughly test the login flow manually. Log in, navigate between pages, and refresh the browser to see if the session persists.
+        2.  If the issue reappears, examine  to check token storage () and  to check the authentication state logic.
+    -   **Why to solve this issue and what will be achieved with this?** The initial handoff report mentioned a critical session instability issue. While the user has not reported it in this session and many features were built, it was never explicitly diagnosed or fixed. Ensuring session stability is crucial for a usable application.
     -   **Should Test frontend/backend/both after fix:** Frontend
-    -   **Is recurring issue?** Y
+    -   **Is recurring issue?** Y (from previous fork)
 
 **Known issue recurrence from previous fork**
--   N/A
+- None in this session.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, MongoDB (with  for async operations), JWT for authentication,  for hashing,  for external API calls.
--   **Frontend:** React, , ,  for toasts,  for CSV/Excel parsing.
--   **Deployment:** The application runs in a containerized environment managed by .
+- **Backend:** FastAPI, MongoDB (), JWT, , ,  for background tasks.
+- **Frontend:** React, , , , Shadcn UI components.
+- **File Handling:** Files are uploaded to the backend, stored in a persistent  directory, and served via a dedicated API endpoint ().
 
 **key DB schema**
 -   **users**: 
 -   **campaigns**: 
--   **templates**:  (for user-saved templates)
+-   **templates**: 
 
 **changes in tech stack**
-- None.
+-  was added to  for handling scheduled tasks.
 
 **All files of reference**
--   : Contains all backend logic. Was heavily modified to add features and fix bugs related to message sending and user management.
--   : The current UI for creating and sending campaigns.
--   : UI for admin functions. Recently fixed a duplicate function error.
--   : Contains all the frontend routes.
--   : Handles API requests and authentication headers. **This file is critical for debugging the session issue.**
+-   : The core backend file. Updated extensively to add new features (scheduling, media uploads, size limits), fix bugs, and harden for production.
+-   : The main user-facing page for sending campaigns. Heavily modified to add media selection UI, file upload logic, and fix multiple critical React bugs.
+-   : The page for managing saved templates. Updated to support saving/loading media and location data and to handle file uploads.
+-   : Modified to completely remove all Emergent branding and analytics scripts.
+-   : Modified to add the Settings link to the admin navigation bar.
 
 **Areas that need refactoring**:
--   The backend logic is in a single large  file. It should be modularized into separate routers (e.g., , ) for better organization.
--   The frontend has several deprecated Send Message page files (, ) that should be deleted to avoid confusion.
+- The backend logic remains in a single large  file. This could be modularized into separate routers (e.g., , , ) for better maintainability.
 
 **key api endpoints**
 -   : User login.
--   : Change user password.
--   : Admin routes for user management (GET, POST, PUT, DELETE).
+-   : Admin routes for user management.
 -   : Starts a new messaging campaign.
 -   : CRUD endpoints for user-saved templates.
--   : GET and DELETE endpoints for campaign history.
+-   : Handles media file uploads (image, video, document).
+-   : Serves static uploaded media files.
 
 **Critical Info for New Agent**
--   **TOP PRIORITY:** The application is functionally blocked by a recurring session/login issue. Users are redirected to the login page immediately after logging in. You must fix this before proceeding with any other task.
--   The  payload structure was a point of confusion. The final implemented version sends both a  array and direct ,  keys. This needs to be verified with a live test.
--   The agent did not restart the services after the last set of code changes for super admin protection. You must do this first.
+- **File Serving:** All user-uploaded media is now served through the  path. URLs stored in the database must reflect this. Any new file upload logic must construct the URL with this prefix.
+- **Session Instability:** An unresolved critical issue from the previous fork was session instability. While it hasn't been a problem in this session, be aware that it might resurface. If users report being logged out unexpectedly, this should be the first area to investigate.
+- **Admin User:** The default admin credentials are  / . The password was reset during this session.
 
 **documents created in this job**
-- None.
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
 
 **Last 10 User Messages and any pending user messages**
-1.  **User:** Reports a generic error.
-2.  **User:** Provides a specific compilation error: .
-3.  **Agent:** Fixes the duplicate function.
-4.  **User:** Requests a password change feature and a fixed admin email.
-5.  **Agent:** Implements the feature.
-6.  **User:** Requests removal of demo credentials from login and making the admin a super admin.
-7.  **Agent:** Implements the code changes but does not restart services or test.
-8.  **User:** (No pending messages, but the last request's verification is pending).
+1.  **User:** Reports FileText is not defined error. (COMPLETED - Fixed by agent)
+2.  **User:** Asks to fix the error and test everything. (COMPLETED - Agent fixed it and ran backend tests)
+3.  **User:** Reports being unable to upload documents in My Templates and requests  field. (COMPLETED - Agent implemented this)
+4.  **User:** Reports that uploaded document links are broken (there is nothing). (COMPLETED - Agent fixed URL prefix issue)
+5.  **User:** Reports that uploaded template images are 404. (COMPLETED - Agent diagnosed stale URLs and ran a DB migration script to fix them)
+6.  **User:** Requests an upload limit of less than 5MB. (IN PROGRESS - Agent implemented the code but has not yet tested it)
+7.  **User:** Reports  is not defined. (COMPLETED - Fixed by agent)
+8.  **User:** Reports same error again. (COMPLETED - Agent found the real cause and fixed it)
+9.  **User:** Reports  build error. (COMPLETED - Agent fixed it)
+10. **User:** Asks to remove . (COMPLETED - Agent removed it from all relevant files)
 
 **Project Health Check:**
--   **Broken:** User authentication flow is broken. Users cannot stay logged in, which makes the entire application unusable.
--   **Mocked:** None.
+- **Stable:** The application is largely stable and feature-complete. The major blocking issues (JS crashes, broken URLs, missing features) have been resolved.
+- **Potential Risk:** The original session instability issue was never explicitly diagnosed. While not currently symptomatic, it remains a potential underlying risk.
 
-**3rd Party Integrations**:
--   **bizchatapi.in**: Used for sending WhatsApp messages. Requires a user-provided API Token and Vendor UID, which can be configured on the Settings page.
+**3rd Party Integrations**
+- **bizchatapi.in**: Used for sending WhatsApp messages. Requires a user-provided API Token and Vendor UID, configured via the Settings page.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES (early in the project)
--   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None
--   **Known regressions:** The login/session persistence is broken.
+- **Testing agent used after significant changes:** YES (Backend testing agent was run and all 28 tests passed).
+- **Troubleshoot agent used after agent stuck in loop:** NO
+- **Test files created:** None
+- **Known regressions:** None in this session.
 
 **Credentials to test flow:**
--   **Admin User:**  / 
+- **Admin User:**  / 
 
 **What agent forgot to execute**
-- The agent failed to restart the  and  services after the final set of changes to implement super admin protection and clean up the login page UI.
-- The agent consistently failed to diagnose and fix the critical, recurring login/session issue, despite observing its symptoms (redirects to login) on multiple occasions. This should have been prioritized.</analysis>
+- The agent did not restart services (, ) or test the final feature it implemented: the 5MB file size limit.
+- The agent never explicitly investigated or confirmed a fix for the Critical Login/Session Instability issue mentioned in the initial handoff summary. It worked around the issue, and it did not resurface, but its root cause was never found.</analysis>

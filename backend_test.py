@@ -5,7 +5,7 @@ import io
 from datetime import datetime
 
 class WhatsAppBulkMessengerTester:
-    def __init__(self, base_url="https://whatsapp-bulk-7.preview.emergentagent.com"):
+    def __init__(self, base_url="https://easywasend-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.admin_token = None
         self.user_token = None
@@ -469,7 +469,7 @@ class WhatsAppBulkMessengerTester:
             "field1": "Hello {name}",
             "field2": "Welcome to our service",
             "field3": "Thank you for choosing us",
-            "header_image": "https://whatsapp-bulk-7.preview.emergentagent.com/uploads/images/test.jpg"
+            "header_image": "https://easywasend-1.preview.emergentagent.com/uploads/images/test.jpg"
         }
 
         success, response = self.run_test(
@@ -538,7 +538,7 @@ class WhatsAppBulkMessengerTester:
             "templateLanguage": "en",
             "field1": "Updated Hello {name}",
             "field2": "Updated welcome message",
-            "header_video": "https://whatsapp-bulk-7.preview.emergentagent.com/uploads/videos/test.mp4"
+            "header_video": "https://easywasend-1.preview.emergentagent.com/uploads/videos/test.mp4"
         }
 
         success, response = self.run_test(
@@ -599,7 +599,7 @@ class WhatsAppBulkMessengerTester:
                     "field_2": "Welcome"
                 }
             ],
-            "header_image": "https://whatsapp-bulk-7.preview.emergentagent.com/uploads/images/test.jpg"
+            "header_image": "https://easywasend-1.preview.emergentagent.com/uploads/images/test.jpg"
         }
 
         success, response = self.run_test(
