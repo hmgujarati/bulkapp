@@ -211,6 +211,19 @@ const CampaignDetails = ({ user, onLogout }) => {
               </Button>
             )}
             
+            {campaign.status === 'completed' && campaign.failedCount > 0 && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleResendFailed}
+                className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                data-testid="resend-failed-button"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Resend Failed ({campaign.failedCount})
+              </Button>
+            )}
+            
             <Button variant="outline" size="sm" onClick={downloadCSV} data-testid="download-csv-button">
               <Download className="h-4 w-4 mr-2" />
               Export CSV
