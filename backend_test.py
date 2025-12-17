@@ -855,6 +855,17 @@ def main():
     tester.test_upload_media_image()
     tester.test_upload_media_document()
     
+    # File Size Limit Tests
+    print("\n📏 FILE SIZE LIMIT TESTS")
+    print("-" * 30)
+    tester.test_file_size_limit_image_under_5mb()
+    tester.test_file_size_limit_image_over_5mb()
+    tester.test_file_size_limit_video_under_16mb()
+    tester.test_file_size_limit_video_over_16mb()
+    tester.test_file_size_limit_document_under_10mb()
+    tester.test_file_size_limit_document_over_10mb()
+    tester.test_file_size_limit_edge_cases()
+    
     # Template Management Tests
     print("\n📄 TEMPLATE MANAGEMENT TESTS")
     print("-" * 35)
