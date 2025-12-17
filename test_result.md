@@ -227,16 +227,21 @@
         agent: "testing"
         comment: "VERIFIED WORKING: Code analysis confirms all performance improvements implemented: asyncio.gather usage, concurrent_batch_size=25, parallel sending logic, batch processing, and rate limiting (0.5s between batches). Expected performance: ~50 messages/second."
 
+### Auto-Retry & Resend Failed Feature (NEW - December 2024):
+- **Auto-Retry:** Failed messages are automatically retried up to 5 times during campaign processing
+- **Rate Limit Handling:** 429 errors trigger exponential backoff (up to 30 seconds)
+- **Resend Failed Button:** Users can manually resend all failed messages after campaign completes
+- **Retry Counter:** UI shows retry count (X/5) for each recipient in campaign details
+- **Status:** ✅ Implemented and UI verified
+
 ## agent_communication:
   - agent: "main"
-    message: "Fixed two issues: 1) Scheduled campaigns for future dates now bypass today's daily limit (limit checked when campaign runs), 2) Message sending now uses parallel/concurrent sending for ~50 msg/sec performance. Need testing agent to verify both fixes."
-  - agent: "testing"
-    message: "TESTING COMPLETE: Both new features verified working correctly. 1) Scheduled campaigns for future dates successfully bypass daily limits while same-day campaigns still enforce limits. 2) Parallel message sending implementation confirmed with all performance optimizations in place. All tests passing 100%."
+    message: "Implemented auto-retry (5 attempts) and manual 'Resend Failed' button. Also fixed 429 rate limit handling with exponential backoff. UI shows retry count per recipient."
 
 ## test_plan:
   current_focus:
-    - "Scheduled Campaign Daily Limit Bypass"
-    - "Message Sending Performance"
+    - "Auto-Retry Feature"
+    - "Resend Failed Button"
   test_all: false
   test_priority: "high_first"
 
