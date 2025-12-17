@@ -1082,6 +1082,13 @@ def main():
     tester.test_get_campaigns()
     tester.test_send_message_with_media()
     
+    # NEW FEATURE TESTS - December 2024
+    print("\n🆕 NEW FEATURE TESTS - DECEMBER 2024")
+    print("-" * 45)
+    tester.test_scheduled_campaign_future_date_daily_limit_bypass()
+    tester.test_message_sending_performance_verification()
+    tester.test_scheduled_campaign_same_day_limit_enforcement()
+    
     # File Upload Tests
     print("\n📋 RECIPIENT UPLOAD TESTS")
     print("-" * 30)
