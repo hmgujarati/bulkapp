@@ -194,13 +194,12 @@
 
 ## agent_communication:
   - agent: "main"
-    message: "Implemented 5MB file size limit for media uploads. Backend validation is working - tested with curl (6MB file rejected with proper error, 2MB file uploaded successfully). Need testing agent to verify the complete flow including frontend validation."
-  - agent: "testing"
-    message: "TESTING COMPLETE: File size limits fully implemented and working. Fixed critical bug in exception handling. All limits verified: Images 5MB, Videos 16MB, Documents 10MB. Authentication working. Ready for production use."
+    message: "Fixed two issues: 1) Scheduled campaigns for future dates now bypass today's daily limit (limit checked when campaign runs), 2) Message sending now uses parallel/concurrent sending for ~50 msg/sec performance. Need testing agent to verify both fixes."
 
 ## test_plan:
-  current_focus: []
-  stuck_tasks: []
+  current_focus:
+    - "Scheduled Campaign Daily Limit Bypass"
+    - "Message Sending Performance"
   test_all: false
   test_priority: "high_first"
 
