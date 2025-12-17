@@ -1337,6 +1337,14 @@ def main():
     tester.test_message_sending_performance_verification()
     tester.test_scheduled_campaign_same_day_limit_enforcement()
     
+    # RESEND FAILED MESSAGES FEATURE TESTS
+    print("\n🔄 RESEND FAILED MESSAGES FEATURE TESTS")
+    print("-" * 45)
+    tester.test_resend_failed_messages_feature()
+    tester.test_resend_failed_no_failed_messages()
+    tester.test_resend_failed_authentication()
+    tester.test_resend_failed_nonexistent_campaign()
+    
     # File Upload Tests
     print("\n📋 RECIPIENT UPLOAD TESTS")
     print("-" * 30)
