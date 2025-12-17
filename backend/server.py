@@ -749,6 +749,39 @@ async def check_scheduled_campaigns():
                     )
                     continue
                 
+                # Check daily limit for scheduled campaigns when they run
+                today = now.strftime("%Y-%m-%d")
+                last_reset = user.get('lastResetDate')
+                daily_usage = user.get('dailyUsage', 0)
+                daily_limit = user.get('dailyLimit', 1000)
+                
+                # Reset daily usage if it's a new day
+                if last_reset != today:
+                    daily_usage = 0
+                    await db.users.update_one(
+                        {"id": user['id']},
+                        {"$set": {"dailyUsage": 0, "lastResetDate": today}}
+                    )
+                
+                # Check if user can send these messages
+                pending_count = sum(1 for r in campaign['recipients'] if r['status'] == MessageStatus.PENDING.value)
+                remaining = daily_limit - daily_usage
+                
+                if pending_count > remaining:
+                    logger.warning(f"Campaign {campaign['id']} exceeds daily limit. Needed: {pending_count}, Available: {remaining}")
+                    # Mark campaign as failed with reason
+                    await db.campaigns.update_one(
+                        {"id": campaign['id']},
+                        {
+                            "$set": {
+                                "status": CampaignStatus.COMPLETED.value,
+                                "completedAt": now.isoformat(),
+                                "error": f"Daily limit exceeded. Needed {pending_count} messages but only {remaining} available."
+                            }
+                        }
+                    )
+                    continue
+                
                 # Update status to processing
                 await db.campaigns.update_one(
                     {"id": campaign['id']},
