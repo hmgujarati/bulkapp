@@ -165,16 +165,20 @@
 - **File Upload Integration:** Upload → URL generation → Template save workflow complete
 - **WhatsApp Compliance:** Only one media type sent per message (enforced in payload structure)
 
-### File Size Limit Validation (COMPLETED - December 2024):
-- **Image Limit (5MB):** ✅ Backend correctly rejects images >5MB with proper error message
-- **Video Limit (16MB):** ✅ Backend correctly rejects videos >16MB with proper error message  
-- **Document Limit (10MB):** ✅ Backend correctly rejects documents >10MB with proper error message
-- **Authentication:** ✅ Login with bizchatapi@gmail.com/adminpassword working correctly
-- **API Endpoint:** ✅ POST /api/upload/media with multipart form data working
-- **Error Responses:** ✅ Status 400 with detailed file size error messages
-- **Success Responses:** ✅ Status 200 with upload URL for files under limits
-- **Edge Cases:** ✅ Files exactly at size limits are accepted
-- **Status:** ✅ FULLY TESTED AND WORKING
+### File Size Limit Validation (NEW - December 2024):
+- **5MB Image Limit:** Backend rejects images larger than 5MB with proper error message
+- **Frontend Validation:** UI shows toast error before upload attempt for files >5MB
+- **Status:** ✅ Verified working
+
+### Scheduled Campaign for Future Date (NEW - December 2024):
+- **Daily Limit Fix:** Scheduled campaigns for future dates now bypass today's daily limit check
+- **Runtime Limit Check:** Daily limit is validated when the scheduled campaign actually runs
+- **Status:** Needs verification
+
+### Message Sending Performance Improvement (NEW - December 2024):
+- **Parallel Sending:** Messages are now sent concurrently in batches of 25
+- **Expected Rate:** ~50 messages/second (up from 2-3 msg/sec)
+- **Status:** Needs verification
 
 ## backend:
   - task: "File Size Limit Validation"
