@@ -81,6 +81,18 @@ const CampaignDetails = ({ user, onLogout }) => {
     }
   };
 
+  const handleResendFailed = async () => {
+    if (!window.confirm('Are you sure you want to resend all failed messages?')) return;
+    
+    try {
+      const response = await api.post(`/campaigns/${id}/resend-failed`);
+      toast.success(response.data.message || 'Resending failed messages');
+      fetchCampaign(true);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to resend messages');
+    }
+  };
+
   const handleRefresh = () => {
     setRefreshing(true);
     fetchCampaign(true);
