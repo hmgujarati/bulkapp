@@ -857,7 +857,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
                 <div>
                   <p className="text-sm text-slate-600">Rate</p>
-                  <p className="text-sm font-medium text-slate-900">~50 messages/second</p>
+                  <p className="text-sm font-medium text-slate-900">~12 messages/second</p>
                   <p className="text-xs text-slate-500 mt-1">
 
 
