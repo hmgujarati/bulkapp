@@ -380,6 +380,13 @@ const CampaignDetails = ({ user, onLogout }) => {
                           <span className="font-medium">{recipient.status}</span>
                         </div>
                       </td>
+                      <td className="py-3 px-4 text-sm text-slate-600">
+                        {recipient.retryCount > 0 ? (
+                          <span className={recipient.retryCount >= 5 ? 'text-red-600 font-medium' : 'text-amber-600'}>
+                            {recipient.retryCount}/5
+                          </span>
+                        ) : '-'}
+                      </td>
                       <td className="py-3 px-4 text-sm text-slate-600 font-mono">
                         {recipient.messageId ? recipient.messageId.slice(0, 20) + '...' : '-'}
                       </td>
