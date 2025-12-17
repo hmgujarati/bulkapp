@@ -165,6 +165,22 @@
 - **File Upload Integration:** Upload → URL generation → Template save workflow complete
 - **WhatsApp Compliance:** Only one media type sent per message (enforced in payload structure)
 
+### File Size Limit Validation (NEW - December 2024):
+- **5MB Image Limit:** Backend rejects images larger than 5MB with proper error message
+- **Frontend Validation:** UI shows toast error before upload attempt for files >5MB
+- **Status:** ✅ Needs verification by testing agent
+
+## agent_communication:
+  - agent: "main"
+    message: "Implemented 5MB file size limit for media uploads. Backend validation is working - tested with curl (6MB file rejected with proper error, 2MB file uploaded successfully). Need testing agent to verify the complete flow including frontend validation."
+
+## test_plan:
+  current_focus:
+    - "File Size Limit Validation (5MB)"
+    - "Media Upload with size validation"
+  test_all: false
+  test_priority: "high_first"
+
 ### Credentials Confirmed:
 - **Admin Email:** bizchatapi@gmail.com
 - **Password:** adminpassword
