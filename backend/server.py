@@ -597,9 +597,11 @@ async def send_whatsapp_message(
         logger.error(error_msg)
         return {"success": False, "error": error_msg}
 
-async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
-    """Process campaign with controlled rate limiting (~10-15 messages/second to avoid API rate limits)"""
+async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str, retry_failed_only: bool = False):
+    """Process campaign with auto-retry (up to 5 attempts) and controlled rate limiting"""
     import asyncio
+    
+    MAX_RETRY_ATTEMPTS = 5
     
     campaign = await db.campaigns.find_one({"id": campaign_id})
     if not campaign:
@@ -611,17 +613,27 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         {"$set": {"status": CampaignStatus.PROCESSING.value}}
     )
     
-    sent_count = 0
-    failed_count = 0
+    sent_count = campaign.get('sentCount', 0)
+    failed_count = 0  # Will be recalculated
     
     # Conservative rate limiting to avoid BizChat API 429 errors
-    # Send messages in small batches with delays
-    concurrent_batch_size = 5  # Send 5 messages concurrently (reduced from 25)
+    concurrent_batch_size = 5  # Send 5 messages concurrently
     db_update_interval = 25  # Update DB every 25 messages
     pause_check_interval = 25  # Check for pause every 25 messages
     
     recipients = campaign['recipients']
-    pending_recipients = [(i, r) for i, r in enumerate(recipients) if r['status'] == MessageStatus.PENDING.value]
+    
+    # Get recipients to process based on mode
+    if retry_failed_only:
+        # Only retry failed messages that haven't exceeded max retries
+        pending_recipients = [
+            (i, r) for i, r in enumerate(recipients) 
+            if r['status'] == MessageStatus.FAILED.value and r.get('retryCount', 0) < MAX_RETRY_ATTEMPTS
+        ]
+        logger.info(f"Retrying {len(pending_recipients)} failed messages for campaign {campaign_id}")
+    else:
+        # Process pending messages
+        pending_recipients = [(i, r) for i, r in enumerate(recipients) if r['status'] == MessageStatus.PENDING.value]
     
     async def send_single_message(index: int, recipient: dict):
         """Send a single message and return result with index"""
@@ -635,7 +647,10 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         return index, result
     
     processed_count = 0
-    consecutive_rate_limits = 0  # Track consecutive 429 errors
+    consecutive_rate_limits = 0
+    
+    # Process with auto-retry
+    messages_to_retry = []
     
     for batch_start in range(0, len(pending_recipients), concurrent_batch_size):
         # Check if campaign is paused
@@ -643,15 +658,14 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
             current_campaign = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
             if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
                 logger.info(f"Campaign {campaign_id} paused at message {processed_count}")
-                # Save progress before returning
                 await db.campaigns.update_one(
                     {"id": campaign_id},
                     {
                         "$set": {
                             "recipients": recipients,
                             "sentCount": sent_count,
-                            "failedCount": failed_count,
-                            "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                            "failedCount": sum(1 for r in recipients if r['status'] == MessageStatus.FAILED.value),
+                            "pendingCount": campaign['totalCount'] - sent_count - sum(1 for r in recipients if r['status'] == MessageStatus.FAILED.value),
                             "updatedAt": datetime.now(timezone.utc).isoformat()
                         }
                     }
@@ -659,14 +673,9 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                 return
         
         batch = pending_recipients[batch_start:batch_start + concurrent_batch_size]
-        
-        # Create tasks for concurrent sending
         tasks = [send_single_message(idx, recipient) for idx, recipient in batch]
-        
-        # Wait for all messages in batch to complete
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Process results
         batch_rate_limited = False
         for result in results:
             if isinstance(result, Exception):
@@ -674,24 +683,39 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                 continue
             
             index, send_result = result
+            current_retry_count = recipients[index].get('retryCount', 0)
+            
             if send_result['success']:
                 sent_count += 1
                 recipients[index]['status'] = MessageStatus.SENT.value
                 recipients[index]['sentAt'] = datetime.now(timezone.utc).isoformat()
                 recipients[index]['messageId'] = send_result.get('data', {}).get('message_id')
-                consecutive_rate_limits = 0  # Reset on success
+                recipients[index]['error'] = None  # Clear any previous error
+                consecutive_rate_limits = 0
             else:
-                # Check if it's a rate limit error (429)
                 error_msg = send_result.get('error', '')
+                recipients[index]['retryCount'] = current_retry_count + 1
+                
+                # Check if it's a rate limit error (429)
                 if '429' in error_msg:
                     batch_rate_limited = True
                     consecutive_rate_limits += 1
-                    # Don't mark as failed - we'll retry
-                    logger.warning(f"Rate limited (429) for {recipients[index]['phone']}, will slow down")
+                    # Queue for retry if under max attempts
+                    if recipients[index]['retryCount'] < MAX_RETRY_ATTEMPTS:
+                        messages_to_retry.append((index, recipients[index]))
+                    else:
+                        recipients[index]['status'] = MessageStatus.FAILED.value
+                        recipients[index]['error'] = f"Max retries ({MAX_RETRY_ATTEMPTS}) exceeded. Last error: {error_msg}"
+                    logger.warning(f"Rate limited (429) for {recipients[index]['phone']}, retry {recipients[index]['retryCount']}/{MAX_RETRY_ATTEMPTS}")
                 else:
-                    failed_count += 1
-                    recipients[index]['status'] = MessageStatus.FAILED.value
-                    recipients[index]['error'] = send_result['error']
+                    # Other errors - queue for retry if under max attempts
+                    if recipients[index]['retryCount'] < MAX_RETRY_ATTEMPTS:
+                        messages_to_retry.append((index, recipients[index]))
+                        recipients[index]['status'] = MessageStatus.PENDING.value  # Keep as pending for retry
+                        recipients[index]['error'] = f"Attempt {recipients[index]['retryCount']}/{MAX_RETRY_ATTEMPTS}: {error_msg}"
+                    else:
+                        recipients[index]['status'] = MessageStatus.FAILED.value
+                        recipients[index]['error'] = f"Max retries ({MAX_RETRY_ATTEMPTS}) exceeded. Last error: {error_msg}"
         
         processed_count += len(batch)
         
@@ -703,8 +727,8 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                     "$set": {
                         "recipients": recipients,
                         "sentCount": sent_count,
-                        "failedCount": failed_count,
-                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                        "failedCount": sum(1 for r in recipients if r['status'] == MessageStatus.FAILED.value),
+                        "pendingCount": sum(1 for r in recipients if r['status'] == MessageStatus.PENDING.value),
                         "updatedAt": datetime.now(timezone.utc).isoformat()
                     }
                 }
@@ -712,13 +736,53 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         
         # Dynamic delay based on rate limiting
         if batch_rate_limited:
-            # If we hit rate limits, wait longer (exponential backoff)
-            wait_time = min(5 * consecutive_rate_limits, 30)  # Max 30 seconds
+            wait_time = min(5 * consecutive_rate_limits, 30)
             logger.info(f"Rate limited - waiting {wait_time} seconds before next batch")
             await asyncio.sleep(wait_time)
         elif batch_start + concurrent_batch_size < len(pending_recipients):
-            # Normal delay: ~10-15 messages per second (5 messages every 0.4 seconds)
             await asyncio.sleep(0.4)
+    
+    # Auto-retry failed messages (up to MAX_RETRY_ATTEMPTS)
+    retry_round = 1
+    while messages_to_retry and retry_round <= 3:  # Max 3 retry rounds per campaign run
+        logger.info(f"Auto-retry round {retry_round}: {len(messages_to_retry)} messages to retry")
+        await asyncio.sleep(2)  # Wait 2 seconds before retry round
+        
+        current_retry_batch = messages_to_retry
+        messages_to_retry = []
+        
+        for batch_start in range(0, len(current_retry_batch), concurrent_batch_size):
+            batch = current_retry_batch[batch_start:batch_start + concurrent_batch_size]
+            tasks = [send_single_message(idx, recipient) for idx, recipient in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for result in results:
+                if isinstance(result, Exception):
+                    continue
+                
+                index, send_result = result
+                current_retry_count = recipients[index].get('retryCount', 0)
+                
+                if send_result['success']:
+                    sent_count += 1
+                    recipients[index]['status'] = MessageStatus.SENT.value
+                    recipients[index]['sentAt'] = datetime.now(timezone.utc).isoformat()
+                    recipients[index]['messageId'] = send_result.get('data', {}).get('message_id')
+                    recipients[index]['error'] = None
+                else:
+                    error_msg = send_result.get('error', '')
+                    recipients[index]['retryCount'] = current_retry_count + 1
+                    
+                    if recipients[index]['retryCount'] < MAX_RETRY_ATTEMPTS:
+                        messages_to_retry.append((index, recipients[index]))
+                        recipients[index]['error'] = f"Attempt {recipients[index]['retryCount']}/{MAX_RETRY_ATTEMPTS}: {error_msg}"
+                    else:
+                        recipients[index]['status'] = MessageStatus.FAILED.value
+                        recipients[index]['error'] = f"Max retries ({MAX_RETRY_ATTEMPTS}) exceeded. Last error: {error_msg}"
+            
+            await asyncio.sleep(0.5)  # Slightly longer delay for retries
+        
+        retry_round += 1
     
     # Final update - mark as completed
     await db.campaigns.update_one(
