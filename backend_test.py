@@ -845,6 +845,24 @@ class WhatsAppBulkMessengerTester:
         print(f"   Current daily usage: {user_response.get('dailyUsage', 0)}")
         print(f"   Daily limit: {user_response.get('dailyLimit', 1000)}")
         
+        # Step 1.5: Configure BizChat token for admin user (required for campaigns)
+        admin_user_id = user_response.get('id')
+        success, _ = self.run_test(
+            "Configure BizChat Token for Admin",
+            "PUT",
+            f"users/{admin_user_id}",
+            200,
+            data={
+                "bizChatToken": "test_token_for_testing",
+                "bizChatVendorUID": "9a1497da-b76f-4666-a439-70402e99db57"
+            },
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success:
+            print("   ❌ Failed to configure BizChat token")
+            return False
+        
         # Step 2: Create a campaign scheduled for tomorrow
         from datetime import datetime, timezone, timedelta
         tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
