@@ -1234,6 +1234,67 @@ async def cancel_campaign(campaign_id: str, current_user: TokenData = Depends(ge
     
     return {"message": "Campaign cancelled successfully"}
 
+@api_router.post("/campaigns/{campaign_id}/resend-failed")
+async def resend_failed_messages(
+    campaign_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Resend all failed messages in a campaign (resets retry count for manual retry)"""
+    campaign = await db.campaigns.find_one({"id": campaign_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Check access
+    if current_user.role != Role.ADMIN and campaign['userId'] != current_user.userId:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Count failed messages
+    failed_recipients = [r for r in campaign['recipients'] if r['status'] == MessageStatus.FAILED.value]
+    if not failed_recipients:
+        raise HTTPException(status_code=400, detail="No failed messages to resend")
+    
+    # Get user credentials
+    user = await db.users.find_one({"id": campaign['userId']})
+    if not user or not user.get('bizChatToken') or not user.get('bizChatVendorUID'):
+        raise HTTPException(status_code=400, detail="User BizChat credentials not configured")
+    
+    # Reset retry count for all failed messages and set them back to pending
+    recipients = campaign['recipients']
+    for i, r in enumerate(recipients):
+        if r['status'] == MessageStatus.FAILED.value:
+            recipients[i]['status'] = MessageStatus.PENDING.value
+            recipients[i]['retryCount'] = 0
+            recipients[i]['error'] = None
+    
+    # Update campaign
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {
+            "$set": {
+                "recipients": recipients,
+                "status": CampaignStatus.PROCESSING.value,
+                "failedCount": 0,
+                "pendingCount": len(failed_recipients),
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    # Start processing failed messages
+    background_tasks.add_task(
+        process_campaign,
+        campaign_id,
+        user['bizChatToken'],
+        user['bizChatVendorUID'],
+        False  # Not retry_failed_only mode, process all pending (which are the reset failed ones)
+    )
+    
+    return {
+        "message": f"Resending {len(failed_recipients)} failed messages",
+        "failedCount": len(failed_recipients)
+    }
+
 @api_router.delete("/campaigns/{campaign_id}")
 async def delete_campaign(campaign_id: str, current_user: TokenData = Depends(get_current_user)):
     campaign = await db.campaigns.find_one({"id": campaign_id})
