@@ -824,7 +824,7 @@ async def send_messages(
     if not user.get('bizChatVendorUID'):
         raise HTTPException(status_code=400, detail="BizChat Vendor UID not configured")
     
-    # Check daily limit
+    # Check daily limit - only for immediate campaigns, not scheduled ones
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     last_reset = user.get('lastResetDate')
     daily_usage = user.get('dailyUsage', 0)
@@ -838,13 +838,22 @@ async def send_messages(
             {"$set": {"dailyUsage": 0, "lastResetDate": today}}
         )
     
-    # Check if user can send these messages
-    remaining = daily_limit - daily_usage
-    if len(request.recipients) > remaining:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot send campaign. You need {len(request.recipients)} messages but only {remaining} available today. Daily limit: {daily_limit}/day"
-        )
+    # For scheduled campaigns, check if it's for a future date
+    is_future_scheduled = False
+    if request.scheduledAt:
+        scheduled_date = request.scheduledAt.strftime("%Y-%m-%d")
+        if scheduled_date > today:
+            is_future_scheduled = True
+    
+    # Only enforce daily limit for immediate campaigns or same-day scheduled campaigns
+    # Future scheduled campaigns will be checked when they run
+    if not is_future_scheduled:
+        remaining = daily_limit - daily_usage
+        if len(request.recipients) > remaining:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot send campaign. You need {len(request.recipients)} messages but only {remaining} available today. Daily limit: {daily_limit}/day"
+            )
     
     # Normalize phone numbers and prepare recipients with template data
     recipients = []
