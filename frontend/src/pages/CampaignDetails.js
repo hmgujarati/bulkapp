@@ -361,6 +361,7 @@ const CampaignDetails = ({ user, onLogout }) => {
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Phone</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Name</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Status</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Retries</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Message ID</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Sent At</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Error</th>
