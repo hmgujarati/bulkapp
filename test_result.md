@@ -234,9 +234,26 @@
 - **Retry Counter:** UI shows retry count (X/5) for each recipient in campaign details
 - **Status:** ✅ Implemented and UI verified
 
+  - task: "Resend Failed Messages Feature"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented resend-failed endpoint at POST /api/campaigns/{campaign_id}/resend-failed. Resets failed messages retry count and starts processing them again."
+      - working: true
+        agent: "testing"
+        comment: "COMPREHENSIVE TESTING COMPLETED: All resend-failed functionality working correctly. Tested 4 scenarios: (1) Resend failed messages - SUCCESS with correct count (10 messages), (2) No failed messages - correctly returns 400 error, (3) Authentication - correctly rejects unauthenticated requests with 403, (4) Non-existent campaign - correctly returns 404. Found existing campaign 'maestros' with 10 failed messages and successfully triggered resend operation. All tests passing 100%."
+
 ## agent_communication:
   - agent: "main"
     message: "Implemented auto-retry (5 attempts) and manual 'Resend Failed' button. Also fixed 429 rate limit handling with exponential backoff. UI shows retry count per recipient."
+  - agent: "testing"
+    message: "RESEND FAILED FEATURE TESTING COMPLETE: All 4 test scenarios passed successfully. Found campaign 'maestros' with 10 failed messages and verified resend functionality works correctly. Authentication, error handling, and response format all working as expected. Feature is ready for production use."
 
 ## test_plan:
   current_focus:
