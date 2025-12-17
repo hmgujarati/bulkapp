@@ -1057,6 +1057,220 @@ class WhatsAppBulkMessengerTester:
         
         return success
 
+    def test_resend_failed_messages_feature(self):
+        """Test the new Resend Failed Messages feature"""
+        if not self.admin_token:
+            print("❌ Skipping - No admin token")
+            return False
+
+        print("\n🔍 Testing Resend Failed Messages Feature...")
+        
+        # Step 1: Get list of campaigns to find one with failed messages
+        success, campaigns_response = self.run_test(
+            "Get Campaigns List",
+            "GET",
+            "campaigns",
+            200,
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success or 'campaigns' not in campaigns_response:
+            print("   ❌ Failed to get campaigns list")
+            return False
+        
+        campaigns = campaigns_response['campaigns']
+        print(f"   Found {len(campaigns)} campaigns")
+        
+        # Look for a campaign with failed messages
+        campaign_with_failed = None
+        for campaign in campaigns:
+            failed_count = campaign.get('failedCount', 0)
+            status = campaign.get('status', '')
+            if failed_count > 0 and status == 'completed':
+                campaign_with_failed = campaign
+                print(f"   Found campaign '{campaign['name']}' with {failed_count} failed messages")
+                break
+        
+        if not campaign_with_failed:
+            print("   ⚠️  No campaigns with failed messages found. Creating a test scenario...")
+            
+            # Create a test campaign that will have failed messages (no BizChat token configured properly)
+            test_recipients = [
+                {"phone": "+1234567890", "name": "Test User 1"},
+                {"phone": "+1234567891", "name": "Test User 2"},
+                {"phone": "+1234567892", "name": "Test User 3"}
+            ]
+            
+            campaign_data = {
+                "campaignName": "Test Campaign for Resend Failed",
+                "templateName": "test_template",
+                "recipients": test_recipients
+            }
+            
+            # This should create a campaign but messages will fail due to invalid BizChat config
+            success, create_response = self.run_test(
+                "Create Test Campaign (Will Have Failed Messages)",
+                "POST",
+                "messages/send",
+                200,
+                data=campaign_data,
+                headers={'Authorization': f'Bearer {self.admin_token}'}
+            )
+            
+            if not success:
+                print("   ❌ Failed to create test campaign")
+                return False
+            
+            test_campaign_id = create_response.get('campaignId')
+            print(f"   Created test campaign: {test_campaign_id}")
+            
+            # Wait a moment for processing to complete
+            import time
+            time.sleep(3)
+            
+            # Get the campaign details to check for failed messages
+            success, campaign_details = self.run_test(
+                "Get Test Campaign Details",
+                "GET",
+                f"campaigns/{test_campaign_id}",
+                200,
+                headers={'Authorization': f'Bearer {self.admin_token}'}
+            )
+            
+            if success:
+                campaign_with_failed = campaign_details
+                print(f"   Test campaign has {campaign_details.get('failedCount', 0)} failed messages")
+        
+        if not campaign_with_failed:
+            print("   ❌ Could not find or create a campaign with failed messages")
+            return False
+        
+        campaign_id = campaign_with_failed['id']
+        original_failed_count = campaign_with_failed.get('failedCount', 0)
+        
+        # Step 2: Test resend-failed endpoint with campaign that has failed messages
+        success, resend_response = self.run_test(
+            "Resend Failed Messages",
+            "POST",
+            f"campaigns/{campaign_id}/resend-failed",
+            200,
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if success:
+            print(f"   ✅ Resend failed endpoint succeeded")
+            print(f"   Response: {resend_response}")
+            
+            if 'failedCount' in resend_response:
+                resent_count = resend_response['failedCount']
+                print(f"   ✅ Resending {resent_count} failed messages")
+                
+                if resent_count == original_failed_count:
+                    print(f"   ✅ Correct count: {resent_count} messages being resent")
+                else:
+                    print(f"   ⚠️  Count mismatch: Expected {original_failed_count}, got {resent_count}")
+            
+            return True
+        else:
+            print("   ❌ Resend failed endpoint failed")
+            return False
+
+    def test_resend_failed_no_failed_messages(self):
+        """Test resend-failed endpoint with campaign that has no failed messages"""
+        if not self.admin_token:
+            print("❌ Skipping - No admin token")
+            return False
+
+        print("\n🔍 Testing Resend Failed with No Failed Messages...")
+        
+        # Get campaigns list
+        success, campaigns_response = self.run_test(
+            "Get Campaigns for No Failed Test",
+            "GET",
+            "campaigns",
+            200,
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success or 'campaigns' not in campaigns_response:
+            return False
+        
+        campaigns = campaigns_response['campaigns']
+        
+        # Look for a campaign with no failed messages
+        campaign_no_failed = None
+        for campaign in campaigns:
+            failed_count = campaign.get('failedCount', 0)
+            if failed_count == 0:
+                campaign_no_failed = campaign
+                print(f"   Found campaign '{campaign['name']}' with 0 failed messages")
+                break
+        
+        if not campaign_no_failed:
+            print("   ⚠️  No campaigns with 0 failed messages found")
+            return True  # This is not a failure, just no test data
+        
+        campaign_id = campaign_no_failed['id']
+        
+        # Test resend-failed endpoint - should return 400 error
+        success, error_response = self.run_test(
+            "Resend Failed (No Failed Messages - Should Fail)",
+            "POST",
+            f"campaigns/{campaign_id}/resend-failed",
+            400,  # Should fail with 400
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if success:
+            print(f"   ✅ Correctly returned 400 error for campaign with no failed messages")
+            return True
+        else:
+            print(f"   ❌ Expected 400 error but got different response")
+            return False
+
+    def test_resend_failed_authentication(self):
+        """Test resend-failed endpoint authentication"""
+        print("\n🔍 Testing Resend Failed Authentication...")
+        
+        # Test without authentication token
+        success, response = self.run_test(
+            "Resend Failed Without Token (Should Fail)",
+            "POST",
+            "campaigns/dummy-id/resend-failed",
+            403,  # Should fail with 403
+        )
+        
+        if success:
+            print(f"   ✅ Correctly rejected request without authentication token")
+            return True
+        else:
+            print(f"   ❌ Expected 403 error for unauthenticated request")
+            return False
+
+    def test_resend_failed_nonexistent_campaign(self):
+        """Test resend-failed endpoint with non-existent campaign"""
+        if not self.admin_token:
+            print("❌ Skipping - No admin token")
+            return False
+
+        print("\n🔍 Testing Resend Failed with Non-existent Campaign...")
+        
+        # Test with non-existent campaign ID
+        success, response = self.run_test(
+            "Resend Failed Non-existent Campaign (Should Fail)",
+            "POST",
+            "campaigns/non-existent-campaign-id/resend-failed",
+            404,  # Should fail with 404
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if success:
+            print(f"   ✅ Correctly returned 404 error for non-existent campaign")
+            return True
+        else:
+            print(f"   ❌ Expected 404 error for non-existent campaign")
+            return False
+
 def main():
     print("🚀 Starting WhatsApp Bulk Messenger API Tests")
     print("=" * 60)
