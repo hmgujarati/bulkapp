@@ -981,6 +981,22 @@ class WhatsAppBulkMessengerTester:
         
         admin_user_id = user_response.get('id')
         
+        # Ensure BizChat token is configured
+        success, _ = self.run_test(
+            "Ensure BizChat Token for Same-Day Test",
+            "PUT",
+            f"users/{admin_user_id}",
+            200,
+            data={
+                "bizChatToken": "test_token_for_testing",
+                "bizChatVendorUID": "9a1497da-b76f-4666-a439-70402e99db57"
+            },
+            headers={'Authorization': f'Bearer {self.admin_token}'}
+        )
+        
+        if not success:
+            return False
+        
         # Set daily limit to 5 for testing
         success, _ = self.run_test(
             "Set Low Daily Limit for Testing",
