@@ -124,6 +124,7 @@ class RecipientInfo(BaseModel):
     messageId: Optional[str] = None
     error: Optional[str] = None
     sentAt: Optional[datetime] = None
+    retryCount: int = 0  # Track number of retry attempts
 
 class Campaign(BaseModel):
     model_config = ConfigDict(extra="ignore")
