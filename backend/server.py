@@ -803,6 +803,9 @@ async def upload_media(
             "type": media_type
         }
     
+    except HTTPException:
+        # Re-raise HTTPExceptions (like file size validation errors) as-is
+        raise
     except Exception as e:
         logger.error(f"Error uploading file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
