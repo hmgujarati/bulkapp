@@ -629,6 +629,199 @@ class WhatsAppBulkMessengerTester:
         
         return success
 
+    def create_test_file(self, size_mb, file_type="image"):
+        """Create a test file of specified size in MB"""
+        size_bytes = int(size_mb * 1024 * 1024)
+        
+        if file_type == "image":
+            # Create a minimal PNG header + data to reach desired size
+            png_header = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01\x00\x00\x00\x01\x00\x08\x02\x00\x00\x00\x90wS\xde'
+            # Fill the rest with dummy data to reach target size
+            remaining_size = size_bytes - len(png_header) - 12  # 12 bytes for IEND chunk
+            dummy_data = b'A' * max(0, remaining_size)
+            iend_chunk = b'\x00\x00\x00\x00IEND\xaeB`\x82'
+            return png_header + dummy_data + iend_chunk
+        
+        elif file_type == "video":
+            # Create a minimal MP4-like file
+            mp4_header = b'\x00\x00\x00\x20ftypmp42\x00\x00\x00\x00mp42isom'
+            remaining_size = size_bytes - len(mp4_header)
+            dummy_data = b'V' * max(0, remaining_size)
+            return mp4_header + dummy_data
+        
+        elif file_type == "document":
+            # Create a minimal PDF
+            pdf_header = b'%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\ntrailer\n<<\n/Size 1\n>>\nstartxref\n%%EOF\n'
+            remaining_size = size_bytes - len(pdf_header)
+            dummy_data = b'D' * max(0, remaining_size)
+            return pdf_header + dummy_data
+        
+        return b'X' * size_bytes
+
+    def test_file_size_limit_image_under_5mb(self):
+        """Test uploading image under 5MB limit (should succeed)"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Create 2MB image file
+        file_data = self.create_test_file(2.0, "image")
+        
+        success, response = self.run_test(
+            "Upload Image Under 5MB Limit (2MB)",
+            "POST",
+            "upload/media?media_type=image",
+            200,
+            files={'file': ('test_2mb.png', file_data, 'image/png')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success and 'url' in response:
+            print(f"   Image uploaded successfully: {response['url']}")
+            print(f"   File size: 2.0MB (under 5MB limit)")
+        
+        return success
+
+    def test_file_size_limit_image_over_5mb(self):
+        """Test uploading image over 5MB limit (should fail)"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Create 6MB image file
+        file_data = self.create_test_file(6.0, "image")
+        
+        success, response = self.run_test(
+            "Upload Image Over 5MB Limit (6MB)",
+            "POST",
+            "upload/media?media_type=image",
+            400,  # Should fail with 400
+            files={'file': ('test_6mb.png', file_data, 'image/png')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success:
+            print(f"   Correctly rejected 6MB image (over 5MB limit)")
+        
+        return success
+
+    def test_file_size_limit_video_under_16mb(self):
+        """Test uploading video under 16MB limit (should succeed)"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Create 10MB video file
+        file_data = self.create_test_file(10.0, "video")
+        
+        success, response = self.run_test(
+            "Upload Video Under 16MB Limit (10MB)",
+            "POST",
+            "upload/media?media_type=video",
+            200,
+            files={'file': ('test_10mb.mp4', file_data, 'video/mp4')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success and 'url' in response:
+            print(f"   Video uploaded successfully: {response['url']}")
+            print(f"   File size: 10.0MB (under 16MB limit)")
+        
+        return success
+
+    def test_file_size_limit_video_over_16mb(self):
+        """Test uploading video over 16MB limit (should fail)"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Create 18MB video file
+        file_data = self.create_test_file(18.0, "video")
+        
+        success, response = self.run_test(
+            "Upload Video Over 16MB Limit (18MB)",
+            "POST",
+            "upload/media?media_type=video",
+            400,  # Should fail with 400
+            files={'file': ('test_18mb.mp4', file_data, 'video/mp4')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success:
+            print(f"   Correctly rejected 18MB video (over 16MB limit)")
+        
+        return success
+
+    def test_file_size_limit_document_under_10mb(self):
+        """Test uploading document under 10MB limit (should succeed)"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Create 5MB document file
+        file_data = self.create_test_file(5.0, "document")
+        
+        success, response = self.run_test(
+            "Upload Document Under 10MB Limit (5MB)",
+            "POST",
+            "upload/media?media_type=document",
+            200,
+            files={'file': ('test_5mb.pdf', file_data, 'application/pdf')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success and 'url' in response:
+            print(f"   Document uploaded successfully: {response['url']}")
+            print(f"   File size: 5.0MB (under 10MB limit)")
+        
+        return success
+
+    def test_file_size_limit_document_over_10mb(self):
+        """Test uploading document over 10MB limit (should fail)"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Create 12MB document file
+        file_data = self.create_test_file(12.0, "document")
+        
+        success, response = self.run_test(
+            "Upload Document Over 10MB Limit (12MB)",
+            "POST",
+            "upload/media?media_type=document",
+            400,  # Should fail with 400
+            files={'file': ('test_12mb.pdf', file_data, 'application/pdf')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success:
+            print(f"   Correctly rejected 12MB document (over 10MB limit)")
+        
+        return success
+
+    def test_file_size_limit_edge_cases(self):
+        """Test edge cases for file size limits"""
+        if not self.user_token:
+            print("❌ Skipping - No user token")
+            return False
+
+        # Test exactly at 5MB limit for images
+        file_data = self.create_test_file(5.0, "image")
+        
+        success, response = self.run_test(
+            "Upload Image Exactly at 5MB Limit",
+            "POST",
+            "upload/media?media_type=image",
+            200,  # Should succeed at exactly 5MB
+            files={'file': ('test_5mb_exact.png', file_data, 'image/png')},
+            headers={'Authorization': f'Bearer {self.user_token}'}
+        )
+        
+        if success and 'url' in response:
+            print(f"   Image at exactly 5MB uploaded successfully")
+        
+        return success
+
 def main():
     print("🚀 Starting WhatsApp Bulk Messenger API Tests")
     print("=" * 60)
