@@ -333,6 +333,30 @@ async def get_me(current_user: TokenData = Depends(get_current_user)):
     user = await db.users.find_one({"id": current_user.userId}, {"_id": 0, "password": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Auto-reset daily usage if it's a new day
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last_reset = user.get('lastResetDate')
+    
+    if last_reset != today:
+        # Calculate actual usage from today's campaigns (only count sent messages)
+        today_start = f"{today}T00:00:00"
+        today_campaigns = await db.campaigns.find({
+            "userId": current_user.userId,
+            "createdAt": {"$gte": today_start}
+        }).to_list(1000)
+        
+        # Sum only successfully sent messages from today
+        actual_usage = sum(c.get('sentCount', 0) for c in today_campaigns)
+        
+        # Update user with correct daily usage
+        await db.users.update_one(
+            {"id": current_user.userId},
+            {"$set": {"dailyUsage": actual_usage, "lastResetDate": today}}
+        )
+        user['dailyUsage'] = actual_usage
+        user['lastResetDate'] = today
+    
     return user
 
 @api_router.post("/auth/change-password")
