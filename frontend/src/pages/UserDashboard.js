@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, Send, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { MessageSquare, Send, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { toast } from 'sonner';
