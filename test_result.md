@@ -249,6 +249,13 @@
         agent: "testing"
         comment: "COMPREHENSIVE TESTING COMPLETED: All resend-failed functionality working correctly. Tested 4 scenarios: (1) Resend failed messages - SUCCESS with correct count (10 messages), (2) No failed messages - correctly returns 400 error, (3) Authentication - correctly rejects unauthenticated requests with 403, (4) Non-existent campaign - correctly returns 404. Found existing campaign 'maestros' with 10 failed messages and successfully triggered resend operation. All tests passing 100%."
 
+### Admin Impersonation Feature (NEW - January 2026):
+- **Login as User:** Admin can click "Login as User" button to view app as any user
+- **Yellow Banner:** Shows "You are viewing as: [email]" with "Return to Admin" button
+- **Stop Impersonation:** Returns admin to their original account
+- **Security:** Cannot impersonate super admin (bizchatapi@gmail.com)
+- **Status:** ✅ Implemented and API verified
+
 ## agent_communication:
   - agent: "main"
     message: "Implemented auto-retry (5 attempts) and manual 'Resend Failed' button. Also fixed 429 rate limit handling with exponential backoff. UI shows retry count per recipient."
