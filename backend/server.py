@@ -216,6 +216,8 @@ class TokenData(BaseModel):
     userId: str
     email: str
     role: Role
+    isImpersonating: bool = False
+    originalAdminId: Optional[str] = None
 
 # Helper functions
 def hash_password(password: str) -> str:
