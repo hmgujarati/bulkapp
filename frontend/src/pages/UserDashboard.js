@@ -111,7 +111,16 @@ const UserDashboard = ({ user, onLogout }) => {
           <Card className="shadow-lg border-0 bg-gradient-to-br from-blue-50 to-blue-100">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-blue-900">Available Today</CardTitle>
-              <Clock className="h-5 w-5 text-blue-600" />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={recalculateUsage}
+                disabled={recalculating}
+                className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800"
+                title="Recalculate usage"
+              >
+                <RefreshCw className={`h-4 w-4 ${recalculating ? 'animate-spin' : ''}`} />
+              </Button>
             </CardHeader>
             <CardContent>
               {userInfo ? (
