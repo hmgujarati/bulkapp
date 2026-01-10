@@ -359,6 +359,37 @@ async def get_me(current_user: TokenData = Depends(get_current_user)):
     
     return user
 
+@api_router.post("/auth/recalculate-usage")
+async def recalculate_daily_usage(current_user: TokenData = Depends(get_current_user)):
+    """Recalculate daily usage based on actual campaign data (only counts sent messages)"""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_start = f"{today}T00:00:00"
+    
+    # Get all campaigns created today for this user
+    today_campaigns = await db.campaigns.find({
+        "userId": current_user.userId,
+        "createdAt": {"$gte": today_start}
+    }).to_list(1000)
+    
+    # Sum only successfully sent messages (not failed or pending)
+    actual_usage = sum(c.get('sentCount', 0) for c in today_campaigns)
+    
+    # Update user's daily usage
+    await db.users.update_one(
+        {"id": current_user.userId},
+        {"$set": {"dailyUsage": actual_usage, "lastResetDate": today}}
+    )
+    
+    user = await db.users.find_one({"id": current_user.userId}, {"_id": 0, "password": 0})
+    
+    return {
+        "message": "Daily usage recalculated successfully",
+        "dailyUsage": actual_usage,
+        "dailyLimit": user.get('dailyLimit', 1000),
+        "available": user.get('dailyLimit', 1000) - actual_usage,
+        "campaignsToday": len(today_campaigns)
+    }
+
 @api_router.post("/auth/change-password")
 async def change_password(password_data: PasswordChange, current_user: TokenData = Depends(get_current_user)):
     # Get user with password
