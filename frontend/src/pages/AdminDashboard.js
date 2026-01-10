@@ -85,6 +85,22 @@ const AdminDashboard = ({ user, onLogout, onImpersonate }) => {
     }
   };
 
+  const handleImpersonate = async (userId, userEmail) => {
+    if (!window.confirm(`Login as ${userEmail}? You can return to your admin account anytime.`)) {
+      return;
+    }
+    
+    try {
+      const response = await api.post(`/auth/impersonate/${userId}`);
+      toast.success(`Now logged in as ${userEmail}`);
+      if (onImpersonate) {
+        onImpersonate(response.data.token, response.data.user);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to login as user');
+    }
+  };
+
   const stats = {
     totalUsers: users.length,
     activeUsers: users.filter(u => !u.isPaused).length,
