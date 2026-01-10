@@ -276,6 +276,19 @@ const AdminDashboard = ({ user, onLogout, onImpersonate }) => {
                         </td>
                         <td className="py-3 px-4 text-sm">
                           <div className="flex space-x-2">
+                            {/* Login as User button - only for non-admin users */}
+                            {u.role !== 'admin' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => handleImpersonate(u.id, u.email)}
+                                title="Login as this user"
+                                data-testid={`impersonate-user-${u.id}`}
+                              >
+                                <LogIn className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
