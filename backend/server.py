@@ -243,7 +243,9 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user_data = TokenData(
             userId=payload['userId'],
             email=payload['email'],
-            role=payload['role']
+            role=payload['role'],
+            isImpersonating=payload.get('isImpersonating', False),
+            originalAdminId=payload.get('originalAdminId')
         )
         
         # Check if user exists and is not paused
