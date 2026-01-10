@@ -87,13 +87,29 @@ const App = () => {
 
   return (
     <div className="App">
+      {/* Impersonation Banner */}
+      {user?.isImpersonating && (
+        <div className="bg-amber-500 text-white px-4 py-2 text-center flex items-center justify-center gap-4 sticky top-0 z-50">
+          <span className="font-medium">
+            👤 You are viewing as: <strong>{user.email}</strong>
+          </span>
+          <Button 
+            size="sm" 
+            variant="secondary"
+            onClick={handleStopImpersonation}
+            className="bg-white text-amber-600 hover:bg-amber-50"
+          >
+            Return to Admin
+          </Button>
+        </div>
+      )}
       <BrowserRouter>
         <Routes>
           <Route
             path="/login"
             element={
               user ? (
-                <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} />
+                <Navigate to={user.role === 'admin' && !user.isImpersonating ? '/admin' : '/dashboard'} />
               ) : (
                 <LoginPage onLogin={handleLogin} />
               )
@@ -103,7 +119,7 @@ const App = () => {
             path="/admin"
             element={
               user && user.role === 'admin' ? (
-                <AdminDashboard user={user} onLogout={handleLogout} />
+                <AdminDashboard user={user} onLogout={handleLogout} onImpersonate={handleImpersonate} />
               ) : (
                 <Navigate to="/login" />
               )
@@ -112,7 +128,7 @@ const App = () => {
           <Route
             path="/dashboard"
             element={
-              user && user.role === 'user' ? (
+              user ? (
                 <UserDashboard user={user} onLogout={handleLogout} />
               ) : (
                 <Navigate to="/login" />
