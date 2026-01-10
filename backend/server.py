@@ -410,6 +410,93 @@ async def change_password(password_data: PasswordChange, current_user: TokenData
     
     return {"message": "Password changed successfully"}
 
+@api_router.post("/auth/impersonate/{user_id}")
+async def impersonate_user(user_id: str, current_user: TokenData = Depends(require_admin)):
+    """Admin can login as any user to provide support"""
+    # Find the target user
+    target_user = await db.users.find_one({"id": user_id})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Don't allow impersonating super admin
+    if target_user['email'] == os.environ.get('SUPER_ADMIN_EMAIL', 'bizchatapi@gmail.com'):
+        raise HTTPException(status_code=403, detail="Cannot impersonate super admin")
+    
+    # Create token for the target user
+    token_data = TokenData(
+        userId=target_user['id'],
+        email=target_user['email'],
+        role=target_user['role'],
+        isImpersonating=True,
+        originalAdminId=current_user.userId
+    )
+    
+    token = jwt.encode(
+        {
+            "userId": token_data.userId,
+            "email": token_data.email,
+            "role": token_data.role,
+            "isImpersonating": True,
+            "originalAdminId": current_user.userId,
+            "exp": datetime.now(timezone.utc) + timedelta(hours=4)  # Shorter expiry for impersonation
+        },
+        JWT_SECRET,
+        algorithm="HS256"
+    )
+    
+    logger.info(f"Admin {current_user.email} impersonating user {target_user['email']}")
+    
+    return {
+        "token": token,
+        "user": {
+            "id": target_user['id'],
+            "email": target_user['email'],
+            "firstName": target_user.get('firstName', ''),
+            "lastName": target_user.get('lastName', ''),
+            "role": target_user['role'],
+            "isImpersonating": True,
+            "originalAdminId": current_user.userId
+        }
+    }
+
+@api_router.post("/auth/stop-impersonation")
+async def stop_impersonation(current_user: TokenData = Depends(get_current_user)):
+    """Stop impersonation and return to admin account"""
+    # Check if currently impersonating
+    original_admin_id = getattr(current_user, 'originalAdminId', None)
+    if not original_admin_id:
+        raise HTTPException(status_code=400, detail="Not currently impersonating any user")
+    
+    # Get admin user
+    admin_user = await db.users.find_one({"id": original_admin_id})
+    if not admin_user:
+        raise HTTPException(status_code=404, detail="Original admin account not found")
+    
+    # Create token for admin
+    token = jwt.encode(
+        {
+            "userId": admin_user['id'],
+            "email": admin_user['email'],
+            "role": admin_user['role'],
+            "exp": datetime.now(timezone.utc) + timedelta(hours=24)
+        },
+        JWT_SECRET,
+        algorithm="HS256"
+    )
+    
+    logger.info(f"Admin {admin_user['email']} stopped impersonating")
+    
+    return {
+        "token": token,
+        "user": {
+            "id": admin_user['id'],
+            "email": admin_user['email'],
+            "firstName": admin_user.get('firstName', ''),
+            "lastName": admin_user.get('lastName', ''),
+            "role": admin_user['role']
+        }
+    }
+
 # User Routes
 @api_router.get("/users")
 async def get_users(current_user: TokenData = Depends(require_admin)):
