@@ -11,6 +11,9 @@ import CampaignHistory from './pages/CampaignHistory';
 import CampaignDetails from './pages/CampaignDetails';
 import Settings from './pages/Settings';
 import { Toaster } from '@/components/ui/sonner';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import api from './utils/api';
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -34,7 +37,44 @@ const App = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('originalAdmin');
     setUser(null);
+  };
+
+  const handleImpersonate = (token, userData) => {
+    // Save original admin info before switching
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+    const currentToken = localStorage.getItem('token');
+    localStorage.setItem('originalAdmin', JSON.stringify({ user: currentUser, token: currentToken }));
+    
+    // Switch to impersonated user
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
+  const handleStopImpersonation = async () => {
+    try {
+      const response = await api.post('/auth/stop-impersonation');
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.removeItem('originalAdmin');
+      setUser(response.data.user);
+      toast.success('Returned to admin account');
+    } catch (error) {
+      // Fallback: use stored original admin data
+      const originalAdmin = localStorage.getItem('originalAdmin');
+      if (originalAdmin) {
+        const { user: adminUser, token } = JSON.parse(originalAdmin);
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(adminUser));
+        localStorage.removeItem('originalAdmin');
+        setUser(adminUser);
+        toast.success('Returned to admin account');
+      } else {
+        toast.error('Failed to return to admin account');
+      }
+    }
   };
 
   if (loading) {
