@@ -11,7 +11,7 @@ import { Users, UserPlus, Pause, Play, Settings as SettingsIcon, Trash2, LogIn }
 import { toast } from 'sonner';
 import api from '../utils/api';
 
-const AdminDashboard = ({ user, onLogout }) => {
+const AdminDashboard = ({ user, onLogout, onImpersonate }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
