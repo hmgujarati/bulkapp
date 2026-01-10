@@ -12,6 +12,7 @@ const UserDashboard = ({ user, onLogout }) => {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState(null);
+  const [recalculating, setRecalculating] = useState(false);
 
   useEffect(() => {
     fetchRecentCampaigns();
@@ -24,6 +25,19 @@ const UserDashboard = ({ user, onLogout }) => {
       setUserInfo(response.data);
     } catch (error) {
       console.error('Failed to fetch user info');
+    }
+  };
+
+  const recalculateUsage = async () => {
+    setRecalculating(true);
+    try {
+      const response = await api.post('/auth/recalculate-usage');
+      toast.success(`Usage recalculated: ${response.data.available} messages available`);
+      fetchUserInfo(); // Refresh user info
+    } catch (error) {
+      toast.error('Failed to recalculate usage');
+    } finally {
+      setRecalculating(false);
     }
   };
 
