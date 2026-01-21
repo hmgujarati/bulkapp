@@ -391,21 +391,31 @@ async def handle_bizchat_webhook(request: Request):
                 )
             return {"status": "success", "action": "delete_reminder", "number": reminder_num}
         
-        # Handle natural language cancel (e.g., "cancel bni reminder", "delete call diku")
-        cancel_name_match = re.match(r'^(delete|cancel|remove)\s+(?:reminder\s+)?(?:to\s+)?(.+)$', message_lower)
-        if cancel_name_match:
-            search_text = cancel_name_match.group(2).strip()
-            # Don't match if it's just "all" (handled above)
-            if search_text and search_text not in ['all', 'all reminders', 'everything']:
-                if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                    delete_msg = await delete_reminder_by_name(user_id, search_text)
-                    await send_whatsapp_reply(
-                        clean_phone,
-                        delete_msg,
-                        user['bizChatToken'],
-                        user['bizChatVendorUID']
-                    )
-                return {"status": "success", "action": "delete_by_name", "search": search_text}
+        # Handle natural language cancel (e.g., "cancel bni reminder", "delete call diku", "remove reminder to call")
+        # More flexible pattern to catch variations like "cancle", "remove reminders to", etc.
+        cancel_patterns = [
+            r'^(delete|cancel|cancle|remove)\s+(?:reminders?\s+)?(?:to\s+)?(.+)$',
+            r'^(?:please\s+)?(delete|cancel|cancle|remove)\s+(.+)$',
+        ]
+        
+        for pattern in cancel_patterns:
+            cancel_name_match = re.match(pattern, message_lower)
+            if cancel_name_match:
+                search_text = cancel_name_match.group(2).strip()
+                # Clean up common words
+                search_text = re.sub(r'^(the\s+|my\s+|reminder\s+to\s+|reminder\s+for\s+)', '', search_text)
+                # Don't match if it's just "all" (handled above)
+                if search_text and search_text not in ['all', 'all reminders', 'everything', 'all my reminders']:
+                    if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+                        delete_msg = await delete_reminder_by_name(user_id, search_text)
+                        await send_whatsapp_reply(
+                            clean_phone,
+                            delete_msg,
+                            user['bizChatToken'],
+                            user['bizChatVendorUID']
+                        )
+                    return {"status": "success", "action": "delete_by_name", "search": search_text}
+                break
         
         # For creating reminders, we need the OpenAI API key
         if not settings or not settings.get('openaiApiKey'):
