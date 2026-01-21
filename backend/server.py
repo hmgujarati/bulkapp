@@ -164,6 +164,18 @@ async def check_scheduled_campaigns():
         await asyncio.sleep(60)
 
 
+async def check_due_reminders():
+    """Background task to check and send due reminders"""
+    while True:
+        try:
+            await process_due_reminders()
+        except Exception as e:
+            logger.error(f"Error in check_due_reminders: {str(e)}")
+        
+        # Check every 30 seconds for more responsive reminders
+        await asyncio.sleep(30)
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize app on startup"""
