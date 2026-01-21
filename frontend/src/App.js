@@ -10,6 +10,7 @@ import MyTemplates from './pages/MyTemplates';
 import CampaignHistory from './pages/CampaignHistory';
 import CampaignDetails from './pages/CampaignDetails';
 import Settings from './pages/Settings';
+import Reminders from './pages/Reminders';
 import { Toaster } from '@/components/ui/sonner';
 import api from './utils/api';
 
