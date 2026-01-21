@@ -375,7 +375,6 @@ const Reminders = ({ user, onLogout }) => {
             )}
           </div>
         )}
-      </main>
 
       {/* Add Number Dialog */}
       <Dialog open={showAddNumber} onOpenChange={setShowAddNumber}>
