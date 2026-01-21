@@ -238,13 +238,41 @@ async def handle_bizchat_webhook(request: Request):
         settings = await db.reminder_settings.find_one({"userId": user_id})
         user = await db.users.find_one({"id": user_id})
         
+        # Check for commands first (before requiring API key)
+        message_lower = message_text.lower().strip()
+        
+        # Handle LIST commands
+        if any(cmd in message_lower for cmd in LIST_COMMANDS):
+            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+                reminders_list = await get_reminders_list(user_id, user_timezone)
+                await send_whatsapp_reply(
+                    clean_phone,
+                    reminders_list,
+                    user['bizChatToken'],
+                    user['bizChatVendorUID']
+                )
+            return {"status": "success", "action": "list_reminders"}
+        
+        # Handle HELP commands
+        if any(cmd in message_lower for cmd in HELP_COMMANDS):
+            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+                help_msg = await get_help_message()
+                await send_whatsapp_reply(
+                    clean_phone,
+                    help_msg,
+                    user['bizChatToken'],
+                    user['bizChatVendorUID']
+                )
+            return {"status": "success", "action": "help"}
+        
+        # For creating reminders, we need the OpenAI API key
         if not settings or not settings.get('openaiApiKey'):
             logger.warning(f"User {user_id} has no OpenAI API key configured")
             # Send reply if possible
             if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
                 await send_whatsapp_reply(
                     clean_phone,
-                    "⚠️ Reminder bot is not fully configured. Please set up your OpenAI API key in the dashboard.",
+                    "⚠️ Reminder bot is not fully configured. Please set up your OpenAI API key in the dashboard.\n\n💡 You can still use:\n• \"show reminders\" - View your reminders\n• \"help\" - See available commands",
                     user['bizChatToken'],
                     user['bizChatVendorUID']
                 )
