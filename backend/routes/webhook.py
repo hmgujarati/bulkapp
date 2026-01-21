@@ -484,7 +484,22 @@ async def handle_bizchat_webhook(request: Request):
                 )
             return {"status": "success", "action": "help"}
         
-        # Handle DELETE ALL commands
+        # Handle DELETE ALL with search term (e.g., "delete all call", "cancel all meetings")
+        delete_all_search_match = re.match(r'^(delete|cancel|remove)\s+all\s+(.+)$', message_lower)
+        if delete_all_search_match:
+            search_text = delete_all_search_match.group(2).strip()
+            if search_text and search_text not in ['reminders', 'my reminders']:
+                if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+                    delete_msg = await delete_all_matching_reminders(user_id, search_text)
+                    await send_whatsapp_reply(
+                        clean_phone,
+                        delete_msg,
+                        user['bizChatToken'],
+                        user['bizChatVendorUID']
+                    )
+                return {"status": "success", "action": "delete_all_matching", "search": search_text}
+        
+        # Handle DELETE ALL commands (no search term)
         if any(cmd in message_lower for cmd in DELETE_ALL_COMMANDS):
             if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
                 delete_msg = await delete_all_reminders(user_id)
