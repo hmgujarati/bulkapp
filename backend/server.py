@@ -198,6 +198,10 @@ async def startup_event():
     # Start scheduled campaigns checker
     asyncio.create_task(check_scheduled_campaigns())
     logger.info("Scheduled campaigns checker started")
+    
+    # Start reminders checker
+    asyncio.create_task(check_due_reminders())
+    logger.info("Reminders checker started")
 
 
 @app.on_event("shutdown")
