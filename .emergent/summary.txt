@@ -1,192 +1,168 @@
 <analysis>**original_problem_statement:**
-The user wants to build a full-stack website for sending bulk WhatsApp messages using the  API.
+The user initially requested a full-stack website for sending bulk WhatsApp messages using the  API. This has since been built. The scope has now expanded to include a new major feature: an AI-powered Reminder Bot that uses natural language processing to schedule and send reminders.
 
-**PRODUCT REQUIREMENTS:**
-- **Admin Panel:**
-    - Create, pause, and delete user accounts.
-    - Set daily message sending limits for each user.
-    - The admin account  should be a super admin that cannot be paused or deleted.
-- **User Features:**
-    - Users can upload an Excel file or copy-paste a list of phone numbers.
-    - An option to add a default country code (e.g., 91) to numbers that don't already have one. Duplicates should be removed.
-    - Users should be able to manage their own API credentials (Vendor UID and API Token) in a settings page.
-    - Users can change their own password.
-    - The UI should display the user's remaining daily message limit.
-- **Campaign Management:**
-    - A simple form to send messages with fields: Campaign Name, Template Name, Template Language, and custom fields (Field 1-5).
-    - A My Templates feature to save, load, and manage frequently used template content to avoid re-typing.
-    - Real-time campaign progress tracking (sent, failed, pending) with pause/resume functionality.
-    - Campaign history page where users can view and delete past campaigns.
-    - Deleting a campaign should not affect the daily message usage stats.
-- **System Logic:**
-    - The system must handle high-volume sending (e.g., 100,000 messages) with rate limiting (29 messages/second).
-    - Failed messages should not count against the user's daily sending limit.
-    - Prevent a campaign from starting if the number of recipients exceeds the user's available daily limit.
-- **UI/UX:**
-    - The login page should be clean, without pre-filled demo credentials.
+**PRODUCT REQUIREMENTS (New): Reminder Bot**
+*   **Core Functionality:** Allow users to set reminders using natural language (e.g., remind me to call Harsh at 10 am tomorrow).
+*   **Number Management:**
+    *   A dedicated UI for users to add and manage a list of phone numbers that can receive reminders.
+    *   Reminders are specific to each number.
+    *   Users can set reminders for their own registered number or any other number on their list.
+    *   Each number must have an associated timezone, set by the user upon adding it.
+*   **API Keys:** Users will provide their own OpenAI API keys. The system should be designed to use a cost-effective model (e.g., GPT-3.5-Turbo).
+*   **Reminder Management:**
+    *   A view to list all reminders, filterable by day, week, or a custom date range (up to 15 days).
+    *   Users can delete reminders.
+    *   Reminders are created immediately upon request without a confirmation step.
+*   **Unanswered Question:** The user asked how WhatsApp templates from Meta will be managed for the reminder messages. This needs to be addressed before development.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application (FastAPI backend, React frontend) has been developed. Key features implemented include:
-- JWT-based authentication with admin and user roles.
-- Admin dashboard for complete user lifecycle management (create, pause, delete, set limits).
-- User dashboard displaying messaging statistics.
-- A My Templates page for creating and reusing message templates.
-- A simplified Send Message page that loads saved templates and allows recipient list management (Excel upload, copy-paste, add country code, remove duplicates).
-- A Campaign History page with options to view details and delete campaigns.
-- A Settings page for users to manage their API credentials and change their password.
-- The backend includes logic for rate-limited, asynchronous message sending, and daily usage tracking.
-- Super admin protection has been coded to prevent the  account from being modified or deleted.
-- The login page UI has been modified to remove demo credentials.
+A complete full-stack application for bulk WhatsApp messaging. It includes user authentication (admin/user roles), an admin dashboard for user management, and a user-facing dashboard. Users can create, manage, and reuse message templates, which now support media (image, video, document) and location. Campaigns can be sent immediately or scheduled for later, with a background job processing scheduled tasks. The application has undergone extensive bug fixing and hardening, including removing third-party branding and preparing the code for deployment.
 
 **Last working item**:
-- **Last item agent was working:** Implementing security and UI enhancements requested by the user. This included:
-    1.  Adding backend logic to protect the super admin () from being paused or deleted.
-    2.  Removing the hardcoded demo credentials from the  component.
-- **Status:** IN PROGRESS
-- **Agent Testing Done:** N
-- **Which testing method agent to use?** both
-    - **Frontend:** Use the screenshot tool on the login page to verify the demo credentials have been removed.
-    - **Backend:** Use  to log in as the admin and attempt to pause or delete the  user, expecting a  error.
-- **User Testing Done:** N
+- **Last item agent was working:** The agent was designing the architecture for the new Reminder Bot feature. The user provided feedback on the initial plan and clarified requirements, but explicitly instructed the agent **not to start building it yet**. The final interaction was the user asking a critical follow-up question about Meta templates.
+- **Status:** BLOCKED
+- **Agent Testing Done:** N/A (Planning phase)
+- **Which testing method agent to use?** N/A
+- **User Testing Done:** N/A
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Verify Super Admin Protection and Login Page Cleanup (P0)**
--   **Issue 2: Critical Login/Session Instability (P1)**
+- **Issue 1: Potential Session Instability (P1)**
 
 **Issues Detail:**
--   **Issue 1:**
-    -   **Description:** The agent implemented the code for super admin protection and removed demo credentials from the login page but did not restart the services or perform any verification. The changes are not live.
-    -   **Attempted fixes:** Code was written and committed.
-    -   **Next debug checklist:**
-        1.  Run backend: stopped
-frontend: ERROR (not running)
-backend: started
-frontend: started to apply the latest code changes.
-        2.  Take a screenshot of the login page to confirm the demo credentials are gone.
-        3.  Log in as admin () and attempt to pause/delete the same account via the Admin Dashboard UI or . Verify that the action is blocked.
-    -   **Why fix this issue and what will be achieved with the fix?** To complete the user's latest request and ensure the admin account is secure.
-    -   **Status:** IN PROGRESS
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Both
-    -   **Blocked on other issue:** None.
-
--   **Issue 2:**
-    -   **Description:** Throughout the session, the agent noted that the application fails to maintain the user's session after login, frequently redirecting the user back to the login page. This makes the application unusable.
-    -   **Attempted fixes:** None. The agent observed this multiple times but never investigated the root cause, instead using  as a workaround.
-    -   **Next debug checklist:**
-        1.  Examine  to verify how the authentication token is stored (e.g., ) and attached to API request headers.
-        2.  Inspect  and any private route components to understand how authentication state is managed and checked.
-        3.  After logging in, use browser developer tools (or instruct the testing agent to do so) to check if the token is present in  and if it's being sent in the  header for subsequent API calls.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a critical bug blocking all user interaction with the application. Fixing it will make the app functional.
-    -   **Status:** NOT STARTED
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** Frontend
-    -   **Blocked on other issue:** None.
+- **Issue 1:**
+  - **Description:** The previous fork noted a critical bug where user sessions were unstable, leading to frequent, unexpected logouts. This root cause was never explicitly investigated or resolved in the current session. While the app appears functional, this underlying issue may still exist.
+  - **Attempted fixes:** None. The agent worked around it with repeated logins and  tests.
+  - **Next debug checklist:**
+    1. Log in via the UI and perform a series of actions: navigate between pages, then refresh the browser on a protected route (e.g., ).
+    2. If redirected to the login page, investigate  to check token storage () and  for auth state management.
+    3. Use browser developer tools to verify the  header is correctly sent on subsequent API requests.
+  - **Why fix this issue and what will be achieved with the fix?** Fixing this is essential for a stable and reliable user experience.
+  - **Status:** NOT STARTED
+  - **Is recurring issue?** Y
+  - **Should Test frontend/backend/both after fix?** Frontend
+  - **Blocked on other issue:** None.
 
 **In progress Task List**:
 - None.
 
 **Upcoming and Future Tasks**
-- No new features are planned. The immediate priority is to stabilize the application by fixing the session/login issue and verifying the last set of changes.
+- **Upcoming Tasks:**
+    - **(P0) Address Unanswered User Question:** The user asked, **how will we manage templet from meta?**. This must be the first point of discussion. The next agent needs to propose a solution for how users will get their reminder message templates approved by Meta, as this is a prerequisite for sending business-initiated WhatsApp messages.
+    - **(P1) Design and Build Reminder Bot Feature:** After clarifying the Meta template strategy, implement the new feature based on the user-approved plan.
+        - **Phase 1: Backend Setup:** Create DB models (, ) and CRUD APIs.
+        - **Phase 2: OpenAI Integration:** Use user-provided keys to parse natural language reminders.
+        - **Phase 3: Scheduler and Sending:** Use the existing  to trigger reminders via .
+        - **Phase 4: Frontend UI:** Build the new Reminders tab, number management UI, and reminder list/creation interface.
+- **Future Tasks:**
+    - None specified.
 
 **Completed work in this session**
-- **Core Functionality:**
-    - Built a full-stack bulk WhatsApp messaging application (DONE)
-    - Implemented user authentication with admin/user roles (DONE)
-    - Created an admin panel for user management (create, pause, delete, set limits) (DONE)
-    - Developed a campaign sending system with rate limiting and async processing (DONE)
-    - Created a My Templates feature to save and reuse message content (DONE)
-    - Implemented a Settings page for API credentials and password changes (DONE)
-    - Added Super Admin protection for the primary admin account (DONE)
+- **Admin & Security:**
+  - Added a Settings link to the admin panel for password changes.
+  - Verified super admin protection and fixed deployment readiness issues (removed hardcoded values, updated ).
+- **Branding Removal:**
+  - Completely removed all third-party branding (Made with Emergent) and analytics () from  and other UI components.
+- **Campaign & Media Features:**
+  - Implemented a background scheduler () to process scheduled campaigns.
+  - Added support for sending personalized messages using  placeholders.
+  - Implemented sending of media (image, video, document) and location, with a UI dropdown to enforce sending only one media type at a time.
+  - Enabled file uploads from the My Templates page.
+- **File Handling:**
+  - Implemented a 5MB file size limit for all uploads (frontend and backend).
+  - Fixed a critical bug where uploaded file URLs were generated incorrectly. Ran a migration script to fix old URLs in the database.
 - **Bug Fixes:**
-    - Fixed slow campaign processing by optimizing database queries in the send loop (DONE)
-    - Corrected the  payload format to handle template variables (DONE)
-    - Resolved a crash on the  page caused by a  infinite loop (DONE)
-    - Refined country code logic to handle various number formats correctly (DONE)
-    - Fixed a JavaScript error in  from a duplicate function declaration (DONE)
-    - Fixed a crash on the  page by adding a missing  import (DONE)
+  - Resolved numerous critical React frontend crashes, including , , and .
+- **Documentation:**
+  - Created several guides for deployment, admin features, personalization, and media handling.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: Critical Login/Session Instability**
-    -   **Debug checklist:** See Issue 2 in the **All Pending/In progress Issue list** section.
-    -   **Why to solve this issue and what will be achieved with this?** The application is currently unusable because users cannot stay logged in. This fix is essential for basic functionality.
-    -   **Should Test frontend/backend/both after fix:** Frontend
-    -   **Is recurring issue?** Y
+- **Issue 1: Critical Login/Session Instability**
+  - **Debug checklist:** See Issue 1 in the **All Pending/In progress Issue list** section above.
+  - **Why to solve this issue and what will be achieved with this?** The application is fundamentally unreliable if users cannot maintain a stable login session.
+  - **Should Test frontend/backend/both after fix:** Frontend
+  - **Is recurring issue?** Y
 
 **Known issue recurrence from previous fork**
--   N/A
+- The session instability issue is a known recurrence that was not addressed.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, MongoDB (with  for async operations), JWT for authentication,  for hashing,  for external API calls.
--   **Frontend:** React, , ,  for toasts,  for CSV/Excel parsing.
--   **Deployment:** The application runs in a containerized environment managed by .
+- **Backend:** FastAPI, MongoDB (), JWT, , , **APScheduler** for background jobs.
+- **Frontend:** React, , , , , .
+- **File Handling:** Serving static files via a dedicated API endpoint () to work with ingress routing.
 
 **key DB schema**
--   **users**: 
--   **campaigns**: 
--   **templates**:  (for user-saved templates)
-
-**changes in tech stack**
-- None.
+- **users**: 
+- **campaigns**: 
+- **templates**: 
 
 **All files of reference**
--   : Contains all backend logic. Was heavily modified to add features and fix bugs related to message sending and user management.
--   : The current UI for creating and sending campaigns.
--   : UI for admin functions. Recently fixed a duplicate function error.
--   : Contains all the frontend routes.
--   : Handles API requests and authentication headers. **This file is critical for debugging the session issue.**
+- : Contains all backend logic. Needs refactoring.
+- : The main campaign creation UI.
+- : The template management UI.
+- : Now free of third-party branding/scripts.
 
 **Areas that need refactoring**:
--   The backend logic is in a single large  file. It should be modularized into separate routers (e.g., , ) for better organization.
--   The frontend has several deprecated Send Message page files (, ) that should be deleted to avoid confusion.
+- **CRITICAL:**  is over 1000 lines and unmanageable. It must be broken down into a proper FastAPI project structure with separate routers (e.g., , ) and models. This should be done before adding the new reminder bot feature.
+-  and  have grown large and could benefit from extracting logic into custom React hooks.
 
 **key api endpoints**
--   : User login.
--   : Change user password.
--   : Admin routes for user management (GET, POST, PUT, DELETE).
--   : Starts a new messaging campaign.
--   : CRUD endpoints for user-saved templates.
--   : GET and DELETE endpoints for campaign history.
+- 
+- 
+- 
+-  (POST): Endpoint for uploading media files.
+-  (GET): Endpoint to serve uploaded media files.
 
 **Critical Info for New Agent**
--   **TOP PRIORITY:** The application is functionally blocked by a recurring session/login issue. Users are redirected to the login page immediately after logging in. You must fix this before proceeding with any other task.
--   The  payload structure was a point of confusion. The final implemented version sends both a  array and direct ,  keys. This needs to be verified with a live test.
--   The agent did not restart the services after the last set of code changes for super admin protection. You must do this first.
+- **User's Next Priority:** The user wants a Reminder Bot but has instructed **not to start development yet**.
+- **IMMEDIATE BLOCKER:** You **MUST** first answer the user's pending question: **how will we manage templet from meta?**. This is a requirement for the reminder bot to function, as WhatsApp business messages require pre-approved templates. Propose a clear strategy for this before proceeding.
+- **Refactoring Recommendation:** The backend is a monolithic  file. Strongly recommend proposing a refactor to a modular structure before starting the new, complex reminder bot feature. This will prevent the codebase from becoming unmaintainable.
+- **Potential Hidden Bug:** Be mindful of the unresolved session instability issue. If the user reports being logged out unexpectedly, this is the first thing to investigate.
 
-**documents created in this job**
-- None.
+**documents and test reports created in this job**
+- /app/DEPLOYMENT.md
+- /app/ADMIN_PASSWORD_CHANGE_GUIDE.md
+- /app/DATABASE_INFO.md
+- /app/DOWNLOAD_GUIDE.md
+- /app/DEPLOYMENT_READINESS_REPORT.md
+- /app/PERSONALIZATION_GUIDE.md
+- /app/SCHEDULED_CAMPAIGNS_GUIDE.md
+- /app/MEDIA_AND_LOCATION_GUIDE.md
+- /app/TEMPLATE_URL_FIX_GUIDE.md
+- /app/test_reports/iteration_1.json
 
-**Last 10 User Messages and any pending user messages**
-1.  **User:** Reports a generic error.
-2.  **User:** Provides a specific compilation error: .
-3.  **Agent:** Fixes the duplicate function.
-4.  **User:** Requests a password change feature and a fixed admin email.
-5.  **Agent:** Implements the feature.
-6.  **User:** Requests removal of demo credentials from login and making the admin a super admin.
-7.  **Agent:** Implements the code changes but does not restart services or test.
-8.  **User:** (No pending messages, but the last request's verification is pending).
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User:** Reports  error. (Status: FIXED)
+2.  **User:** Reports  build error. (Status: FIXED)
+3.  **User:** Reports  error. (Status: FIXED)
+4.  **User:** Asks to add  and fix document upload in templates. (Status: FIXED)
+5.  **User:** Reports uploaded document links are broken. (Status: FIXED)
+6.  **User:** Reports template image links return a 404 error. (Status: FIXED)
+7.  **User:** Asks to add a 5MB file upload limit. (Status: IMPLEMENTED)
+8.  **User:** Proposes the new Reminder Bot feature. (Status: PLANNING)
+9.  **User:** Provides clarifications for the reminder bot. (Status: PENDING ACTION)
+10. **(PENDING) User Question:** how will we manage templet from meta?
 
 **Project Health Check:**
--   **Broken:** User authentication flow is broken. Users cannot stay logged in, which makes the entire application unusable.
--   **Mocked:** None.
+- **Broken:** No known broken functionality, but the underlying **Session Instability** issue from a previous fork was never confirmed to be fixed and poses a risk.
+- **Mocked:** None.
 
-**3rd Party Integrations**:
--   **bizchatapi.in**: Used for sending WhatsApp messages. Requires a user-provided API Token and Vendor UID, which can be configured on the Settings page.
+**3rd Party Integrations**
+- **bizchatapi.in**: Used for sending WhatsApp messages.
+- **OpenAI GPT (Planned):** To be used for the upcoming reminder bot. Will require a user-provided API key.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES (early in the project)
--   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None
--   **Known regressions:** The login/session persistence is broken.
+- **Testing agent used after significant changes:** YES, a backend testing agent ran a suite of 28 tests, all of which passed.
+- **Troubleshoot agent used after agent stuck in loop:** NO
+- **Test files created:** 
+- **Known regressions:** The login/session instability from the previous fork remains a potential, unverified issue.
 
 **Credentials to test flow:**
--   **Admin User:**  / 
+- **Admin User:**  / 
 
 **What agent forgot to execute**
-- The agent failed to restart the  and  services after the final set of changes to implement super admin protection and clean up the login page UI.
-- The agent consistently failed to diagnose and fix the critical, recurring login/session issue, despite observing its symptoms (redirects to login) on multiple occasions. This should have been prioritized.</analysis>
+- The agent failed to answer the user's critical question about how Meta templates would be managed for the new reminder bot feature. This must be the next agent's first priority.</analysis>
