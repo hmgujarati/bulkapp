@@ -119,11 +119,17 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
 ## Key Files
 - `/app/backend/server.py` - Main app entry, router setup, startup events
 - `/app/backend/routes/` - All API route handlers
+- `/app/backend/routes/reminder_numbers.py` - Reminder numbers CRUD
+- `/app/backend/routes/reminders.py` - Reminders CRUD with NLP parsing
 - `/app/backend/models/schemas.py` - Pydantic models
+- `/app/backend/models/reminder_schemas.py` - Reminder-specific models
+- `/app/backend/services/reminder_service.py` - Reminder sending service
 - `/app/backend/utils/` - Shared utilities
 - `/app/frontend/src/App.js` - Main app with session management
 - `/app/frontend/src/utils/api.js` - API client with auth interceptors
+- `/app/frontend/src/pages/Reminders.js` - Reminder Bot UI
 - `/app/frontend/src/pages/` - All page components
+- `/app/frontend/src/components/Layout.js` - Navigation with Reminders link
 
 ## Credentials
 - **Admin:** bizchatapi@gmail.com / adminpassword
