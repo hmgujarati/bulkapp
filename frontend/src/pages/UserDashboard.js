@@ -56,7 +56,7 @@ const UserDashboard = ({ user, onLogout }) => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card
             className="shadow-lg border-0 bg-gradient-to-br from-blue-600 to-indigo-700 text-white cursor-pointer hover:shadow-xl transition-shadow"
             onClick={() => navigate('/send')}
@@ -70,6 +70,23 @@ const UserDashboard = ({ user, onLogout }) => {
                   <p className="text-blue-100 text-sm mt-2">Create a new campaign</p>
                 </div>
                 <Send className="h-12 w-12 opacity-80" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="shadow-lg border-0 bg-gradient-to-br from-amber-500 to-orange-600 text-white cursor-pointer hover:shadow-xl transition-shadow"
+            onClick={() => navigate('/reminders')}
+            data-testid="quick-action-reminders"
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-amber-100 text-sm font-medium">AI Powered</p>
+                  <h3 className="text-2xl font-bold mt-1">Reminder Bot</h3>
+                  <p className="text-amber-100 text-sm mt-2">Natural language reminders</p>
+                </div>
+                <Bell className="h-12 w-12 opacity-80" />
               </div>
             </CardContent>
           </Card>
