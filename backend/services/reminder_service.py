@@ -4,6 +4,7 @@ from typing import Dict, Any
 import httpx
 import logging
 import os
+import pytz
 
 from utils.database import db
 from models.reminder_schemas import ReminderStatus
@@ -13,19 +14,60 @@ logger = logging.getLogger(__name__)
 BIZCHAT_API_BASE = os.environ.get('BIZCHAT_API_BASE', 'https://bizchatapi.in/api')
 
 
+def format_reminder_message(title: str, message: str, scheduled_time: str, recipient_timezone: str) -> str:
+    """Format reminder message to be professional and visually appealing"""
+    try:
+        # Parse the scheduled time
+        scheduled_dt = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
+        
+        # Convert to recipient's timezone
+        tz = pytz.timezone(recipient_timezone)
+        local_time = scheduled_dt.astimezone(tz)
+        
+        # Format time nicely (e.g., "4:30 PM")
+        formatted_time = local_time.strftime("%I:%M %p").lstrip('0')
+        formatted_date = local_time.strftime("%d %b %Y")
+    except:
+        formatted_time = "your scheduled time"
+        formatted_date = ""
+    
+    # Build the professional message
+    formatted_message = f"""🔔 *Reminder Alert*
+
+✨ {message}
+
+⏰ Scheduled: {formatted_time}
+📅 {formatted_date}
+
+_- Your WhatsApp Assistant_"""
+    
+    return formatted_message
+
+
 async def send_reminder_message(
     phone: str,
     message: str,
     template_id: str,
     token: str,
     vendor_uid: str,
-    use_template: bool = True
+    use_template: bool = True,
+    scheduled_time: str = None,
+    recipient_timezone: str = "Asia/Kolkata",
+    title: str = None
 ) -> Dict[str, Any]:
     """Send a reminder message via BizChat API"""
     try:
         async with httpx.AsyncClient() as client:
             # Clean phone number
             clean_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
+            
+            # Format the message professionally
+            formatted_message = format_reminder_message(
+                title=title or "Reminder",
+                message=message,
+                scheduled_time=scheduled_time or datetime.now(timezone.utc).isoformat(),
+                recipient_timezone=recipient_timezone
+            )
             
             if use_template and template_id:
                 # Use pre-approved template
@@ -34,18 +76,17 @@ async def send_reminder_message(
                     "phone_number": clean_phone,
                     "template_name": template_id,
                     "template_language": "en",
-                    "field_1": message  # Put reminder message in first field
+                    "field_1": formatted_message
                 }
             else:
                 # Use session message (24-hour window) - direct text
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-message?token={token}"
                 payload = {
                     "phone_number": clean_phone,
-                    "message_body": message  # BizChat expects message_body field
+                    "message_body": formatted_message
                 }
             
-            logger.info(f"Sending reminder to {phone}, URL: {url}")
-            logger.info(f"Payload: {payload}")
+            logger.info(f"Sending reminder to {phone}")
             
             response = await client.post(url, json=payload, timeout=30.0)
             
