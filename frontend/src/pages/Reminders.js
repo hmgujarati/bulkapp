@@ -552,7 +552,8 @@ const Reminders = ({ user, onLogout }) => {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </Layout>
   );
 };
 
