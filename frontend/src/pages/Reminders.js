@@ -445,7 +445,7 @@ const Reminders = ({ user, onLogout }) => {
           <DialogHeader>
             <DialogTitle>Create Reminder</DialogTitle>
             <DialogDescription>
-              Use natural language to set a reminder. Example: "remind me to call John at 10am tomorrow"
+              Use natural language to set a reminder. Example: &quot;remind me to call John at 10am tomorrow&quot;
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateReminder}>
