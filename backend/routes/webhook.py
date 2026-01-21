@@ -99,20 +99,43 @@ async def handle_bizchat_webhook(request: Request):
         body = await request.json()
         logger.info(f"Received webhook: {json.dumps(body)[:500]}")
         
-        # Extract message details - adjust based on BizChat webhook format
-        # Common fields: phone_number, message, message_type, timestamp
-        phone = body.get('phone_number') or body.get('from') or body.get('sender')
-        message_text = body.get('message') or body.get('text') or body.get('body') or body.get('message_body')
-        message_type = body.get('message_type') or body.get('type', 'text')
+        # BizChat webhook format:
+        # {
+        #   "contact": {"phone_number": "918200663263", "first_name": "...", ...},
+        #   "message": {"body": "message text", "is_new_message": true, ...}
+        # }
+        
+        # Extract phone number - try multiple possible locations
+        phone = None
+        if 'contact' in body and body['contact']:
+            phone = body['contact'].get('phone_number')
+        if not phone:
+            phone = body.get('phone_number') or body.get('from') or body.get('sender')
+        
+        # Extract message text - try multiple possible locations
+        message_text = None
+        if 'message' in body and body['message']:
+            message_text = body['message'].get('body') or body['message'].get('text')
+        if not message_text:
+            message_text = body.get('message') or body.get('text') or body.get('body') or body.get('message_body')
+        
+        # Check if it's a new message (ignore status updates)
+        is_new_message = True
+        if 'message' in body and body['message']:
+            is_new_message = body['message'].get('is_new_message', True)
         
         if not phone or not message_text:
-            logger.warning(f"Invalid webhook data: {body}")
+            logger.warning(f"Missing phone or message in webhook data")
             return {"status": "ignored", "reason": "missing phone or message"}
         
-        # Clean phone number
-        clean_phone = '+' + phone.replace('+', '').replace('-', '').replace(' ', '')
+        if not is_new_message:
+            logger.info(f"Ignoring non-new message (status update)")
+            return {"status": "ignored", "reason": "not a new message"}
         
-        logger.info(f"Incoming message from {clean_phone}: {message_text}")
+        # Clean phone number
+        clean_phone = '+' + str(phone).replace('+', '').replace('-', '').replace(' ', '')
+        
+        logger.info(f"Processing incoming message from {clean_phone}: {message_text}")
         
         # Find the user associated with this phone number (check reminder_numbers)
         number_record = await db.reminder_numbers.find_one({"phone": clean_phone})
