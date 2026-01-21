@@ -77,6 +77,18 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
   - Reminder list with filtering (all, today, week, pending, sent, failed)
   - Settings for OpenAI API key and Meta template ID
 
+### Reminder Message Format
+```
+🔔 *Reminder Alert*
+
+✨ [Your reminder message]
+
+⏰ Scheduled: 4:30 PM
+📅 21 Jan 2026
+
+_- Your WhatsApp Assistant_
+```
+
 ## Upcoming Features: Reminder Bot
 
 ### User Requirements (ALL IMPLEMENTED)
