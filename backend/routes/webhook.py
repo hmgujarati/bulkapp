@@ -513,7 +513,6 @@ async def handle_bizchat_webhook(request: Request):
             return {"status": "success", "action": "delete_all"}
         
         # Handle DELETE specific reminder (e.g., "delete 1", "delete 2", "cancel 1")
-        import re
         delete_match = re.match(r'^(delete|cancel|remove)\s*#?\s*(\d+)$', message_lower)
         if delete_match:
             reminder_num = int(delete_match.group(2))
