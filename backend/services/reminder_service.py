@@ -107,12 +107,35 @@ async def send_reminder_message(
 async def process_due_reminders():
     """Process all due reminders"""
     now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
     
-    # Find all pending reminders that are due
-    due_reminders = await db.reminders.find({
-        "status": ReminderStatus.PENDING.value,
-        "scheduledAt": {"$lte": now.isoformat()}
+    # Find all pending reminders
+    pending_reminders = await db.reminders.find({
+        "status": ReminderStatus.PENDING.value
     }).to_list(100)
+    
+    if not pending_reminders:
+        return
+    
+    # Filter reminders that are due (handle timezone properly)
+    due_reminders = []
+    for reminder in pending_reminders:
+        try:
+            scheduled_str = reminder.get('scheduledAt', '')
+            if scheduled_str:
+                # Parse the scheduled time and convert to UTC for comparison
+                scheduled_dt = datetime.fromisoformat(scheduled_str.replace('Z', '+00:00'))
+                # Convert to UTC if it has timezone info
+                if scheduled_dt.tzinfo:
+                    scheduled_utc = scheduled_dt.astimezone(timezone.utc)
+                else:
+                    scheduled_utc = scheduled_dt.replace(tzinfo=timezone.utc)
+                
+                # Check if it's due
+                if scheduled_utc <= now:
+                    due_reminders.append(reminder)
+        except Exception as e:
+            logger.error(f"Error parsing scheduled time for reminder {reminder.get('id')}: {e}")
     
     if not due_reminders:
         return
