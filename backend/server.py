@@ -68,6 +68,8 @@ app.include_router(templates_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(messages_router, prefix="/api")
 app.include_router(upload_router, prefix="/api")
+app.include_router(reminder_numbers_router, prefix="/api")
+app.include_router(reminders_router, prefix="/api")
 
 # Mount static files for uploads
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
