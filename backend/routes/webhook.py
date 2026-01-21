@@ -426,7 +426,7 @@ async def handle_bizchat_webhook(request: Request):
                 # Don't match if it's just "all" (handled above)
                 if search_text and search_text not in ['all', 'all reminders', 'everything', 'all my reminders']:
                     if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                        delete_msg = await delete_reminder_by_name(user_id, search_text)
+                        delete_msg = await delete_reminder_by_name(user_id, search_text, user_timezone)
                         await send_whatsapp_reply(
                             clean_phone,
                             delete_msg,
