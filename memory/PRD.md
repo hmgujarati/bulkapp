@@ -99,7 +99,10 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
 - `/api/uploads/{type}/{filename}` - Serve uploaded files
 
 ## Key Files
-- `/app/backend/server.py` - All backend logic (needs refactoring)
+- `/app/backend/server.py` - Main app entry, router setup, startup events
+- `/app/backend/routes/` - All API route handlers
+- `/app/backend/models/schemas.py` - Pydantic models
+- `/app/backend/utils/` - Shared utilities
 - `/app/frontend/src/App.js` - Main app with session management
 - `/app/frontend/src/utils/api.js` - API client with auth interceptors
 - `/app/frontend/src/pages/` - All page components
@@ -108,6 +111,7 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
 - **Admin:** bizchatapi@gmail.com / adminpassword
 
 ## Backlog
-1. **Backend Refactoring:** Split server.py into modular routers
-2. **Reminder Bot Feature:** Full implementation after refactoring
-3. **Error Handling:** Improved error messages throughout the app
+1. ~~**Backend Refactoring:** Split server.py into modular routers~~ DONE
+2. **Reminder Bot Feature:** Full implementation (Phase 1-4)
+3. **Meta Template Documentation:** Guide for users to set up WhatsApp templates
+4. **Error Handling:** Improved error messages throughout the app
