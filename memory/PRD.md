@@ -49,12 +49,21 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
 
 ### Fixed Issues
 - **Session Instability (P1):** FIXED - Token validation added on app load, improved 401 error handling
+- **Backend Refactoring (P1):** COMPLETED - Monolithic server.py split into modular structure
 
 ### Implementation Details (Session Fix)
 1. `App.js` now validates tokens by calling `/auth/me` on app load
 2. `api.js` only clears session on definite auth errors (401/403 with specific messages)
 3. Network errors no longer trigger unnecessary logouts
 4. Added 30-second timeout to API calls
+
+### Backend Refactoring Details
+- Split 1100+ line `server.py` into modular structure
+- Created separate route files: `auth.py`, `users.py`, `campaigns.py`, `messages.py`, `templates.py`, `upload.py`
+- Moved models to `models/schemas.py`
+- Moved utilities to `utils/auth.py`, `utils/database.py`, `utils/helpers.py`
+- Added health check endpoint: `/api/health`
+- API version: 2.0.0
 
 ## Upcoming Features: Reminder Bot
 
