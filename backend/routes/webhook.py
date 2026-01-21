@@ -391,6 +391,22 @@ async def handle_bizchat_webhook(request: Request):
                 )
             return {"status": "success", "action": "delete_reminder", "number": reminder_num}
         
+        # Handle natural language cancel (e.g., "cancel bni reminder", "delete call diku")
+        cancel_name_match = re.match(r'^(delete|cancel|remove)\s+(?:reminder\s+)?(?:to\s+)?(.+)$', message_lower)
+        if cancel_name_match:
+            search_text = cancel_name_match.group(2).strip()
+            # Don't match if it's just "all" (handled above)
+            if search_text and search_text not in ['all', 'all reminders', 'everything']:
+                if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+                    delete_msg = await delete_reminder_by_name(user_id, search_text)
+                    await send_whatsapp_reply(
+                        clean_phone,
+                        delete_msg,
+                        user['bizChatToken'],
+                        user['bizChatVendorUID']
+                    )
+                return {"status": "success", "action": "delete_by_name", "search": search_text}
+        
         # For creating reminders, we need the OpenAI API key
         if not settings or not settings.get('openaiApiKey'):
             logger.warning(f"User {user_id} has no OpenAI API key configured")
