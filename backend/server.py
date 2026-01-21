@@ -23,6 +23,8 @@ from routes.templates import router as templates_router
 from routes.campaigns import router as campaigns_router
 from routes.messages import router as messages_router, process_campaign
 from routes.upload import router as upload_router
+from routes.reminder_numbers import router as reminder_numbers_router
+from routes.reminders import router as reminders_router
 
 # Import utilities
 from utils.database import db, close_db_connection
