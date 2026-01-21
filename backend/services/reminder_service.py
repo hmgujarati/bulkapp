@@ -145,7 +145,10 @@ async def process_due_reminders():
                 template_id=reminder.get('templateId'),
                 token=user['bizChatToken'],
                 vendor_uid=user['bizChatVendorUID'],
-                use_template=reminder.get('useTemplate', True)
+                use_template=reminder.get('useTemplate', True),
+                scheduled_time=reminder.get('scheduledAt'),
+                recipient_timezone=reminder.get('timezone', 'Asia/Kolkata'),
+                title=reminder.get('title')
             )
             
             if result['success']:
