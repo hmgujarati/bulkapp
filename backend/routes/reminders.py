@@ -308,8 +308,13 @@ async def get_reminders(
     current_user = Depends(get_current_user)
 ):
     """Get reminders with filtering options"""
+    from models.schemas import Role
     
-    query = {"userId": current_user.userId}
+    # Admins can see all reminders, users only see their own
+    if current_user.role == Role.ADMIN:
+        query = {}  # Admin sees all
+    else:
+        query = {"userId": current_user.userId}
     
     # Apply filters
     now = datetime.now(timezone.utc)
