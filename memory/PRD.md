@@ -79,24 +79,30 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
 
 ## Upcoming Features: Reminder Bot
 
-### User Requirements
-- Natural language reminder creation (e.g., "remind me to call Harsh at 10 am tomorrow")
-- Number management with timezone support
-- Use pre-approved Meta template IDs OR 24-hour session window for direct messages
-- Reminders filterable by day, week, or custom date range (up to 15 days)
-- Delete reminders functionality
-- Users provide their own OpenAI API keys (GPT-3.5-Turbo recommended)
+### User Requirements (ALL IMPLEMENTED)
+- ✅ Natural language reminder creation (e.g., "remind me to call Harsh at 10 am tomorrow")
+- ✅ Number management with timezone support
+- ✅ Use pre-approved Meta template IDs OR 24-hour session window for direct messages
+- ✅ Reminders filterable by day, week, or custom date range (up to 15 days)
+- ✅ Delete reminders functionality
+- ✅ Users provide their own OpenAI API keys (GPT-3.5-Turbo)
 
-### Meta Template Strategy (User-Confirmed)
-1. Use pre-approved template ID for business-initiated messages
-2. Provide documentation for users to create templates in Meta Business Manager
-3. Utilize 24-hour session window when available for direct messages
+### Meta Template Strategy (User-Confirmed & Implemented)
+1. ✅ Use pre-approved template ID for business-initiated messages
+2. ✅ Provide documentation for users to create templates in Meta Business Manager
+3. ✅ Utilize 24-hour session window when available for direct messages
 
-### Implementation Phases
-- **Phase 1:** Backend models (`reminder_numbers`, `reminders`) and CRUD APIs
-- **Phase 2:** OpenAI integration for NLP parsing
-- **Phase 3:** Scheduler integration with `bizchatapi.in`
-- **Phase 4:** Frontend UI for reminder management
+### API Endpoints (Reminder Bot)
+- `GET /api/reminder-numbers` - List phone numbers
+- `POST /api/reminder-numbers` - Add phone number
+- `DELETE /api/reminder-numbers/{id}` - Delete phone number
+- `GET /api/reminder-numbers/timezones` - Get available timezones
+- `GET /api/reminders` - List reminders with filters
+- `POST /api/reminders` - Create reminder using NLP
+- `POST /api/reminders/direct` - Create reminder directly
+- `DELETE /api/reminders/{id}` - Delete reminder
+- `GET /api/reminders/settings` - Get user settings
+- `PUT /api/reminders/settings` - Update settings (API key, template)
 
 ## API Endpoints
 - `/api/auth/login` - User login
