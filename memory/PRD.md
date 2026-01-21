@@ -22,9 +22,28 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
 
 ## Technical Architecture
 - **Frontend:** React, react-router-dom, axios, shadcn/ui, sonner (toasts), papaparse, lucide-react
-- **Backend:** FastAPI (monolithic server.py), MongoDB (motor), JWT auth, bcrypt, httpx
+- **Backend:** FastAPI (modular structure), MongoDB (motor), JWT auth, bcrypt, httpx
 - **File Handling:** Static files served via `/api/uploads/...`
-- **Scheduling:** APScheduler for background campaign processing
+- **Scheduling:** Async background tasks for campaign processing
+
+### Backend Structure (Refactored v2.0.0)
+```
+/app/backend/
+├── server.py           # Main app entry point
+├── models/
+│   └── schemas.py      # Pydantic models
+├── routes/
+│   ├── auth.py         # Authentication routes
+│   ├── users.py        # User management routes
+│   ├── campaigns.py    # Campaign routes
+│   ├── messages.py     # Message sending routes
+│   ├── templates.py    # Template routes
+│   └── upload.py       # File upload routes
+└── utils/
+    ├── auth.py         # JWT and password utilities
+    ├── database.py     # MongoDB connection
+    └── helpers.py      # Phone number normalization, etc.
+```
 
 ## Current Status (January 2025)
 
