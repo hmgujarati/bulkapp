@@ -24,11 +24,14 @@ async def send_reminder_message(
     """Send a reminder message via BizChat API"""
     try:
         async with httpx.AsyncClient() as client:
+            # Clean phone number
+            clean_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
+            
             if use_template and template_id:
                 # Use pre-approved template
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
                 payload = {
-                    "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
+                    "phone_number": clean_phone,
                     "template_name": template_id,
                     "template_language": "en",
                     "field_1": message  # Put reminder message in first field
@@ -37,11 +40,12 @@ async def send_reminder_message(
                 # Use session message (24-hour window) - direct text
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-message?token={token}"
                 payload = {
-                    "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
-                    "message": message
+                    "phone_number": clean_phone,
+                    "message_body": message  # BizChat expects message_body field
                 }
             
-            logger.info(f"Sending reminder to {phone}")
+            logger.info(f"Sending reminder to {phone}, URL: {url}")
+            logger.info(f"Payload: {payload}")
             
             response = await client.post(url, json=payload, timeout=30.0)
             
