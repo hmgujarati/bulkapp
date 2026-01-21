@@ -219,6 +219,54 @@ You have {len(reminders) - 1} reminder(s) remaining.
 _- Your WhatsApp Assistant_"""
 
 
+async def delete_all_matching_reminders(user_id: str, search_text: str) -> str:
+    """Delete all reminders matching a search term"""
+    # Get pending reminders
+    reminders = await db.reminders.find({
+        "userId": user_id,
+        "status": "pending"
+    }).to_list(500)
+    
+    if not reminders:
+        return "❌ You have no pending reminders."
+    
+    # Search for matching reminders
+    search_lower = search_text.lower()
+    matching_ids = []
+    matching_titles = []
+    
+    for r in reminders:
+        title = r.get('title', '').lower()
+        message = r.get('message', '').lower()
+        original = r.get('originalInput', '').lower()
+        
+        if search_lower in title or search_lower in message or search_lower in original:
+            matching_ids.append(r['id'])
+            matching_titles.append(r.get('title', 'Reminder'))
+    
+    if not matching_ids:
+        return f"❌ No reminders found matching \"{search_text}\""
+    
+    # Delete all matches
+    await db.reminders.delete_many({"id": {"$in": matching_ids}})
+    
+    # Clear search context
+    await db.user_search_context.delete_one({"userId": user_id})
+    
+    if len(matching_ids) == 1:
+        return f"""✅ *Reminder Deleted*
+
+🗑️ Deleted: {matching_titles[0]}
+
+_- Your WhatsApp Assistant_"""
+    else:
+        return f"""✅ *{len(matching_ids)} Reminders Deleted*
+
+🗑️ Deleted all reminders matching "{search_text}"
+
+_- Your WhatsApp Assistant_"""
+
+
 async def delete_all_reminders(user_id: str) -> str:
     """Delete all pending reminders for a user"""
     result = await db.reminders.delete_many({
