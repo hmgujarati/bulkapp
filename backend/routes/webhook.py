@@ -71,13 +71,16 @@ _- Your WhatsApp Assistant_"""
 _- Your WhatsApp Assistant_"""
 
 
-async def delete_reminder_by_name(user_id: str, search_text: str) -> str:
+async def delete_reminder_by_name(user_id: str, search_text: str, user_timezone: str = "Asia/Kolkata") -> str:
     """Delete a reminder by searching its title/message"""
+    import pytz
+    tz = pytz.timezone(user_timezone)
+    
     # Get pending reminders
     reminders = await db.reminders.find({
         "userId": user_id,
         "status": "pending"
-    }).to_list(50)
+    }).sort("scheduledAt", 1).to_list(50)
     
     if not reminders:
         return "❌ You have no pending reminders to delete."
@@ -86,22 +89,22 @@ async def delete_reminder_by_name(user_id: str, search_text: str) -> str:
     search_lower = search_text.lower()
     matching_reminders = []
     
-    for r in reminders:
+    for i, r in enumerate(reminders):
         title = r.get('title', '').lower()
         message = r.get('message', '').lower()
         original = r.get('originalInput', '').lower()
         
         if search_lower in title or search_lower in message or search_lower in original:
-            matching_reminders.append(r)
+            matching_reminders.append((i + 1, r))  # Store with list number
     
     if not matching_reminders:
         return f"""❌ No reminder found matching "{search_text}"
 
-💡 Use "show reminders" to see your list, then "delete 1" to delete by number."""
+💡 Use "show reminders" to see your list."""
     
     if len(matching_reminders) == 1:
         # Delete the single match
-        reminder = matching_reminders[0]
+        _, reminder = matching_reminders[0]
         await db.reminders.delete_one({"id": reminder['id']})
         return f"""✅ *Reminder Deleted*
 
@@ -109,13 +112,29 @@ async def delete_reminder_by_name(user_id: str, search_text: str) -> str:
 
 _- Your WhatsApp Assistant_"""
     else:
-        # Multiple matches - ask user to be more specific
-        match_list = "\n".join([f"• {r.get('title', 'Reminder')}" for r in matching_reminders[:5]])
-        return f"""⚠️ Found {len(matching_reminders)} matching reminders:
+        # Multiple matches - show them with numbers
+        match_list = []
+        for num, r in matching_reminders[:5]:
+            try:
+                scheduled_dt = datetime.fromisoformat(r['scheduledAt'].replace('Z', '+00:00'))
+                local_time = scheduled_dt.astimezone(tz)
+                time_str = local_time.strftime("%I:%M %p, %d %b").lstrip('0')
+            except:
+                time_str = "Unknown"
+            match_list.append(f"*{num}.* {r.get('title', 'Reminder')}\n    ⏰ {time_str}")
+        
+        matches_text = "\n\n".join(match_list)
+        
+        return f"""⚠️ *Found {len(matching_reminders)} matching reminders:*
 
-{match_list}
+{matches_text}
 
-💡 Please use "show reminders" and then "delete 1" to delete by number."""
+━━━━━━━━━━━━━━━
+💡 Reply with the number to delete:
+• "delete 1" - Delete reminder #1
+• "delete 2" - Delete reminder #2
+
+_- Your WhatsApp Assistant_"""
 
 
 async def delete_reminder_by_number(user_id: str, reminder_num: int, user_timezone: str) -> str:
