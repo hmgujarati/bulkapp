@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { MessageSquare, Send, FileText, History, Settings, LogOut, Users, Menu, X } from 'lucide-react';
+import { MessageSquare, Send, FileText, History, Settings, LogOut, Users, Menu, X, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const Layout = ({ children, user, onLogout }) => {
@@ -10,12 +10,14 @@ const Layout = ({ children, user, onLogout }) => {
 
   const adminNav = [
     { name: 'Dashboard', path: '/admin', icon: Users },
+    { name: 'Reminders', path: '/reminders', icon: Bell },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
 
   const userNav = [
     { name: 'Dashboard', path: '/dashboard', icon: MessageSquare },
     { name: 'Send Messages', path: '/send', icon: Send },
+    { name: 'Reminders', path: '/reminders', icon: Bell },
     { name: 'My Templates', path: '/my-templates', icon: FileText },
     { name: 'Campaign History', path: '/campaigns', icon: History },
     { name: 'Settings', path: '/settings', icon: Settings },
