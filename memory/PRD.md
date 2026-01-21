@@ -60,10 +60,22 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
 ### Backend Refactoring Details
 - Split 1100+ line `server.py` into modular structure
 - Created separate route files: `auth.py`, `users.py`, `campaigns.py`, `messages.py`, `templates.py`, `upload.py`
-- Moved models to `models/schemas.py`
+- Added reminder routes: `reminder_numbers.py`, `reminders.py`
+- Added reminder service: `services/reminder_service.py`
+- Moved models to `models/schemas.py` and `models/reminder_schemas.py`
 - Moved utilities to `utils/auth.py`, `utils/database.py`, `utils/helpers.py`
 - Added health check endpoint: `/api/health`
-- API version: 2.0.0
+- API version: 2.1.0
+
+### Reminder Bot Implementation (Phase 1-4 COMPLETED)
+- **Phase 1 (Backend Models):** Created `reminder_numbers`, `reminders`, `reminder_settings` DB models
+- **Phase 2 (OpenAI Integration):** NLP parsing for natural language reminders using GPT-3.5-Turbo
+- **Phase 3 (Scheduler):** Background task checks due reminders every 30 seconds
+- **Phase 4 (Frontend UI):** Complete Reminders page with:
+  - Phone numbers management with timezone support
+  - Natural language reminder creation
+  - Reminder list with filtering (all, today, week, pending, sent, failed)
+  - Settings for OpenAI API key and Meta template ID
 
 ## Upcoming Features: Reminder Bot
 
