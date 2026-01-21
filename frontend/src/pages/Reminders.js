@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import Layout from '../components/Layout';
 
 const Reminders = ({ user, onLogout }) => {
   const navigate = useNavigate();
