@@ -18,7 +18,7 @@ router = APIRouter(prefix="/webhook", tags=["Webhook"])
 # Commands that users can send via WhatsApp
 LIST_COMMANDS = ['show reminders', 'list reminders', 'my reminders', 'reminders', 'show my reminders', 'pending reminders']
 HELP_COMMANDS = ['help', 'commands', 'what can you do', '?']
-DELETE_COMMANDS = ['delete all', 'clear reminders', 'cancel all']
+DELETE_ALL_COMMANDS = ['delete all', 'clear reminders', 'cancel all', 'delete all reminders', 'clear all']
 
 
 async def get_reminders_list(user_id: str, user_timezone: str) -> str:
@@ -64,8 +64,57 @@ _- Your WhatsApp Assistant_"""
 📝 Total: {len(reminders)} reminder(s)
 
 💡 Commands:
-• "show reminders" - View this list
+• "delete 1" - Delete reminder #1
+• "delete all" - Delete all reminders
 • "help" - See all commands
+
+_- Your WhatsApp Assistant_"""
+
+
+async def delete_reminder_by_number(user_id: str, reminder_num: int, user_timezone: str) -> str:
+    """Delete a specific reminder by its list number"""
+    # Get pending reminders in order
+    reminders = await db.reminders.find({
+        "userId": user_id,
+        "status": "pending"
+    }).sort("scheduledAt", 1).to_list(20)
+    
+    if not reminders:
+        return "❌ You have no pending reminders to delete."
+    
+    if reminder_num < 1 or reminder_num > len(reminders):
+        return f"❌ Invalid number. You have {len(reminders)} reminder(s). Use 'show reminders' to see the list."
+    
+    # Get the reminder to delete
+    reminder_to_delete = reminders[reminder_num - 1]
+    
+    # Delete it
+    await db.reminders.delete_one({"id": reminder_to_delete['id']})
+    
+    return f"""✅ *Reminder Deleted*
+
+🗑️ Deleted: {reminder_to_delete.get('title', 'Reminder')}
+
+You have {len(reminders) - 1} reminder(s) remaining.
+
+_- Your WhatsApp Assistant_"""
+
+
+async def delete_all_reminders(user_id: str) -> str:
+    """Delete all pending reminders for a user"""
+    result = await db.reminders.delete_many({
+        "userId": user_id,
+        "status": "pending"
+    })
+    
+    if result.deleted_count == 0:
+        return "📋 You have no pending reminders to delete."
+    
+    return f"""✅ *All Reminders Deleted*
+
+🗑️ Deleted {result.deleted_count} reminder(s)
+
+Your reminder list is now empty.
 
 _- Your WhatsApp Assistant_"""
 
@@ -85,11 +134,14 @@ Just send a message like:
 📋 *View Reminders*
 • "show reminders"
 • "my reminders"
-• "list reminders"
+
+🗑️ *Delete Reminders*
+• "delete 1" - Delete reminder #1
+• "delete 2" - Delete reminder #2
+• "delete all" - Delete all reminders
 
 ❓ *Get Help*
 • "help"
-• "commands"
 
 ━━━━━━━━━━━━━━━
 💡 Tip: I understand natural language, so just tell me what you need!
