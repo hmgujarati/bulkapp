@@ -28,7 +28,7 @@ const Layout = ({ children, user, onLogout }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       {/* Top Navigation Bar */}
-      <nav className="bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-200 sticky top-0 z-50">
+      <nav className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50" style={{ fontStyle: 'normal' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
@@ -36,8 +36,12 @@ const Layout = ({ children, user, onLogout }) => {
                 <MessageSquare className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900">WhatsApp Bulk Messenger</h1>
-                <p className="text-xs text-slate-500">{isAdmin ? 'Admin Panel' : 'User Dashboard'}</p>
+                <h1 className="text-xl font-bold text-slate-900" style={{ fontStyle: 'normal', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' }}>
+                  WhatsApp Bulk Messenger
+                </h1>
+                <p className="text-xs text-slate-500" style={{ fontStyle: 'normal' }}>
+                  {isAdmin ? 'Admin Panel' : 'User Dashboard'}
+                </p>
               </div>
             </div>
 
