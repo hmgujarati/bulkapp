@@ -181,36 +181,8 @@ const Reminders = ({ user, onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50" data-testid="reminders-page">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700">
-                <MessageSquare className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-slate-900">WhatsApp Bulk Messenger</h1>
-                <p className="text-xs text-slate-500">Reminder Bot</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={() => navigate('/dashboard')} data-testid="dashboard-btn">
-                Dashboard
-              </Button>
-              <Button variant="ghost" onClick={() => setShowSettings(true)} data-testid="settings-btn">
-                <Settings className="w-4 h-4 mr-2" /> Settings
-              </Button>
-              <Button variant="outline" onClick={onLogout} data-testid="logout-btn">
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Layout user={user} onLogout={onLogout}>
+      <div data-testid="reminders-page">
         {/* Page Title */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-slate-900 flex items-center">
