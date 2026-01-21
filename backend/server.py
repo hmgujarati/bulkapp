@@ -30,6 +30,7 @@ from routes.reminders import router as reminders_router
 from utils.database import db, close_db_connection
 from utils.auth import hash_password, SUPER_ADMIN_EMAIL
 from models.schemas import User, Role, CampaignStatus
+from services.reminder_service import process_due_reminders
 
 # Setup logging
 logging.basicConfig(
