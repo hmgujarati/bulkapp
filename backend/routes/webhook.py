@@ -454,7 +454,11 @@ async def handle_bizchat_webhook(request: Request):
         if delete_match:
             reminder_num = int(delete_match.group(2))
             if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                delete_msg = await delete_reminder_by_number(user_id, reminder_num, user_timezone)
+                # First try to delete from search context
+                delete_msg = await delete_from_search_context(user_id, reminder_num)
+                if not delete_msg:
+                    # No search context, use regular delete by list number
+                    delete_msg = await delete_reminder_by_number(user_id, reminder_num, user_timezone)
                 await send_whatsapp_reply(
                     clean_phone,
                     delete_msg,
@@ -462,6 +466,22 @@ async def handle_bizchat_webhook(request: Request):
                     user['bizChatVendorUID']
                 )
             return {"status": "success", "action": "delete_reminder", "number": reminder_num}
+        
+        # Handle just a number (after search results)
+        if message_lower.isdigit():
+            reminder_num = int(message_lower)
+            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+                # Try to delete from search context first
+                delete_msg = await delete_from_search_context(user_id, reminder_num)
+                if delete_msg:
+                    await send_whatsapp_reply(
+                        clean_phone,
+                        delete_msg,
+                        user['bizChatToken'],
+                        user['bizChatVendorUID']
+                    )
+                    return {"status": "success", "action": "delete_from_search", "number": reminder_num}
+            # If no search context, fall through to create reminder
         
         # Handle natural language cancel (e.g., "cancel bni reminder", "delete call diku", "remove reminder to call")
         # More flexible pattern to catch variations like "cancle", "remove reminders to", etc.
