@@ -130,6 +130,7 @@ Build a full-stack website for sending bulk WhatsApp messages using the `bizchat
 
 ## Backlog
 1. ~~**Backend Refactoring:** Split server.py into modular routers~~ DONE
-2. **Reminder Bot Feature:** Full implementation (Phase 1-4)
+2. ~~**Reminder Bot Feature:** Full implementation (Phase 1-4)~~ DONE
 3. **Meta Template Documentation:** Guide for users to set up WhatsApp templates
 4. **Error Handling:** Improved error messages throughout the app
+5. **User Testing:** Full E2E testing of reminder flow with real OpenAI key
