@@ -25,6 +25,7 @@ from routes.messages import router as messages_router, process_campaign
 from routes.upload import router as upload_router
 from routes.reminder_numbers import router as reminder_numbers_router
 from routes.reminders import router as reminders_router
+from routes.webhook import router as webhook_router
 
 # Import utilities
 from utils.database import db, close_db_connection
