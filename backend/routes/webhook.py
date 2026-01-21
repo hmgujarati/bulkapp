@@ -80,7 +80,7 @@ async def delete_reminder_by_name(user_id: str, search_text: str, user_timezone:
     reminders = await db.reminders.find({
         "userId": user_id,
         "status": "pending"
-    }).sort("scheduledAt", 1).to_list(50)
+    }).sort("scheduledAt", 1).to_list(200)
     
     if not reminders:
         return "❌ You have no pending reminders to delete."
@@ -89,13 +89,13 @@ async def delete_reminder_by_name(user_id: str, search_text: str, user_timezone:
     search_lower = search_text.lower()
     matching_reminders = []
     
-    for i, r in enumerate(reminders):
+    for r in reminders:
         title = r.get('title', '').lower()
         message = r.get('message', '').lower()
         original = r.get('originalInput', '').lower()
         
         if search_lower in title or search_lower in message or search_lower in original:
-            matching_reminders.append((i + 1, r))  # Store with list number
+            matching_reminders.append(r)
     
     if not matching_reminders:
         return f"""❌ No reminder found matching "{search_text}"
@@ -104,7 +104,7 @@ async def delete_reminder_by_name(user_id: str, search_text: str, user_timezone:
     
     if len(matching_reminders) == 1:
         # Delete the single match
-        _, reminder = matching_reminders[0]
+        reminder = matching_reminders[0]
         await db.reminders.delete_one({"id": reminder['id']})
         return f"""✅ *Reminder Deleted*
 
@@ -112,27 +112,80 @@ async def delete_reminder_by_name(user_id: str, search_text: str, user_timezone:
 
 _- Your WhatsApp Assistant_"""
     else:
-        # Multiple matches - show them with numbers
+        # Multiple matches - save search context and show them
+        # Store the matching reminder IDs for this user
+        await db.user_search_context.update_one(
+            {"userId": user_id},
+            {
+                "$set": {
+                    "userId": user_id,
+                    "matchingIds": [r['id'] for r in matching_reminders],
+                    "searchText": search_text,
+                    "createdAt": datetime.now(timezone.utc).isoformat()
+                }
+            },
+            upsert=True
+        )
+        
+        # Show matches with numbers (1-based, from search results)
         match_list = []
-        for num, r in matching_reminders[:5]:
+        for i, r in enumerate(matching_reminders[:10], 1):  # Show max 10
             try:
                 scheduled_dt = datetime.fromisoformat(r['scheduledAt'].replace('Z', '+00:00'))
                 local_time = scheduled_dt.astimezone(tz)
                 time_str = local_time.strftime("%I:%M %p, %d %b").lstrip('0')
             except:
                 time_str = "Unknown"
-            match_list.append(f"*{num}.* {r.get('title', 'Reminder')}\n    ⏰ {time_str}")
+            match_list.append(f"*{i}.* {r.get('title', 'Reminder')}\n    ⏰ {time_str}")
         
         matches_text = "\n\n".join(match_list)
+        more_text = f"\n\n_...and {len(matching_reminders) - 10} more_" if len(matching_reminders) > 10 else ""
         
-        return f"""⚠️ *Found {len(matching_reminders)} matching reminders:*
+        return f"""🔍 *Found {len(matching_reminders)} reminders matching "{search_text}":*
 
-{matches_text}
+{matches_text}{more_text}
 
 ━━━━━━━━━━━━━━━
-💡 Reply with the number to delete:
-• "delete 1" - Delete reminder #1
-• "delete 2" - Delete reminder #2
+💡 Reply with number to delete:
+• "1" - Delete #{1}
+• "2" - Delete #{2}
+• "delete all {search_text}" - Delete all matches
+
+_- Your WhatsApp Assistant_"""
+
+
+async def delete_from_search_context(user_id: str, number: int) -> str:
+    """Delete a reminder from the last search results"""
+    # Get search context
+    context = await db.user_search_context.find_one({"userId": user_id})
+    
+    if not context or not context.get('matchingIds'):
+        return None  # No search context, use regular delete
+    
+    matching_ids = context['matchingIds']
+    
+    if number < 1 or number > len(matching_ids):
+        return f"❌ Invalid number. Enter 1-{len(matching_ids)} from your last search."
+    
+    # Get the reminder to delete
+    reminder_id = matching_ids[number - 1]
+    reminder = await db.reminders.find_one({"id": reminder_id})
+    
+    if not reminder:
+        return "❌ Reminder not found. It may have already been deleted."
+    
+    if reminder['status'] != 'pending':
+        return "❌ This reminder has already been sent or cancelled."
+    
+    # Delete it
+    await db.reminders.delete_one({"id": reminder_id})
+    
+    # Clear the search context
+    await db.user_search_context.delete_one({"userId": user_id})
+    
+    return f"""✅ *Reminder Deleted*
+
+🗑️ Deleted: {reminder.get('title', 'Reminder')}
 
 _- Your WhatsApp Assistant_"""
 
