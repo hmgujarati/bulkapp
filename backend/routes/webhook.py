@@ -1,10 +1,11 @@
 """Webhook handler for incoming WhatsApp messages"""
 from fastapi import APIRouter, HTTPException, Request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 import logging
 import json
 import httpx
+import pytz
 
 from models.reminder_schemas import Reminder, ReminderStatus
 from utils.database import db
@@ -12,6 +13,88 @@ from utils.database import db
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhook", tags=["Webhook"])
+
+
+# Commands that users can send via WhatsApp
+LIST_COMMANDS = ['show reminders', 'list reminders', 'my reminders', 'reminders', 'show my reminders', 'pending reminders']
+HELP_COMMANDS = ['help', 'commands', 'what can you do', '?']
+DELETE_COMMANDS = ['delete all', 'clear reminders', 'cancel all']
+
+
+async def get_reminders_list(user_id: str, user_timezone: str) -> str:
+    """Get formatted list of user's reminders"""
+    tz = pytz.timezone(user_timezone)
+    now = datetime.now(tz)
+    
+    # Get pending reminders
+    reminders = await db.reminders.find({
+        "userId": user_id,
+        "status": "pending"
+    }).sort("scheduledAt", 1).to_list(20)
+    
+    if not reminders:
+        return """📋 *Your Reminders*
+
+You have no pending reminders.
+
+💡 To create a reminder, just send:
+"Remind me to call John at 3pm tomorrow"
+
+_- Your WhatsApp Assistant_"""
+    
+    # Format the list
+    reminder_list = []
+    for i, r in enumerate(reminders, 1):
+        try:
+            scheduled_dt = datetime.fromisoformat(r['scheduledAt'].replace('Z', '+00:00'))
+            local_time = scheduled_dt.astimezone(tz)
+            time_str = local_time.strftime("%I:%M %p, %d %b").lstrip('0')
+        except:
+            time_str = "Unknown time"
+        
+        reminder_list.append(f"{i}. {r.get('title', 'Reminder')}\n   ⏰ {time_str}")
+    
+    reminders_text = "\n\n".join(reminder_list)
+    
+    return f"""📋 *Your Pending Reminders*
+
+{reminders_text}
+
+━━━━━━━━━━━━━━━
+📝 Total: {len(reminders)} reminder(s)
+
+💡 Commands:
+• "show reminders" - View this list
+• "help" - See all commands
+
+_- Your WhatsApp Assistant_"""
+
+
+async def get_help_message() -> str:
+    """Get help message with available commands"""
+    return """🤖 *WhatsApp Reminder Bot*
+
+Here's what I can do:
+
+📌 *Create Reminders*
+Just send a message like:
+• "Remind me to call John at 3pm"
+• "Meeting with boss tomorrow at 10am"
+• "Take medicine in 2 hours"
+
+📋 *View Reminders*
+• "show reminders"
+• "my reminders"
+• "list reminders"
+
+❓ *Get Help*
+• "help"
+• "commands"
+
+━━━━━━━━━━━━━━━
+💡 Tip: I understand natural language, so just tell me what you need!
+
+_- Your WhatsApp Assistant_"""
 
 
 async def parse_reminder_from_message(message: str, user_timezone: str, api_key: str) -> dict:
