@@ -179,6 +179,16 @@ const App = () => {
             }
           />
           <Route
+            path="/reminders"
+            element={
+              user ? (
+                <Reminders user={user} onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
             path="/"
             element={
               <Navigate to={user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/login'} />
