@@ -213,4 +213,4 @@ async def shutdown_event():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "version": "2.0.0"}
+    return {"status": "healthy", "version": "2.1.0", "features": ["bulk_messaging", "reminder_bot"]}
