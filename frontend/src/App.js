@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import '@/App.css';
 import LoginPage from './pages/LoginPage';
@@ -11,19 +11,57 @@ import CampaignHistory from './pages/CampaignHistory';
 import CampaignDetails from './pages/CampaignDetails';
 import Settings from './pages/Settings';
 import { Toaster } from '@/components/ui/sonner';
+import api from './utils/api';
 
 const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // Validate token on app load
+  const validateSession = useCallback(async () => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
-    if (token && userData) {
-      setUser(JSON.parse(userData));
+    
+    if (!token || !userData) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    try {
+      // Validate token by calling /auth/me
+      const response = await api.get('/auth/me');
+      // Update user data with fresh data from server
+      const freshUserData = {
+        id: response.data.id,
+        email: response.data.email,
+        firstName: response.data.firstName,
+        lastName: response.data.lastName,
+        role: response.data.role
+      };
+      localStorage.setItem('user', JSON.stringify(freshUserData));
+      setUser(freshUserData);
+    } catch (error) {
+      // Only clear session if it's a definite auth error (401/403)
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+      } else {
+        // For network errors, use cached user data
+        try {
+          setUser(JSON.parse(userData));
+        } catch {
+          setUser(null);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    validateSession();
+  }, [validateSession]);
 
   const handleLogin = (userData, token) => {
     localStorage.setItem('token', token);
