@@ -4,7 +4,7 @@ import {
   Bell, Plus, Phone, Clock, Settings, Trash2, Edit2, 
   Calendar, Filter, ChevronDown, Search, AlertCircle,
   CheckCircle, XCircle, Loader2, MessageSquare, FileText,
-  Copy, ExternalLink, BookOpen
+  Copy, ExternalLink, BookOpen, RefreshCw, RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,9 +28,20 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import Layout from '../components/Layout';
+
+const WEEKDAYS = [
+  { value: 0, label: 'Mon' },
+  { value: 1, label: 'Tue' },
+  { value: 2, label: 'Wed' },
+  { value: 3, label: 'Thu' },
+  { value: 4, label: 'Fri' },
+  { value: 5, label: 'Sat' },
+  { value: 6, label: 'Sun' }
+];
 
 const Reminders = ({ user, onLogout }) => {
   const navigate = useNavigate();
@@ -49,7 +60,13 @@ const Reminders = ({ user, onLogout }) => {
   
   // Form states
   const [numberForm, setNumberForm] = useState({ phone: '', name: '', timezone: 'Asia/Kolkata', isDefault: false });
-  const [reminderForm, setReminderForm] = useState({ numberId: '', naturalLanguageInput: '' });
+  const [reminderForm, setReminderForm] = useState({ 
+    numberId: '', 
+    naturalLanguageInput: '',
+    recurrenceType: 'none',
+    recurrenceInterval: 1,
+    recurrenceWeekdays: []
+  });
   const [settingsForm, setSettingsForm] = useState({ openaiApiKey: '', defaultTemplateId: '' });
   const [formLoading, setFormLoading] = useState(false);
 
