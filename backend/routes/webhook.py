@@ -519,7 +519,7 @@ async def handle_bizchat_webhook(request: Request):
             search_text = delete_all_search_match.group(2).strip()
             if search_text and search_text not in ['reminders', 'my reminders']:
                 if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                    delete_msg = await delete_all_matching_reminders(user_id, search_text)
+                    delete_msg = await delete_all_matching_reminders(user_id, search_text, clean_phone)
                     await send_whatsapp_reply(
                         clean_phone,
                         delete_msg,
@@ -531,7 +531,7 @@ async def handle_bizchat_webhook(request: Request):
         # Handle DELETE ALL commands (no search term)
         if any(cmd in message_lower for cmd in DELETE_ALL_COMMANDS):
             if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                delete_msg = await delete_all_reminders(user_id)
+                delete_msg = await delete_all_reminders(user_id, clean_phone)
                 await send_whatsapp_reply(
                     clean_phone,
                     delete_msg,
@@ -549,7 +549,7 @@ async def handle_bizchat_webhook(request: Request):
                 delete_msg = await delete_from_search_context(user_id, reminder_num)
                 if not delete_msg:
                     # No search context, use regular delete by list number
-                    delete_msg = await delete_reminder_by_number(user_id, reminder_num, user_timezone)
+                    delete_msg = await delete_reminder_by_number(user_id, reminder_num, user_timezone, clean_phone)
                 await send_whatsapp_reply(
                     clean_phone,
                     delete_msg,
@@ -590,7 +590,7 @@ async def handle_bizchat_webhook(request: Request):
                 # Don't match if it's just "all" (handled above)
                 if search_text and search_text not in ['all', 'all reminders', 'everything', 'all my reminders']:
                     if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                        delete_msg = await delete_reminder_by_name(user_id, search_text, user_timezone)
+                        delete_msg = await delete_reminder_by_name(user_id, search_text, user_timezone, clean_phone)
                         await send_whatsapp_reply(
                             clean_phone,
                             delete_msg,
