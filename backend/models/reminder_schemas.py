@@ -13,6 +13,22 @@ class ReminderStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class RecurrenceType(str, Enum):
+    NONE = "none"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    CUSTOM = "custom"  # Custom interval in days
+
+
+# Recurrence configuration
+class RecurrenceConfig(BaseModel):
+    type: RecurrenceType = RecurrenceType.NONE
+    interval: int = 1  # For custom: every X days. For weekly: every X weeks
+    weekdays: List[int] = []  # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+    # No end date - runs forever until manually stopped
+
+
 # Reminder Number - phone numbers that can receive reminders
 class ReminderNumber(BaseModel):
     model_config = ConfigDict(extra="ignore")
