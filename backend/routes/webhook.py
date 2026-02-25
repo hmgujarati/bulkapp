@@ -355,19 +355,33 @@ async def parse_reminder_from_message(message: str, user_timezone: str, api_key:
 
 Current date/time in user's timezone ({user_timezone}): {now.strftime('%Y-%m-%d %H:%M:%S %Z')}
 
-IMPORTANT:
-- Extract what the user wants to be reminded about
-- Parse the time/date mentioned
-- "tomorrow" means the next day
-- "today" means today
-- If no specific time is given, default to 9:00 AM
-- Return times in ISO 8601 format with timezone offset
+IMPORTANT RULES:
+1. ONLY parse messages that are clearly reminder requests
+2. Extract what the user wants to be reminded about
+3. Parse the time/date mentioned
+4. "tomorrow" means the next day, "today" means today
+5. If no specific time is given, default to 9:00 AM
+6. Return times in ISO 8601 format with timezone offset
 
-Respond ONLY with a JSON object:
-{{"title": "Short title (max 50 chars)", "message": "Full reminder message", "scheduled_time": "2025-01-22T10:00:00+05:30", "confidence": 0.95, "is_reminder": true}}
+RECURRENCE PATTERNS - Look for these keywords:
+- "daily", "every day", "everyday" = daily recurrence
+- "weekly", "every week" = weekly recurrence  
+- "monthly", "every month" = monthly recurrence
+- "every 2 days", "every 3 weeks" = custom interval
+- "every monday", "every tue and thu" = specific weekdays (use weekdays array: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun)
 
-If the message is NOT a reminder request (just a greeting or random message), return:
-{{"is_reminder": false, "reply": "Your suggested reply to the user"}}
+For a REMINDER REQUEST, respond with JSON:
+{{"title": "Short title (max 50 chars)", "message": "Full reminder message", "scheduled_time": "2025-01-22T10:00:00+05:30", "confidence": 0.95, "is_reminder": true, "recurrence": {{"type": "none|daily|weekly|monthly|custom", "interval": 1, "weekdays": []}}}}
+
+Examples:
+- "remind me daily to take medicine at 9am" -> recurrence: {{"type": "daily", "interval": 1, "weekdays": []}}
+- "remind me every monday to submit report" -> recurrence: {{"type": "weekly", "interval": 1, "weekdays": [0]}}
+- "remind me every 2 weeks to pay rent" -> recurrence: {{"type": "custom", "interval": 14, "weekdays": []}}
+
+If the message is NOT a reminder request (greetings, random questions, conversations), return:
+{{"is_reminder": false}}
+
+DO NOT chat or have conversations. Only parse reminders.
 """
 
     try:
