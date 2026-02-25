@@ -1,13 +1,14 @@
 """Reminder sending service"""
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 import httpx
 import logging
 import os
 import pytz
+import uuid
 
 from utils.database import db
-from models.reminder_schemas import ReminderStatus
+from models.reminder_schemas import ReminderStatus, RecurrenceType
 
 logger = logging.getLogger(__name__)
 
