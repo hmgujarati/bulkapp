@@ -47,6 +47,7 @@ You have no pending reminders.
 
 💡 To create a reminder, just send:
 "Remind me to call John at 3pm tomorrow"
+"Remind me daily to take medicine at 9am"
 
 _- Your WhatsApp Assistant_"""
     
@@ -60,7 +61,21 @@ _- Your WhatsApp Assistant_"""
         except:
             time_str = "Unknown time"
         
-        reminder_list.append(f"{i}. {r.get('title', 'Reminder')}\n   ⏰ {time_str}")
+        # Add recurrence indicator
+        recurrence = r.get('recurrence', {})
+        recurrence_icon = ""
+        if recurrence and recurrence.get('type') and recurrence.get('type') != 'none':
+            recurrence_type = recurrence.get('type')
+            if recurrence_type == 'daily':
+                recurrence_icon = " 🔄"
+            elif recurrence_type == 'weekly':
+                recurrence_icon = " 🔄W"
+            elif recurrence_type == 'monthly':
+                recurrence_icon = " 🔄M"
+            elif recurrence_type == 'custom':
+                recurrence_icon = f" 🔄{recurrence.get('interval', '')}d"
+        
+        reminder_list.append(f"{i}. {r.get('title', 'Reminder')}{recurrence_icon}\n   ⏰ {time_str}")
     
     reminders_text = "\n\n".join(reminder_list)
     
@@ -70,6 +85,7 @@ _- Your WhatsApp Assistant_"""
 
 ━━━━━━━━━━━━━━━
 📝 Total: {len(reminders)} reminder(s)
+🔄 = Recurring
 
 💡 Commands:
 • "delete 1" - Delete reminder #1
