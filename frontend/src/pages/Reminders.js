@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Bell, Plus, Phone, Clock, Settings, Trash2, Edit2, 
   Calendar, Filter, ChevronDown, Search, AlertCircle,
-  CheckCircle, XCircle, Loader2, MessageSquare
+  CheckCircle, XCircle, Loader2, MessageSquare, FileText,
+  Copy, ExternalLink, BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
