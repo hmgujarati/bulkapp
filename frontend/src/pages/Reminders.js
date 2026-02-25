@@ -389,6 +389,238 @@ const Reminders = ({ user, onLogout }) => {
           </div>
         )}
 
+        {/* Template Guide Tab */}
+        {activeTab === 'templates' && (
+          <div data-testid="template-guide-section">
+            <Card className="mb-6 border-blue-200 bg-blue-50">
+              <CardContent className="flex items-center p-4">
+                <BookOpen className="w-5 h-5 text-blue-600 mr-3" />
+                <div className="flex-1">
+                  <p className="text-blue-800 font-medium">Why do you need Meta Templates?</p>
+                  <p className="text-blue-700 text-sm">WhatsApp requires pre-approved templates for messages sent outside the 24-hour window. Follow this guide to get your templates approved.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Start Section */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center text-lg">
+                  <FileText className="w-5 h-5 mr-2 text-green-600" />
+                  Quick Start: Get Your Template Approved
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium">1</div>
+                    <div>
+                      <p className="font-medium text-slate-900">Go to Meta Business Manager</p>
+                      <p className="text-sm text-slate-600">Navigate to WhatsApp Manager → Message Templates</p>
+                      <a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center mt-1">
+                        Open Meta Business Suite <ExternalLink className="w-3 h-3 ml-1" />
+                      </a>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium">2</div>
+                    <div>
+                      <p className="font-medium text-slate-900">Create a new template</p>
+                      <p className="text-sm text-slate-600">Select <Badge variant="outline">UTILITY</Badge> category and copy one of the templates below</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium">3</div>
+                    <div>
+                      <p className="font-medium text-slate-900">Submit and wait for approval</p>
+                      <p className="text-sm text-slate-600">Approval usually takes 24-48 hours</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium">4</div>
+                    <div>
+                      <p className="font-medium text-slate-900">Configure in API Settings</p>
+                      <p className="text-sm text-slate-600">Enter your template name in the API Settings dialog</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => setShowSettings(true)}>
+                        <Settings className="w-3 h-3 mr-1" /> Open API Settings
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Ready-to-Use Templates */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center text-lg">
+                  <Copy className="w-5 h-5 mr-2 text-purple-600" />
+                  Ready-to-Use Templates (Copy & Paste)
+                </CardTitle>
+                <CardDescription>These templates are designed for high approval rates. Copy and submit to Meta.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* Template 1 */}
+                  <div className="border rounded-lg p-4 bg-slate-50">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <Badge className="bg-green-100 text-green-800 border-green-200 mb-2">RECOMMENDED</Badge>
+                        <h4 className="font-semibold text-slate-900">Simple Reminder</h4>
+                        <p className="text-xs text-slate-500">Template Name: <code className="bg-slate-200 px-1 rounded">reminder_alert</code></p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText('Reminder: {{1}}');
+                          toast.success('Template copied!');
+                        }}
+                      >
+                        <Copy className="w-3 h-3 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <div className="bg-white border rounded p-3 font-mono text-sm">
+                      <p className="text-slate-600">Category: <span className="text-slate-900">UTILITY</span></p>
+                      <p className="text-slate-600 mt-2">Body:</p>
+                      <p className="text-slate-900 mt-1">Reminder: {'{{1}}'}</p>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">{'{{1}}'} = The reminder message (e.g., "Call John at 3pm")</p>
+                  </div>
+
+                  {/* Template 2 */}
+                  <div className="border rounded-lg p-4 bg-slate-50">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-semibold text-slate-900">Detailed Reminder</h4>
+                        <p className="text-xs text-slate-500">Template Name: <code className="bg-slate-200 px-1 rounded">scheduled_reminder</code></p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText('Hi {{1}},\n\nThis is your scheduled reminder:\n{{2}}\n\nTime: {{3}}');
+                          toast.success('Template copied!');
+                        }}
+                      >
+                        <Copy className="w-3 h-3 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <div className="bg-white border rounded p-3 font-mono text-sm">
+                      <p className="text-slate-600">Category: <span className="text-slate-900">UTILITY</span></p>
+                      <p className="text-slate-600">Header: <span className="text-slate-900">Reminder</span></p>
+                      <p className="text-slate-600 mt-2">Body:</p>
+                      <div className="text-slate-900 mt-1 whitespace-pre-line">Hi {'{{1}}'},
+
+This is your scheduled reminder:
+{'{{2}}'}
+
+Time: {'{{3}}'}</div>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">{'{{1}}'} = Name, {'{{2}}'} = Message, {'{{3}}'} = Time</p>
+                  </div>
+
+                  {/* Template 3 */}
+                  <div className="border rounded-lg p-4 bg-slate-50">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-semibold text-slate-900">Professional Reminder</h4>
+                        <p className="text-xs text-slate-500">Template Name: <code className="bg-slate-200 px-1 rounded">reminder_notification</code></p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText('Hello {{1}},\n\nYou have a reminder: {{2}}\n\nScheduled for: {{3}}\n\nReply STOP to unsubscribe.');
+                          toast.success('Template copied!');
+                        }}
+                      >
+                        <Copy className="w-3 h-3 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <div className="bg-white border rounded p-3 font-mono text-sm">
+                      <p className="text-slate-600">Category: <span className="text-slate-900">UTILITY</span></p>
+                      <p className="text-slate-600 mt-2">Body:</p>
+                      <div className="text-slate-900 mt-1 whitespace-pre-line">Hello {'{{1}}'},
+
+You have a reminder: {'{{2}}'}
+
+Scheduled for: {'{{3}}'}
+
+Reply STOP to unsubscribe.</div>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">Including "Reply STOP" increases approval chances</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tips Section */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-base text-green-700">
+                    <CheckCircle className="w-4 h-4 mr-2" /> Do's
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="text-sm space-y-2 text-slate-600">
+                    <li className="flex items-start"><CheckCircle className="w-4 h-4 mr-2 text-green-500 flex-shrink-0 mt-0.5" /> Use UTILITY category for reminders</li>
+                    <li className="flex items-start"><CheckCircle className="w-4 h-4 mr-2 text-green-500 flex-shrink-0 mt-0.5" /> Keep messages clear and concise</li>
+                    <li className="flex items-start"><CheckCircle className="w-4 h-4 mr-2 text-green-500 flex-shrink-0 mt-0.5" /> Use professional, neutral language</li>
+                    <li className="flex items-start"><CheckCircle className="w-4 h-4 mr-2 text-green-500 flex-shrink-0 mt-0.5" /> Provide accurate sample content</li>
+                    <li className="flex items-start"><CheckCircle className="w-4 h-4 mr-2 text-green-500 flex-shrink-0 mt-0.5" /> Use {'{{1}}'} format for variables</li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-base text-red-700">
+                    <XCircle className="w-4 h-4 mr-2" /> Don'ts
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="text-sm space-y-2 text-slate-600">
+                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Use promotional/marketing language</li>
+                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Include URLs in utility templates</li>
+                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Use ALL CAPS or excessive punctuation</li>
+                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Make templates too long</li>
+                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Use wrong variable format like {'{1}'} or {'[1]'}</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Status Reference */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="text-base">Template Status Reference</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="flex items-center space-x-2">
+                    <Badge className="bg-green-100 text-green-800">Approved</Badge>
+                    <span className="text-sm text-slate-600">Ready to use</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                    <span className="text-sm text-slate-600">Under review (24-48h)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge className="bg-red-100 text-red-800">Rejected</Badge>
+                    <span className="text-sm text-slate-600">Modify and resubmit</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge className="bg-gray-100 text-gray-800">Paused</Badge>
+                    <span className="text-sm text-slate-600">Check quality rating</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
       {/* Add Number Dialog */}
       <Dialog open={showAddNumber} onOpenChange={setShowAddNumber}>
         <DialogContent>
