@@ -337,10 +337,14 @@ async def get_help_message() -> str:
 Here's what I can do:
 
 📌 *Create Reminders*
-Just send a message like:
 • "Remind me to call John at 3pm"
 • "Meeting with boss tomorrow at 10am"
 • "Take medicine in 2 hours"
+
+🔄 *Recurring Reminders*
+• "Remind me daily to take medicine at 9am"
+• "Every Monday remind me to submit report"
+• "Remind me every 2 weeks to pay rent"
 
 📋 *View Reminders*
 • "show reminders"
@@ -348,14 +352,14 @@ Just send a message like:
 
 🗑️ *Delete Reminders*
 • "delete 1" - Delete reminder #1
-• "delete 2" - Delete reminder #2
 • "delete all" - Delete all reminders
+• "cancel call meeting" - Delete by name
 
 ❓ *Get Help*
 • "help"
 
 ━━━━━━━━━━━━━━━
-💡 Tip: I understand natural language, so just tell me what you need!
+💡 Tip: I understand natural language!
 
 _- Your WhatsApp Assistant_"""
 
