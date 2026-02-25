@@ -8,7 +8,7 @@ import httpx
 import pytz
 import re
 
-from models.reminder_schemas import Reminder, ReminderStatus
+from models.reminder_schemas import Reminder, ReminderStatus, RecurrenceConfig, RecurrenceType
 from utils.database import db
 
 logger = logging.getLogger(__name__)
