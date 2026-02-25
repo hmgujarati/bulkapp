@@ -79,16 +79,21 @@ _- Your WhatsApp Assistant_"""
 _- Your WhatsApp Assistant_"""
 
 
-async def delete_reminder_by_name(user_id: str, search_text: str, user_timezone: str = "Asia/Kolkata") -> str:
+async def delete_reminder_by_name(user_id: str, search_text: str, user_timezone: str = "Asia/Kolkata", phone: str = None) -> str:
     """Delete a reminder by searching its title/message"""
     import pytz
     tz = pytz.timezone(user_timezone)
     
-    # Get pending reminders
-    reminders = await db.reminders.find({
+    # Build query - filter by phone number if provided
+    query = {
         "userId": user_id,
         "status": "pending"
-    }).sort("scheduledAt", 1).to_list(200)
+    }
+    if phone:
+        query["phone"] = phone
+    
+    # Get pending reminders
+    reminders = await db.reminders.find(query).sort("scheduledAt", 1).to_list(200)
     
     if not reminders:
         return "❌ You have no pending reminders to delete."
@@ -198,13 +203,18 @@ async def delete_from_search_context(user_id: str, number: int) -> str:
 _- Your WhatsApp Assistant_"""
 
 
-async def delete_reminder_by_number(user_id: str, reminder_num: int, user_timezone: str) -> str:
+async def delete_reminder_by_number(user_id: str, reminder_num: int, user_timezone: str, phone: str = None) -> str:
     """Delete a specific reminder by its list number"""
-    # Get pending reminders in order
-    reminders = await db.reminders.find({
+    # Build query - filter by phone number if provided
+    query = {
         "userId": user_id,
         "status": "pending"
-    }).sort("scheduledAt", 1).to_list(20)
+    }
+    if phone:
+        query["phone"] = phone
+    
+    # Get pending reminders in order
+    reminders = await db.reminders.find(query).sort("scheduledAt", 1).to_list(20)
     
     if not reminders:
         return "❌ You have no pending reminders to delete."
@@ -227,13 +237,18 @@ You have {len(reminders) - 1} reminder(s) remaining.
 _- Your WhatsApp Assistant_"""
 
 
-async def delete_all_matching_reminders(user_id: str, search_text: str) -> str:
+async def delete_all_matching_reminders(user_id: str, search_text: str, phone: str = None) -> str:
     """Delete all reminders matching a search term"""
-    # Get pending reminders
-    reminders = await db.reminders.find({
+    # Build query - filter by phone number if provided
+    query = {
         "userId": user_id,
         "status": "pending"
-    }).to_list(500)
+    }
+    if phone:
+        query["phone"] = phone
+    
+    # Get pending reminders
+    reminders = await db.reminders.find(query).to_list(500)
     
     if not reminders:
         return "❌ You have no pending reminders."
@@ -275,12 +290,17 @@ _- Your WhatsApp Assistant_"""
 _- Your WhatsApp Assistant_"""
 
 
-async def delete_all_reminders(user_id: str) -> str:
-    """Delete all pending reminders for a user"""
-    result = await db.reminders.delete_many({
+async def delete_all_reminders(user_id: str, phone: str = None) -> str:
+    """Delete all pending reminders for a user (filtered by phone if provided)"""
+    # Build query - filter by phone number if provided
+    query = {
         "userId": user_id,
         "status": "pending"
-    })
+    }
+    if phone:
+        query["phone"] = phone
+    
+    result = await db.reminders.delete_many(query)
     
     if result.deleted_count == 0:
         return "📋 You have no pending reminders to delete."
