@@ -107,7 +107,9 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const fetchSavedTemplates = async () => {
     try {
       const response = await api.get('/saved-templates');
-      setSavedTemplates(response.data);
+      // Handle both array response and {templates: [...]} response
+      const data = response.data;
+      setSavedTemplates(Array.isArray(data) ? data : data.templates || []);
     } catch (error) {
       console.error('Failed to load saved templates');
     }
