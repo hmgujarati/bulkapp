@@ -161,6 +161,12 @@ _- Your WhatsApp Assistant_
 - **Fixed:** WhatsApp "show reminders" command now only shows reminders for the specific phone number that sent the message (not all user's numbers)
 - **Fixed:** All WhatsApp delete commands (delete by number, delete by name, delete all) now filter by phone number
 - **Enhanced:** Meta Template Guide (`/app/META_TEMPLATE_GUIDE.md`) with 5 ready-to-use template designs for Meta approval
+- **Added:** New "Template Guide" tab in Reminders page with:
+  - Quick start steps for template approval
+  - Ready-to-use templates with Copy buttons
+  - Do's and Don'ts for template approval
+  - Template status reference
+  - Direct link to Meta Business Suite
 - **Updated:** Added detailed template approval best practices and troubleshooting guide
 
 ### WhatsApp Webhook Phone Filtering (Feb 2025)
