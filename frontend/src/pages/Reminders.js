@@ -509,19 +509,29 @@ const Reminders = ({ user, onLogout }) => {
           <form onSubmit={handleSaveSettings}>
             <div className="space-y-4 py-4">
               <div>
-                <Label htmlFor="openaiApiKey">OpenAI API Key</Label>
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="openaiApiKey">OpenAI API Key</Label>
+                  {settings.hasApiKey && (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle className="w-3 h-3 mr-1" /> Configured
+                    </Badge>
+                  )}
+                </div>
                 <Input
                   id="openaiApiKey"
                   type="password"
-                  placeholder={settings.hasApiKey ? "sk-...already configured" : "sk-..."}
+                  placeholder={settings.hasApiKey ? "Enter new key to update..." : "sk-..."}
                   value={settingsForm.openaiApiKey}
                   onChange={(e) => setSettingsForm({ ...settingsForm, openaiApiKey: e.target.value })}
                   data-testid="openai-key-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">
-                  Required for natural language parsing. Get your key from{' '}
-                  <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                    OpenAI Dashboard
+                  {settings.hasApiKey 
+                    ? "Leave empty to keep current key, or enter a new key to update"
+                    : "Required for natural language parsing"
+                  }
+                  {' '}<a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    Get key from OpenAI
                   </a>
                 </p>
               </div>
@@ -529,13 +539,16 @@ const Reminders = ({ user, onLogout }) => {
                 <Label htmlFor="defaultTemplateId">Default Meta Template ID</Label>
                 <Input
                   id="defaultTemplateId"
-                  placeholder="reminder_template"
+                  placeholder={settings.defaultTemplateId || "reminder_template"}
                   value={settingsForm.defaultTemplateId}
                   onChange={(e) => setSettingsForm({ ...settingsForm, defaultTemplateId: e.target.value })}
                   data-testid="template-id-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   Pre-approved WhatsApp template name for sending reminders
+                  {settings.defaultTemplateId && (
+                    <span className="block mt-1 text-green-600">Current: {settings.defaultTemplateId}</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -545,7 +558,7 @@ const Reminders = ({ user, onLogout }) => {
               </Button>
               <Button type="submit" disabled={formLoading} data-testid="save-settings-btn">
                 {formLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Save Settings
+                {settings.hasApiKey ? 'Update Settings' : 'Save Settings'}
               </Button>
             </DialogFooter>
           </form>
