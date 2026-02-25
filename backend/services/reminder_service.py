@@ -286,6 +286,10 @@ async def process_due_reminders():
                     }
                 )
                 logger.info(f"Reminder {reminder['id']} sent successfully")
+                
+                # Create next occurrence for recurring reminders
+                if reminder.get('recurrence') and reminder['recurrence'].get('type') != 'none':
+                    await create_next_recurring_reminder(reminder)
             else:
                 await db.reminders.update_one(
                     {"id": reminder['id']},
