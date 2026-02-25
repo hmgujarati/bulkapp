@@ -88,6 +88,10 @@ class ReminderCreate(BaseModel):
     naturalLanguageInput: str  # e.g., "remind me to call Harsh at 10 am tomorrow"
     useTemplate: bool = True
     templateId: Optional[str] = None
+    # Recurrence (optional, can also be parsed from natural language)
+    recurrenceType: Optional[str] = None  # none, daily, weekly, monthly, custom
+    recurrenceInterval: Optional[int] = None  # For custom: every X days
+    recurrenceWeekdays: Optional[List[int]] = None  # For specific weekdays
 
 
 class ReminderCreateDirect(BaseModel):
@@ -98,6 +102,10 @@ class ReminderCreateDirect(BaseModel):
     scheduledAt: datetime
     useTemplate: bool = True
     templateId: Optional[str] = None
+    # Recurrence
+    recurrenceType: Optional[str] = None
+    recurrenceInterval: Optional[int] = None
+    recurrenceWeekdays: Optional[List[int]] = None
 
 
 class ReminderUpdate(BaseModel):
