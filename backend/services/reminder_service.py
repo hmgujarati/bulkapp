@@ -105,6 +105,104 @@ async def send_reminder_message(
         return {"success": False, "error": error_msg}
 
 
+def calculate_next_occurrence(current_scheduled: datetime, recurrence: dict, user_timezone: str) -> datetime:
+    """Calculate the next occurrence for a recurring reminder"""
+    recurrence_type = recurrence.get('type', 'none')
+    interval = recurrence.get('interval', 1)
+    weekdays = recurrence.get('weekdays', [])
+    
+    tz = pytz.timezone(user_timezone)
+    current_local = current_scheduled.astimezone(tz)
+    
+    if recurrence_type == 'daily':
+        next_time = current_local + timedelta(days=interval)
+    
+    elif recurrence_type == 'weekly':
+        if weekdays:
+            # Find next matching weekday
+            next_time = current_local + timedelta(days=1)
+            days_checked = 0
+            while days_checked < 14:  # Max 2 weeks search
+                if next_time.weekday() in weekdays:
+                    break
+                next_time += timedelta(days=1)
+                days_checked += 1
+        else:
+            next_time = current_local + timedelta(weeks=interval)
+    
+    elif recurrence_type == 'monthly':
+        # Add month(s)
+        month = current_local.month + interval
+        year = current_local.year
+        while month > 12:
+            month -= 12
+            year += 1
+        # Handle day overflow (e.g., Jan 31 -> Feb 28)
+        day = min(current_local.day, 28)  # Safe day for all months
+        next_time = current_local.replace(year=year, month=month, day=day)
+    
+    elif recurrence_type == 'custom':
+        # Custom interval in days
+        next_time = current_local + timedelta(days=interval)
+    
+    else:
+        return None
+    
+    return next_time
+
+
+async def create_next_recurring_reminder(reminder: dict) -> bool:
+    """Create the next occurrence for a recurring reminder"""
+    recurrence = reminder.get('recurrence')
+    if not recurrence or recurrence.get('type') == 'none':
+        return False
+    
+    # Parse current scheduled time
+    scheduled_str = reminder.get('scheduledAt', '')
+    try:
+        current_scheduled = datetime.fromisoformat(scheduled_str.replace('Z', '+00:00'))
+    except:
+        logger.error(f"Failed to parse scheduled time for recurring reminder {reminder['id']}")
+        return False
+    
+    # Calculate next occurrence
+    next_scheduled = calculate_next_occurrence(
+        current_scheduled, 
+        recurrence, 
+        reminder.get('timezone', 'Asia/Kolkata')
+    )
+    
+    if not next_scheduled:
+        return False
+    
+    now = datetime.now(timezone.utc)
+    
+    # Create new reminder
+    new_reminder = {
+        "id": str(uuid.uuid4()),
+        "userId": reminder['userId'],
+        "numberId": reminder['numberId'],
+        "phone": reminder['phone'],
+        "contactName": reminder['contactName'],
+        "title": reminder['title'],
+        "message": reminder['message'],
+        "originalInput": reminder.get('originalInput', ''),
+        "scheduledAt": next_scheduled.isoformat(),
+        "timezone": reminder.get('timezone', 'Asia/Kolkata'),
+        "status": ReminderStatus.PENDING.value,
+        "recurrence": recurrence,
+        "parentReminderId": reminder.get('parentReminderId') or reminder['id'],
+        "useTemplate": reminder.get('useTemplate', True),
+        "templateId": reminder.get('templateId'),
+        "createdAt": now.isoformat(),
+        "updatedAt": now.isoformat()
+    }
+    
+    await db.reminders.insert_one(new_reminder)
+    logger.info(f"Created next recurring reminder {new_reminder['id']} scheduled for {next_scheduled}")
+    return True
+
+
 async def process_due_reminders():
     """Process all due reminders"""
     now = datetime.now(timezone.utc)
