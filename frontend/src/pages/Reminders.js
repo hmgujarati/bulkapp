@@ -352,9 +352,10 @@ const Reminders = ({ user, onLogout }) => {
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
+                          <div className="flex items-center flex-wrap gap-2 mb-2">
                             <h3 className="font-semibold text-slate-900">{reminder.title}</h3>
                             {getStatusBadge(reminder.status)}
+                            {getRecurrenceBadge(reminder.recurrence)}
                           </div>
                           <p className="text-slate-600 text-sm mb-2">{reminder.message}</p>
                           <div className="flex items-center space-x-4 text-xs text-slate-500">
