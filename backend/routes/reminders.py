@@ -199,6 +199,15 @@ async def create_reminder(
             detail="Reminder time must be in the future"
         )
     
+    # Build recurrence config from form data (takes priority) or use default
+    recurrence_config = None
+    if reminder_data.recurrenceType and reminder_data.recurrenceType != 'none':
+        recurrence_config = RecurrenceConfig(
+            type=RecurrenceType(reminder_data.recurrenceType),
+            interval=reminder_data.recurrenceInterval or 1,
+            weekdays=reminder_data.recurrenceWeekdays or []
+        )
+    
     # Create the reminder
     reminder = Reminder(
         userId=current_user.userId,
@@ -210,6 +219,7 @@ async def create_reminder(
         originalInput=reminder_data.naturalLanguageInput,
         scheduledAt=parsed.scheduledAt,
         timezone=number['timezone'],
+        recurrence=recurrence_config,
         useTemplate=reminder_data.useTemplate,
         templateId=reminder_data.templateId or settings.get('defaultTemplateId')
     )
@@ -218,6 +228,14 @@ async def create_reminder(
     reminder_dict['createdAt'] = reminder_dict['createdAt'].isoformat()
     reminder_dict['updatedAt'] = reminder_dict['updatedAt'].isoformat()
     reminder_dict['scheduledAt'] = reminder_dict['scheduledAt'].isoformat()
+    
+    # Convert recurrence to dict for MongoDB
+    if reminder_dict.get('recurrence'):
+        reminder_dict['recurrence'] = {
+            'type': reminder_dict['recurrence']['type'].value if hasattr(reminder_dict['recurrence']['type'], 'value') else reminder_dict['recurrence']['type'],
+            'interval': reminder_dict['recurrence']['interval'],
+            'weekdays': reminder_dict['recurrence']['weekdays']
+        }
     
     await db.reminders.insert_one(reminder_dict)
     
@@ -231,7 +249,8 @@ async def create_reminder(
             "scheduledAt": reminder_dict['scheduledAt'],
             "phone": reminder.phone,
             "contactName": reminder.contactName,
-            "confidence": parsed.confidence
+            "confidence": parsed.confidence,
+            "recurrence": reminder_dict.get('recurrence')
         }
     }
 
