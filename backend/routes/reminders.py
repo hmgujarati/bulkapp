@@ -9,7 +9,8 @@ import pytz
 
 from models.reminder_schemas import (
     Reminder, ReminderCreate, ReminderCreateDirect, ReminderUpdate,
-    ReminderStatus, ReminderSettings, ReminderSettingsUpdate, ParsedReminder
+    ReminderStatus, ReminderSettings, ReminderSettingsUpdate, ParsedReminder,
+    RecurrenceConfig, RecurrenceType
 )
 from utils.auth import get_current_user
 from utils.database import db
