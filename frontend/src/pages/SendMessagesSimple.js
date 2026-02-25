@@ -1,62 +1,103 @@
 import React, { useState, useEffect } from 'react';
-import Layout from '../components/Layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useNavigate } from 'react-router-dom';
+import { Send, Clock, Save, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, Send, Calendar, Trash2, Globe, AlertCircle, FileText } from 'lucide-react';
-import { useDropzone } from 'react-dropzone';
-import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import Layout from '../components/Layout';
+import { RecipientUploader, MediaUploader, TemplateSelector } from '../components/messaging';
+import { useRecipients, useMediaUpload } from '../hooks';
 import api from '../utils/api';
-import { useNavigate } from 'react-router-dom';
+
+const LANGUAGES = [
+  { value: 'en', label: 'English (en)' },
+  { value: 'en_US', label: 'English US (en_US)' },
+  { value: 'en_GB', label: 'English UK (en_GB)' },
+  { value: 'hi', label: 'Hindi (hi)' },
+  { value: 'es', label: 'Spanish (es)' },
+  { value: 'fr', label: 'French (fr)' },
+  { value: 'de', label: 'German (de)' },
+  { value: 'pt', label: 'Portuguese (pt)' },
+  { value: 'ar', label: 'Arabic (ar)' },
+  { value: 'zh', label: 'Chinese (zh)' },
+];
+
+// Template Fields Component
+const TemplateFieldsCard = ({ fields, onFieldChange }) => (
+  <Card className="shadow-lg border-0">
+    <CardHeader>
+      <CardTitle>Template Fields</CardTitle>
+      <CardDescription>Enter values for template variables (same for all recipients)</CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      <Alert className="bg-emerald-50 border-emerald-200">
+        <AlertCircle className="h-4 w-4 text-emerald-600" />
+        <AlertDescription className="text-emerald-800">
+          <strong>Personalization:</strong> Use <code className="bg-emerald-100 px-1 rounded">{'{name}'}</code> to insert recipient's name from Excel.
+        </AlertDescription>
+      </Alert>
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} className="space-y-2">
+          <Label htmlFor={`field${i}`}>Field {i}</Label>
+          <Textarea
+            id={`field${i}`}
+            placeholder={`Enter text for field ${i}`}
+            rows={2}
+            value={fields[`field${i}`]}
+            onChange={(e) => onFieldChange(`field${i}`, e.target.value)}
+            data-testid={`field${i}-input`}
+          />
+        </div>
+      ))}
+    </CardContent>
+  </Card>
+);
 
 const SendMessagesSimple = ({ user, onLogout }) => {
   const navigate = useNavigate();
-  
-  // Campaign fields
+  const { recipients, parseExcelFile, parseTextInput, addCountryCode, removeDuplicates, removeRecipient, clearRecipients } = useRecipients();
+  const { uploadFile, uploading } = useMediaUpload();
+
+  // Campaign state
   const [campaignName, setCampaignName] = useState('');
   const [templateName, setTemplateName] = useState('');
   const [templateLanguage, setTemplateLanguage] = useState('en');
+  const [fields, setFields] = useState({ field1: '', field2: '', field3: '', field4: '', field5: '' });
   
-  // Saved templates
-  const [savedTemplates, setSavedTemplates] = useState([]);
-  const [selectedSavedTemplate, setSelectedSavedTemplate] = useState('');
-  
-  // Template fields
-  const [field1, setField1] = useState('');
-  const [field2, setField2] = useState('');
-  const [field3, setField3] = useState('');
-  const [field4, setField4] = useState('');
-  const [field5, setField5] = useState('');
-  
-  // Media type selection
-  const [mediaType, setMediaType] = useState('none'); // none, image, video, document, location
-  
-  // Media fields
+  // Media state
+  const [mediaType, setMediaType] = useState('none');
   const [headerImage, setHeaderImage] = useState('');
   const [headerVideo, setHeaderVideo] = useState('');
   const [headerDocument, setHeaderDocument] = useState('');
   const [headerDocumentName, setHeaderDocumentName] = useState('');
-  const [uploading, setUploading] = useState(false);
-  
-  // Location fields
   const [locationLatitude, setLocationLatitude] = useState('');
   const [locationLongitude, setLocationLongitude] = useState('');
   const [locationName, setLocationName] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
   
-  // Recipients
-  const [recipients, setRecipients] = useState([]);
-  const [textInput, setTextInput] = useState('');
-  const [countryCode, setCountryCode] = useState('91');
-  
-  // Schedule
+  // Scheduling state
+  const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
+  
+  // Saved templates
+  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [selectedSavedTemplate, setSelectedSavedTemplate] = useState('');
+  
+  // UI state
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -66,236 +107,64 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const fetchSavedTemplates = async () => {
     try {
       const response = await api.get('/saved-templates');
-      setSavedTemplates(response.data.templates);
+      setSavedTemplates(response.data);
     } catch (error) {
-      console.error('Failed to fetch saved templates');
+      console.error('Failed to load saved templates');
     }
   };
 
-  const handleLoadTemplate = (templateId) => {
-    const template = savedTemplates.find(t => t.id === templateId);
-    if (template) {
-      setSelectedSavedTemplate(templateId);
-      setTemplateName(template.templateName);
-      setTemplateLanguage(template.templateLanguage);
-      setField1(template.field1 || '');
-      setField2(template.field2 || '');
-      setField3(template.field3 || '');
-      setField4(template.field4 || '');
-      setField5(template.field5 || '');
-      
-      // Detect and set media type based on what's in the template
-      if (template.header_image) {
-        setMediaType('image');
-        setHeaderImage(template.header_image);
-      } else if (template.header_video) {
-        setMediaType('video');
-        setHeaderVideo(template.header_video);
-      } else if (template.header_document) {
-        setMediaType('document');
-        setHeaderDocument(template.header_document);
-        setHeaderDocumentName(template.header_document_name || '');
-      } else if (template.location_latitude && template.location_longitude) {
-        setMediaType('location');
-        setLocationLatitude(template.location_latitude);
-        setLocationLongitude(template.location_longitude);
-        setLocationName(template.location_name || '');
-        setLocationAddress(template.location_address || '');
-      } else {
-        setMediaType('none');
-      }
-      
-      toast.success(`Template "${template.name}" loaded`);
-    }
+  const handleFieldChange = (fieldName, value) => {
+    setFields(prev => ({ ...prev, [fieldName]: value }));
   };
 
-  // Excel upload
-  const onDrop = async (acceptedFiles) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      if (jsonData.length === 0) {
-        toast.error('Excel file is empty');
-        return;
-      }
-
-      // Get phone column
-      const columns = Object.keys(jsonData[0]);
-      const phoneCol = columns.find(c => c.toLowerCase().includes('phone'));
-      const nameCol = columns.find(c => c.toLowerCase().includes('name'));
-
-      if (!phoneCol) {
-        toast.error('Could not find phone column');
-        return;
-      }
-
-      const formattedRecipients = jsonData.map(row => ({
-        phone: String(row[phoneCol] || '').trim(),
-        name: row[nameCol] ? String(row[nameCol]).trim() : ''
-      })).filter(r => r.phone);
-
-      setRecipients(formattedRecipients);
-      toast.success(`Loaded ${formattedRecipients.length} recipients`);
-    } catch (error) {
-      toast.error('Failed to parse Excel file');
-    }
-  };
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/vnd.ms-excel': ['.xls'],
-      'text/csv': ['.csv']
-    },
-    multiple: false
-  });
-
-  // Parse text input
-  const handleTextInput = () => {
-    const lines = textInput.split('\n').filter(line => line.trim());
-    const parsed = lines.map(line => {
-      const parts = line.split(',').map(p => p.trim());
-      return {
-        phone: parts[0] || '',
-        name: parts[1] || ''
-      };
-    }).filter(r => r.phone);
-
-    setRecipients(parsed);
-    toast.success(`Loaded ${parsed.length} recipients`);
-  };
-
-  // Add country code to all numbers
-  const handleAddCountryCode = () => {
-    if (!countryCode) {
-      toast.error('Please enter a country code');
-      return;
-    }
-
-    let addedCount = 0;
-    let skippedCount = 0;
-    
-    const updated = recipients.map(r => {
-      const phone = r.phone.trim();
-      
-      // Remove all non-digit characters to check the raw number
-      const digitsOnly = phone.replace(/\D/g, '');
-      
-      // Check if number already has + sign OR already starts with the country code
-      if (phone.startsWith('+') || digitsOnly.startsWith(countryCode)) {
-        skippedCount++;
-        return r;
-      }
-      
-      // Remove leading zeros
-      const cleanPhone = digitsOnly.replace(/^0+/, '');
-      
-      // Add country code
-      addedCount++;
-      return {
-        ...r,
-        phone: `+${countryCode}${cleanPhone}`
-      };
+  const handleLoadTemplate = (template) => {
+    setTemplateName(template.templateName);
+    setTemplateLanguage(template.templateLanguage);
+    setFields({
+      field1: template.field1 || '',
+      field2: template.field2 || '',
+      field3: template.field3 || '',
+      field4: template.field4 || '',
+      field5: template.field5 || ''
     });
-
-    setRecipients(updated);
     
-    if (addedCount > 0) {
-      toast.success(`Country code +${countryCode} added to ${addedCount} number(s). ${skippedCount} already had it.`);
+    // Set media
+    if (template.header_image) {
+      setMediaType('image');
+      setHeaderImage(template.header_image);
+    } else if (template.header_video) {
+      setMediaType('video');
+      setHeaderVideo(template.header_video);
+    } else if (template.header_document) {
+      setMediaType('document');
+      setHeaderDocument(template.header_document);
+      setHeaderDocumentName(template.header_document_name || '');
+    } else if (template.location_latitude && template.location_longitude) {
+      setMediaType('location');
+      setLocationLatitude(template.location_latitude);
+      setLocationLongitude(template.location_longitude);
+      setLocationName(template.location_name || '');
+      setLocationAddress(template.location_address || '');
     } else {
-      toast.info(`All ${skippedCount} numbers already have country code ${countryCode}`);
+      setMediaType('none');
     }
   };
 
-  // Remove duplicates
-  const handleRemoveDuplicates = () => {
-    const seen = new Set();
-    const unique = recipients.filter(r => {
-      const phone = r.phone.replace(/\D/g, '');
-      if (seen.has(phone)) {
-        return false;
-      }
-      seen.add(phone);
-      return true;
-    });
-
-    const removed = recipients.length - unique.length;
-    setRecipients(unique);
-    toast.success(`Removed ${removed} duplicate(s). ${unique.length} unique recipients.`);
-  };
-
-
-
-  // Handle file upload
   const handleFileUpload = async (file, type) => {
-    if (!file) return;
-    
-    // File size limits (in MB)
-    const sizeLimits = {
-      image: 5,
-      video: 16,
-      document: 10
-    };
-    
-    // Check file size
-    const fileSizeMB = file.size / (1024 * 1024);
-    const maxSize = sizeLimits[type];
-    
-    if (fileSizeMB > maxSize) {
-      toast.error(`File too large! Maximum size for ${type}: ${maxSize}MB. Your file: ${fileSizeMB.toFixed(1)}MB`);
-      return;
-    }
-    
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('media_type', type);
-      
-      const response = await api.post('/upload/media', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        params: { media_type: type }
-      });
-      
-      // Convert relative URL to absolute URL using backend URL
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
-      // Add /api prefix for uploads to work through the proxy
-      const urlWithApi = response.data.url.replace('/uploads/', '/api/uploads/');
-      const fullUrl = backendUrl + urlWithApi;
-      
-      if (type === 'image') {
-        setHeaderImage(fullUrl);
-        toast.success('Image uploaded successfully');
-      } else if (type === 'video') {
-        setHeaderVideo(fullUrl);
-        toast.success('Video uploaded successfully');
-      } else if (type === 'document') {
-        setHeaderDocument(fullUrl);
-        setHeaderDocumentName(file.name);
-        toast.success('Document uploaded successfully');
+    const result = await uploadFile(file, type);
+    if (result) {
+      if (type === 'image') setHeaderImage(result.url);
+      else if (type === 'video') setHeaderVideo(result.url);
+      else if (type === 'document') {
+        setHeaderDocument(result.url);
+        setHeaderDocumentName(result.fileName);
       }
-    } catch (error) {
-      toast.error(`Failed to upload ${type}: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setUploading(false);
     }
   };
 
-  // Send messages
-  const handleSend = async (isScheduled = false) => {
+  const handleSendCampaign = async () => {
     // Validation
-    if (!campaignName) {
-      toast.error('Please enter campaign name');
-      return;
-    }
-    if (!templateName) {
+    if (!templateName.trim()) {
       toast.error('Please enter template name');
       return;
     }
@@ -310,16 +179,15 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
     setSending(true);
     try {
-      // Prepare recipients with template data
       const recipientsWithData = recipients.map(r => ({
         phone: r.phone,
         name: r.name,
         template_language: templateLanguage,
-        field_1: field1 || '',
-        field_2: field2 || '',
-        field_3: field3 || '',
-        field_4: field4 || '',
-        field_5: field5 || ''
+        field_1: fields.field1 || '',
+        field_2: fields.field2 || '',
+        field_3: fields.field3 || '',
+        field_4: fields.field4 || '',
+        field_5: fields.field5 || ''
       }));
 
       const payload = {
@@ -329,7 +197,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
         scheduledAt: isScheduled ? new Date(scheduledDate).toISOString() : null
       };
 
-      // Add ONLY the selected media type
+      // Add media based on type
       if (mediaType === 'image' && headerImage) {
         payload.header_image = headerImage;
       } else if (mediaType === 'video' && headerVideo) {
@@ -358,9 +226,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     }
   };
 
-  // Save current configuration as a template
   const handleSaveAsTemplate = async () => {
-    // Validation
     if (!templateName) {
       toast.error('Please enter template name first');
       return;
@@ -374,14 +240,14 @@ const SendMessagesSimple = ({ user, onLogout }) => {
         name: templateNamePrompt,
         templateName: templateName,
         templateLanguage: templateLanguage,
-        field1: field1,
-        field2: field2,
-        field3: field3,
-        field4: field4,
-        field5: field5
+        field1: fields.field1,
+        field2: fields.field2,
+        field3: fields.field3,
+        field4: fields.field4,
+        field5: fields.field5
       };
 
-      // Add ONLY the selected media type to template
+      // Add media
       if (mediaType === 'image' && headerImage) {
         templateData.header_image = headerImage;
       } else if (mediaType === 'video' && headerVideo) {
@@ -398,7 +264,6 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
       await api.post('/saved-templates', templateData);
       toast.success('Template saved successfully!');
-      // Refresh templates list
       fetchSavedTemplates();
     } catch (error) {
       toast.error('Failed to save template: ' + (error.response?.data?.detail || error.message));
@@ -414,8 +279,9 @@ const SendMessagesSimple = ({ user, onLogout }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Form */}
+          {/* Main Form - Left Column */}
           <div className="lg:col-span-2 space-y-6">
+            
             {/* Campaign Details */}
             <Card className="shadow-lg border-0">
               <CardHeader>
@@ -423,24 +289,15 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                 <CardDescription>Configure your campaign and template</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Load Saved Template */}
                 {savedTemplates.length > 0 && (
-                  <div className="space-y-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <Label htmlFor="loadTemplate">Load Saved Template (Optional)</Label>
-                    <Select value={selectedSavedTemplate} onValueChange={handleLoadTemplate}>
-                      <SelectTrigger data-testid="load-template-select">
-                        <SelectValue placeholder="Select a saved template..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {savedTemplates.map((template) => (
-                          <SelectItem key={template.id} value={template.id}>
-                            {template.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-blue-700">
-                      Select a template to auto-fill all fields below
-                    </p>
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <TemplateSelector
+                      templates={savedTemplates}
+                      selectedTemplate={selectedSavedTemplate}
+                      onSelectTemplate={setSelectedSavedTemplate}
+                      onLoadTemplate={handleLoadTemplate}
+                    />
                   </div>
                 )}
                 
@@ -476,16 +333,9 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="en">English (en)</SelectItem>
-                      <SelectItem value="en_US">English US (en_US)</SelectItem>
-                      <SelectItem value="en_GB">English UK (en_GB)</SelectItem>
-                      <SelectItem value="hi">Hindi (hi)</SelectItem>
-                      <SelectItem value="es">Spanish (es)</SelectItem>
-                      <SelectItem value="fr">French (fr)</SelectItem>
-                      <SelectItem value="de">German (de)</SelectItem>
-                      <SelectItem value="pt">Portuguese (pt)</SelectItem>
-                      <SelectItem value="ar">Arabic (ar)</SelectItem>
-                      <SelectItem value="zh">Chinese (zh)</SelectItem>
+                      {LANGUAGES.map(lang => (
+                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -493,437 +343,118 @@ const SendMessagesSimple = ({ user, onLogout }) => {
             </Card>
 
             {/* Template Fields */}
-            <Card className="shadow-lg border-0">
-              <CardHeader>
-                <CardTitle>Template Fields</CardTitle>
-                <CardDescription>Enter values for template variables (same for all recipients)</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert className="bg-emerald-50 border-emerald-200">
-                  <AlertCircle className="h-4 w-4 text-emerald-600" />
-                  <AlertDescription className="text-emerald-800">
-                    <strong>💡 Personalization:</strong> Use <code className="bg-emerald-100 px-1 rounded">{'{name}'}</code> to insert recipient's name from Excel.
-                    <br />
-                    <span className="text-sm">Example: "Hi {'{name}'}, your order is ready!" becomes "Hi John, your order is ready!"</span>
-                  </AlertDescription>
-                </Alert>
-                <div className="space-y-2">
-                  <Label htmlFor="field1">Field 1</Label>
-                  <Textarea
-                    id="field1"
-                    placeholder="Enter text for field 1"
-                    rows={2}
-                    value={field1}
-                    onChange={(e) => setField1(e.target.value)}
-                    data-testid="field1-input"
-                  />
-                </div>
+            <TemplateFieldsCard fields={fields} onFieldChange={handleFieldChange} />
 
-                <div className="space-y-2">
-                  <Label htmlFor="field2">Field 2</Label>
-                  <Textarea
-                    id="field2"
-                    placeholder="Enter text for field 2"
-                    rows={2}
-                    value={field2}
-                    onChange={(e) => setField2(e.target.value)}
-                    data-testid="field2-input"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="field3">Field 3</Label>
-                  <Textarea
-                    id="field3"
-                    placeholder="Enter text for field 3"
-                    rows={2}
-                    value={field3}
-                    onChange={(e) => setField3(e.target.value)}
-                    data-testid="field3-input"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="field4">Field 4</Label>
-                  <Textarea
-                    id="field4"
-                    placeholder="Enter text for field 4"
-                    rows={2}
-                    value={field4}
-                    onChange={(e) => setField4(e.target.value)}
-                    data-testid="field4-input"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="field5">Field 5</Label>
-                  <Textarea
-                    id="field5"
-                    placeholder="Enter text for field 5"
-                    rows={2}
-                    value={field5}
-                    onChange={(e) => setField5(e.target.value)}
-                    data-testid="field5-input"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-
-
-            {/* Media & Location (Optional) */}
+            {/* Media Section */}
             <Card className="shadow-lg border-0">
               <CardHeader>
                 <CardTitle>Media & Location (Optional)</CardTitle>
                 <CardDescription>Choose ONE type: Image, Video, Document, or Location</CardDescription>
               </CardHeader>
+              <CardContent>
+                <MediaUploader
+                  mediaType={mediaType}
+                  onMediaTypeChange={setMediaType}
+                  headerImage={headerImage}
+                  onHeaderImageChange={setHeaderImage}
+                  headerVideo={headerVideo}
+                  onHeaderVideoChange={setHeaderVideo}
+                  headerDocument={headerDocument}
+                  onHeaderDocumentChange={setHeaderDocument}
+                  headerDocumentName={headerDocumentName}
+                  onHeaderDocumentNameChange={setHeaderDocumentName}
+                  locationLatitude={locationLatitude}
+                  onLocationLatitudeChange={setLocationLatitude}
+                  locationLongitude={locationLongitude}
+                  onLocationLongitudeChange={setLocationLongitude}
+                  locationName={locationName}
+                  onLocationNameChange={setLocationName}
+                  locationAddress={locationAddress}
+                  onLocationAddressChange={setLocationAddress}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Schedule Option */}
+            <Card className="shadow-lg border-0">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                  Schedule Campaign
+                </CardTitle>
+              </CardHeader>
               <CardContent className="space-y-4">
-                {/* Media Type Selector */}
-                <div className="space-y-2">
-                  <Label htmlFor="mediaType">Select Media/Location Type</Label>
-                  <Select value={mediaType} onValueChange={setMediaType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="None (Text only)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None (Text only)</SelectItem>
-                      <SelectItem value="image">📷 Image</SelectItem>
-                      <SelectItem value="video">🎥 Video</SelectItem>
-                      <SelectItem value="document">📄 Document</SelectItem>
-                      <SelectItem value="location">📍 Location</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Show fields based on selected type */}
-                {mediaType === 'image' && (
-                  <div className="space-y-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                    <h3 className="font-semibold text-emerald-900">📷 Image Upload</h3>
-                    <div className="space-y-2">
-                      <Label htmlFor="headerImage">Header Image</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="headerImage"
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'image')}
-                          disabled={uploading}
-                        />
-                        {headerImage && <Button variant="outline" size="sm" onClick={() => window.open(headerImage)}>Preview</Button>}
-                      </div>
-                      {headerImage && <p className="text-xs text-emerald-600">✓ Image uploaded</p>}
-                    </div>
-                    {uploading && <p className="text-sm text-blue-600">⏳ Uploading...</p>}
-                  </div>
-                )}
-
-                {mediaType === 'video' && (
-                  <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h3 className="font-semibold text-blue-900">🎥 Video Upload</h3>
-                    <div className="space-y-2">
-                      <Label htmlFor="headerVideo">Header Video</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="headerVideo"
-                          type="file"
-                          accept="video/*"
-                          onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'video')}
-                          disabled={uploading}
-                        />
-                        {headerVideo && <Button variant="outline" size="sm" onClick={() => window.open(headerVideo)}>Preview</Button>}
-                      </div>
-                      {headerVideo && <p className="text-xs text-blue-600">✓ Video uploaded</p>}
-                    </div>
-                    {uploading && <p className="text-sm text-blue-600">⏳ Uploading...</p>}
-                  </div>
-                )}
-
-                {mediaType === 'document' && (
-                  <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <h3 className="font-semibold text-purple-900">📄 Document Upload</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="headerDocument">Upload Document File</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            id="headerDocument"
-                            type="file"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-                            onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0], 'document')}
-                            disabled={uploading}
-                          />
-                          {headerDocument && <Button variant="outline" size="sm" onClick={() => window.open(headerDocument)}>Preview</Button>}
-                        </div>
-                        {headerDocument && <p className="text-xs text-purple-600">✓ Document uploaded</p>}
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="headerDocumentName">Document Name</Label>
-                        <Input
-                          id="headerDocumentName"
-                          placeholder="e.g., catalog.pdf or {'{name}'}"
-                          value={headerDocumentName}
-                          onChange={(e) => setHeaderDocumentName(e.target.value)}
-                        />
-                        <p className="text-xs text-slate-500">Name shown to recipient. Use {'{name}'} for personalization</p>
-                      </div>
-                    </div>
-                    {uploading && <p className="text-sm text-blue-600">⏳ Uploading...</p>}
-                  </div>
-                )}
-
-                {mediaType === 'location' && (
-                  <div className="space-y-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                    <h3 className="font-semibold text-orange-900">📍 Location Data</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="locationLatitude">Latitude</Label>
-                        <Input
-                          id="locationLatitude"
-                          placeholder="e.g., 22.22"
-                          value={locationLatitude}
-                          onChange={(e) => setLocationLatitude(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="locationLongitude">Longitude</Label>
-                        <Input
-                          id="locationLongitude"
-                          placeholder="e.g., 22.22"
-                          value={locationLongitude}
-                          onChange={(e) => setLocationLongitude(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="locationName">Location Name</Label>
-                      <Input
-                        id="locationName"
-                        placeholder="e.g., Our Store"
-                        value={locationName}
-                        onChange={(e) => setLocationName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="locationAddress">Location Address</Label>
-                      <Textarea
-                        id="locationAddress"
-                        placeholder="e.g., 123 Main St, City, State"
-                        rows={2}
-                        value={locationAddress}
-                        onChange={(e) => setLocationAddress(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <Alert className="bg-blue-50 border-blue-200">
-                  <AlertCircle className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800 text-sm">
-                    <strong>WhatsApp Rule:</strong> You can send only ONE type at a time (Image OR Video OR Document OR Location)
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-
-            {/* Add Recipients */}
-            <Card className="shadow-lg border-0">
-              <CardHeader>
-                <CardTitle>Add Recipients</CardTitle>
-                <CardDescription>Upload Excel file or paste phone numbers</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="upload" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="upload">Upload Excel</TabsTrigger>
-                    <TabsTrigger value="paste">Copy Paste</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="upload" className="space-y-4">
-                    <div
-                      {...getRootProps()}
-                      className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                        isDragActive ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-blue-400'
-                      }`}
-                      data-testid="file-dropzone"
-                    >
-                      <input {...getInputProps()} />
-                      <Upload className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                      {isDragActive ? (
-                        <p className="text-blue-600">Drop the file here...</p>
-                      ) : (
-                        <div>
-                          <p className="text-slate-700 font-medium mb-2">
-                            Drag & drop an Excel file here, or click to select
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            Supports .xlsx, .xls, .csv files
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <AlertDescription className="text-sm text-blue-900">
-                        <strong>Expected columns:</strong> phone (required), name (optional)
-                      </AlertDescription>
-                    </Alert>
-                  </TabsContent>
-
-                  <TabsContent value="paste" className="space-y-4">
-                    <Textarea
-                      placeholder="Paste phone numbers (one per line)&#10;Format: phone, name&#10;Example:&#10;+1234567890, John Doe&#10;9876543210, Jane Smith"
-                      rows={8}
-                      value={textInput}
-                      onChange={(e) => setTextInput(e.target.value)}
-                      data-testid="text-input-textarea"
-                    />
-                    <Button onClick={handleTextInput} className="w-full" data-testid="parse-text-button">
-                      Parse Numbers
-                    </Button>
-                  </TabsContent>
-                </Tabs>
-
-                {/* Country Code & Duplicate Actions */}
-                {recipients.length > 0 && (
-                  <div className="mt-6 space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        placeholder="Country code (e.g., 91, 1, 44)"
-                        value={countryCode}
-                        onChange={(e) => setCountryCode(e.target.value.replace(/\D/g, ''))}
-                        className="flex-1"
-                        data-testid="country-code-input"
-                      />
-                      <Button 
-                        variant="outline" 
-                        onClick={handleAddCountryCode}
-                        data-testid="add-country-code-button"
-                      >
-                        <Globe className="h-4 w-4 mr-2" />
-                        Add Country Code
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={handleRemoveDuplicates}
-                        data-testid="remove-duplicates-button"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Remove Duplicates
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Schedule */}
-            <Card className="shadow-lg border-0">
-              <CardHeader>
-                <CardTitle>Schedule (Optional)</CardTitle>
-                <CardDescription>Send messages at a specific time</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="scheduledDate">Schedule Date & Time</Label>
-                  <Input
-                    id="scheduledDate"
-                    type="datetime-local"
-                    value={scheduledDate}
-                    onChange={(e) => setScheduledDate(e.target.value)}
-                    data-testid="schedule-datetime-input"
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="schedule-mode"
+                    checked={isScheduled}
+                    onCheckedChange={setIsScheduled}
+                    data-testid="schedule-toggle"
                   />
+                  <Label htmlFor="schedule-mode">Schedule for later</Label>
                 </div>
+                
+                {isScheduled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="scheduledDate">Schedule Date & Time</Label>
+                    <Input
+                      id="scheduledDate"
+                      type="datetime-local"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      min={new Date().toISOString().slice(0, 16)}
+                      data-testid="schedule-datetime"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Preview Section */}
+          {/* Right Column - Recipients */}
           <div className="space-y-6">
-            <Card className="shadow-lg border-0 sticky top-24">
-              <CardHeader>
-                <CardTitle>Campaign Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-slate-600">Recipients</p>
-                  <p className="text-2xl font-bold text-slate-900">{recipients.length}</p>
-                </div>
+            <RecipientUploader
+              recipients={recipients}
+              onParseExcel={parseExcelFile}
+              onParseText={parseTextInput}
+              onAddCountryCode={addCountryCode}
+              onRemoveDuplicates={removeDuplicates}
+              onRemoveRecipient={removeRecipient}
+              onClear={clearRecipients}
+            />
 
-                <div>
-                  <p className="text-sm text-slate-600">Template</p>
-                  <p className="font-medium text-slate-900">{templateName || 'Not entered'}</p>
-                  <p className="text-xs text-slate-500 mt-1">Language: {templateLanguage}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm text-slate-600">Rate</p>
-                  <p className="text-sm font-medium text-slate-900">29 messages/second</p>
-                  <p className="text-xs text-slate-500 mt-1">
-
-
-                  <Button
-                    onClick={handleSaveAsTemplate}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Save as Template
-                  </Button>
-
-                    Est. time: ~{Math.ceil(recipients.length / 29)} seconds
-                  </p>
-                </div>
-
-                {recipients.length > 0 && (
-                  <div>
-                    <p className="text-sm text-slate-600 mb-2">Preview Recipients</p>
-                    <div className="bg-slate-50 rounded-lg p-3 max-h-48 overflow-y-auto">
-                      {recipients.slice(0, 5).map((r, i) => (
-                        <div key={i} className="text-sm py-1 border-b border-slate-200 last:border-0">
-                          <p className="font-medium text-slate-900">{r.name || 'No name'}</p>
-                          <p className="text-slate-500 text-xs">{r.phone}</p>
-                        </div>
-                      ))}
-                      {recipients.length > 5 && (
-                        <p className="text-xs text-slate-500 mt-2">+{recipients.length - 5} more</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2 pt-4">
-                  <Button
-                    onClick={() => handleSend(false)}
-                    disabled={sending || recipients.length === 0}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                    data-testid="send-now-button"
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    {sending ? 'Sending...' : 'Send Now'}
-                  </Button>
-
-                  {scheduledDate && (
-                    <Button
-                      onClick={() => handleSend(true)}
-                      disabled={sending || recipients.length === 0}
-                      variant="outline"
-                      className="w-full"
-                      data-testid="schedule-button"
-                    >
-                      <Calendar className="h-4 w-4 mr-2" />
-                      Schedule Campaign
-                    </Button>
+            {/* Action Buttons */}
+            <Card className="shadow-lg border-0">
+              <CardContent className="pt-6 space-y-3">
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleSendCampaign}
+                  disabled={sending || uploading || recipients.length === 0}
+                  data-testid="send-campaign-btn"
+                >
+                  {sending ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin">⏳</span> Processing...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Send className="h-4 w-4" />
+                      {isScheduled ? 'Schedule Campaign' : `Send to ${recipients.length} Recipients`}
+                    </span>
                   )}
-                </div>
-
-                {recipients.length > 10000 && (
-                  <Alert className="bg-blue-50 border-blue-200">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-sm">
-                      Large campaign! Processing in batches with real-time progress tracking.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleSaveAsTemplate}
+                  disabled={!templateName}
+                  data-testid="save-template-btn"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save as Template
+                </Button>
               </CardContent>
             </Card>
           </div>
