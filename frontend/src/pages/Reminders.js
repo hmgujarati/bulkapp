@@ -247,9 +247,14 @@ const Reminders = ({ user, onLogout }) => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={() => setShowAddReminder(true)} data-testid="add-reminder-btn">
-                <Plus className="w-4 h-4 mr-2" /> New Reminder
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" onClick={() => setShowSettings(true)} data-testid="reminder-settings-btn">
+                  <Settings className="w-4 h-4 mr-2" /> API Settings
+                </Button>
+                <Button onClick={() => setShowAddReminder(true)} data-testid="add-reminder-btn">
+                  <Plus className="w-4 h-4 mr-2" /> New Reminder
+                </Button>
+              </div>
             </div>
 
             {/* Reminders List */}
