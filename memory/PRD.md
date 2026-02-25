@@ -149,6 +149,28 @@ _- Your WhatsApp Assistant_
 ## Backlog
 1. ~~**Backend Refactoring:** Split server.py into modular routers~~ DONE
 2. ~~**Reminder Bot Feature:** Full implementation (Phase 1-4)~~ DONE
-3. **Meta Template Documentation:** Guide for users to set up WhatsApp templates
+3. ~~**Meta Template Documentation:** Guide for users to set up WhatsApp templates~~ DONE (Enhanced Feb 2025)
 4. **Error Handling:** Improved error messages throughout the app
 5. **User Testing:** Full E2E testing of reminder flow with real OpenAI key
+6. **Retry Failed Reminders:** Add ability to retry failed reminders
+7. **Frontend Refactoring:** Break down large components (SendMessagesSimple.js, MyTemplates.js)
+
+## Change Log
+
+### February 25, 2025
+- **Fixed:** WhatsApp "show reminders" command now only shows reminders for the specific phone number that sent the message (not all user's numbers)
+- **Fixed:** All WhatsApp delete commands (delete by number, delete by name, delete all) now filter by phone number
+- **Enhanced:** Meta Template Guide (`/app/META_TEMPLATE_GUIDE.md`) with 5 ready-to-use template designs for Meta approval
+- **Updated:** Added detailed template approval best practices and troubleshooting guide
+
+### WhatsApp Webhook Phone Filtering (Feb 2025)
+The following functions now accept optional `phone` parameter to filter reminders:
+- `get_reminders_list(user_id, timezone, phone=None)`
+- `delete_reminder_by_name(user_id, search_text, timezone, phone=None)`
+- `delete_reminder_by_number(user_id, reminder_num, timezone, phone=None)`
+- `delete_all_matching_reminders(user_id, search_text, phone=None)`
+- `delete_all_reminders(user_id, phone=None)`
+
+## API Endpoints (Webhook)
+- `POST /api/webhook/bizchat` - Receive incoming WhatsApp messages
+- `GET /api/webhook/bizchat` - Webhook verification
