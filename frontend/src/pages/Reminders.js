@@ -225,6 +225,13 @@ const Reminders = ({ user, onLogout }) => {
           >
             <Phone className="w-4 h-4 mr-2" /> Phone Numbers
           </Button>
+          <Button
+            variant={activeTab === 'templates' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('templates')}
+            data-testid="tab-templates"
+          >
+            <FileText className="w-4 h-4 mr-2" /> Template Guide
+          </Button>
         </div>
 
         {/* Reminders Tab */}
