@@ -636,16 +636,9 @@ async def handle_bizchat_webhook(request: Request):
         
         # Check if it's a reminder request
         if not parsed.get('is_reminder', False):
-            # Send a reply if it's not a reminder
-            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                reply = parsed.get('reply', "Hi! Send me a reminder request like 'Remind me to call John at 3pm tomorrow'")
-                await send_whatsapp_reply(
-                    clean_phone,
-                    reply,
-                    user['bizChatToken'],
-                    user['bizChatVendorUID']
-                )
-            return {"status": "replied", "is_reminder": False}
+            # Not a reminder - just ignore, don't reply to random messages
+            logger.info(f"Message from {clean_phone} was not a reminder request, ignoring")
+            return {"status": "ignored", "reason": "not a reminder request"}
         
         # Create the reminder
         try:
