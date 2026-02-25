@@ -131,10 +131,24 @@ const Reminders = ({ user, onLogout }) => {
     }
     setFormLoading(true);
     try {
-      const response = await api.post('/reminders', reminderForm);
-      toast.success(`Reminder created: ${response.data.reminder.title}`);
+      const payload = {
+        numberId: reminderForm.numberId,
+        naturalLanguageInput: reminderForm.naturalLanguageInput,
+        recurrenceType: reminderForm.recurrenceType !== 'none' ? reminderForm.recurrenceType : null,
+        recurrenceInterval: reminderForm.recurrenceInterval,
+        recurrenceWeekdays: reminderForm.recurrenceWeekdays.length > 0 ? reminderForm.recurrenceWeekdays : null
+      };
+      const response = await api.post('/reminders', payload);
+      const recurrenceMsg = reminderForm.recurrenceType !== 'none' ? ` (${reminderForm.recurrenceType})` : '';
+      toast.success(`Reminder created: ${response.data.reminder.title}${recurrenceMsg}`);
       setShowAddReminder(false);
-      setReminderForm({ numberId: '', naturalLanguageInput: '' });
+      setReminderForm({ 
+        numberId: '', 
+        naturalLanguageInput: '',
+        recurrenceType: 'none',
+        recurrenceInterval: 1,
+        recurrenceWeekdays: []
+      });
       loadData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create reminder');
