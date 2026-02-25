@@ -69,6 +69,9 @@ class Reminder(BaseModel):
     scheduledAt: datetime  # When to send the reminder
     timezone: str  # Timezone of the scheduled time
     status: ReminderStatus = ReminderStatus.PENDING
+    # Recurrence settings
+    recurrence: Optional[RecurrenceConfig] = None
+    parentReminderId: Optional[str] = None  # For recurring instances, reference to original
     # Meta template settings
     useTemplate: bool = True  # Use pre-approved template
     templateId: Optional[str] = None  # Meta template ID if using template
