@@ -22,16 +22,23 @@ HELP_COMMANDS = ['help', 'commands', 'what can you do', '?']
 DELETE_ALL_COMMANDS = ['delete all', 'clear reminders', 'cancel all', 'delete all reminders', 'clear all']
 
 
-async def get_reminders_list(user_id: str, user_timezone: str) -> str:
-    """Get formatted list of user's reminders"""
+async def get_reminders_list(user_id: str, user_timezone: str, phone: str = None) -> str:
+    """Get formatted list of user's reminders for a specific phone number"""
     tz = pytz.timezone(user_timezone)
     now = datetime.now(tz)
     
-    # Get pending reminders
-    reminders = await db.reminders.find({
+    # Build query - filter by phone number if provided
+    query = {
         "userId": user_id,
         "status": "pending"
-    }).sort("scheduledAt", 1).to_list(20)
+    }
+    
+    # Only show reminders for the specific phone number that sent the message
+    if phone:
+        query["phone"] = phone
+    
+    # Get pending reminders
+    reminders = await db.reminders.find(query).sort("scheduledAt", 1).to_list(20)
     
     if not reminders:
         return """📋 *Your Reminders*
@@ -464,7 +471,8 @@ async def handle_bizchat_webhook(request: Request):
         # Handle LIST commands
         if any(cmd in message_lower for cmd in LIST_COMMANDS):
             if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                reminders_list = await get_reminders_list(user_id, user_timezone)
+                # Pass the phone number to filter reminders for this specific number only
+                reminders_list = await get_reminders_list(user_id, user_timezone, clean_phone)
                 await send_whatsapp_reply(
                     clean_phone,
                     reminders_list,
