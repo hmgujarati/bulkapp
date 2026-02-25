@@ -751,7 +751,7 @@ Reply STOP to unsubscribe.</div>
 
       {/* Add Reminder Dialog */}
       <Dialog open={showAddReminder} onOpenChange={setShowAddReminder}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Reminder</DialogTitle>
             <DialogDescription>
@@ -790,8 +790,133 @@ Reply STOP to unsubscribe.</div>
                   data-testid="reminder-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">
-                  AI will parse your input and schedule the reminder automatically
+                  AI will parse your input. You can also say &quot;daily&quot; or &quot;every Monday&quot; for recurring reminders.
                 </p>
+              </div>
+
+              {/* Recurrence Options */}
+              <div className="border rounded-lg p-4 bg-slate-50">
+                <Label className="flex items-center mb-3">
+                  <RefreshCw className="w-4 h-4 mr-2 text-purple-600" />
+                  Repeat (Optional)
+                </Label>
+                <div className="space-y-3">
+                  <Select
+                    value={reminderForm.recurrenceType}
+                    onValueChange={(v) => setReminderForm({ 
+                      ...reminderForm, 
+                      recurrenceType: v,
+                      recurrenceWeekdays: v === 'weekly' ? reminderForm.recurrenceWeekdays : []
+                    })}
+                  >
+                    <SelectTrigger data-testid="recurrence-type-select">
+                      <SelectValue placeholder="No repeat" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No repeat</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="custom">Custom (every X days)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Custom interval */}
+                  {(reminderForm.recurrenceType === 'custom' || reminderForm.recurrenceType === 'daily') && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-slate-600">Every</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={reminderForm.recurrenceInterval}
+                        onChange={(e) => setReminderForm({ ...reminderForm, recurrenceInterval: parseInt(e.target.value) || 1 })}
+                        className="w-20"
+                        data-testid="recurrence-interval-input"
+                      />
+                      <span className="text-sm text-slate-600">
+                        {reminderForm.recurrenceType === 'daily' ? 'day(s)' : 'days'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Weekly interval */}
+                  {reminderForm.recurrenceType === 'weekly' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-slate-600">Every</span>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="52"
+                          value={reminderForm.recurrenceInterval}
+                          onChange={(e) => setReminderForm({ ...reminderForm, recurrenceInterval: parseInt(e.target.value) || 1 })}
+                          className="w-20"
+                          data-testid="recurrence-weeks-input"
+                        />
+                        <span className="text-sm text-slate-600">week(s)</span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-slate-600 block mb-2">On these days:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {WEEKDAYS.map((day) => (
+                            <label 
+                              key={day.value} 
+                              className={`flex items-center justify-center w-10 h-10 rounded-full cursor-pointer transition-colors ${
+                                reminderForm.recurrenceWeekdays.includes(day.value)
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={reminderForm.recurrenceWeekdays.includes(day.value)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setReminderForm({
+                                      ...reminderForm,
+                                      recurrenceWeekdays: [...reminderForm.recurrenceWeekdays, day.value].sort()
+                                    });
+                                  } else {
+                                    setReminderForm({
+                                      ...reminderForm,
+                                      recurrenceWeekdays: reminderForm.recurrenceWeekdays.filter(d => d !== day.value)
+                                    });
+                                  }
+                                }}
+                              />
+                              <span className="text-xs font-medium">{day.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Monthly interval */}
+                  {reminderForm.recurrenceType === 'monthly' && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-slate-600">Every</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="12"
+                        value={reminderForm.recurrenceInterval}
+                        onChange={(e) => setReminderForm({ ...reminderForm, recurrenceInterval: parseInt(e.target.value) || 1 })}
+                        className="w-20"
+                        data-testid="recurrence-months-input"
+                      />
+                      <span className="text-sm text-slate-600">month(s)</span>
+                    </div>
+                  )}
+
+                  {reminderForm.recurrenceType !== 'none' && (
+                    <p className="text-xs text-purple-600 mt-2">
+                      This reminder will repeat until you manually delete it.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
             <DialogFooter>
