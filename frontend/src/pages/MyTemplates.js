@@ -126,7 +126,9 @@ const MyTemplates = ({ user, onLogout }) => {
   const fetchTemplates = async () => {
     try {
       const response = await api.get('/saved-templates');
-      setTemplates(response.data);
+      // Handle both array response and {templates: [...]} response
+      const data = response.data;
+      setTemplates(Array.isArray(data) ? data : data.templates || []);
     } catch (error) {
       toast.error('Failed to load templates');
     } finally {
