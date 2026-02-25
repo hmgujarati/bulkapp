@@ -646,6 +646,16 @@ async def handle_bizchat_webhook(request: Request):
         except:
             scheduled_dt = datetime.now(timezone.utc)
         
+        # Parse recurrence from AI response
+        recurrence_data = parsed.get('recurrence', {})
+        recurrence_config = None
+        if recurrence_data and recurrence_data.get('type') != 'none':
+            recurrence_config = RecurrenceConfig(
+                type=RecurrenceType(recurrence_data.get('type', 'none')),
+                interval=recurrence_data.get('interval', 1),
+                weekdays=recurrence_data.get('weekdays', [])
+            )
+        
         reminder = Reminder(
             userId=user_id,
             numberId=number_record['id'],
@@ -656,6 +666,7 @@ async def handle_bizchat_webhook(request: Request):
             originalInput=message_text,
             scheduledAt=scheduled_dt,
             timezone=user_timezone,
+            recurrence=recurrence_config,
             useTemplate=False,
             templateId=settings.get('defaultTemplateId')
         )
@@ -664,6 +675,13 @@ async def handle_bizchat_webhook(request: Request):
         reminder_dict['createdAt'] = reminder_dict['createdAt'].isoformat()
         reminder_dict['updatedAt'] = reminder_dict['updatedAt'].isoformat()
         reminder_dict['scheduledAt'] = reminder_dict['scheduledAt'].isoformat()
+        # Convert recurrence to dict for MongoDB
+        if reminder_dict.get('recurrence'):
+            reminder_dict['recurrence'] = {
+                'type': reminder_dict['recurrence']['type'].value if hasattr(reminder_dict['recurrence']['type'], 'value') else reminder_dict['recurrence']['type'],
+                'interval': reminder_dict['recurrence']['interval'],
+                'weekdays': reminder_dict['recurrence']['weekdays']
+            }
         
         await db.reminders.insert_one(reminder_dict)
         logger.info(f"Created reminder from WhatsApp: {reminder.id}")
@@ -677,12 +695,29 @@ async def handle_bizchat_webhook(request: Request):
             formatted_time = local_time.strftime("%I:%M %p").lstrip('0')
             formatted_date = local_time.strftime("%d %b %Y")
             
+            # Add recurrence info to confirmation
+            recurrence_text = ""
+            if recurrence_config and recurrence_config.type != RecurrenceType.NONE:
+                if recurrence_config.type == RecurrenceType.DAILY:
+                    recurrence_text = "\n🔄 Repeats: Daily"
+                elif recurrence_config.type == RecurrenceType.WEEKLY:
+                    if recurrence_config.weekdays:
+                        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                        day_names = [days[d] for d in recurrence_config.weekdays]
+                        recurrence_text = f"\n🔄 Repeats: Every {', '.join(day_names)}"
+                    else:
+                        recurrence_text = "\n🔄 Repeats: Weekly"
+                elif recurrence_config.type == RecurrenceType.MONTHLY:
+                    recurrence_text = "\n🔄 Repeats: Monthly"
+                elif recurrence_config.type == RecurrenceType.CUSTOM:
+                    recurrence_text = f"\n🔄 Repeats: Every {recurrence_config.interval} days"
+            
             confirmation = f"""✅ *Reminder Set!*
 
 📝 {parsed.get('message', message_text)}
 
 ⏰ {formatted_time}
-📅 {formatted_date}
+📅 {formatted_date}{recurrence_text}
 
 I'll remind you at the scheduled time!
 
@@ -698,7 +733,8 @@ _- Your WhatsApp Assistant_"""
         return {
             "status": "success",
             "reminder_id": reminder.id,
-            "scheduled_at": reminder_dict['scheduledAt']
+            "scheduled_at": reminder_dict['scheduledAt'],
+            "recurrence": recurrence_data if recurrence_data else None
         }
         
     except Exception as e:
