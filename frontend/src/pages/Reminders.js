@@ -201,6 +201,39 @@ const Reminders = ({ user, onLogout }) => {
     }
   };
 
+  const getRecurrenceBadge = (recurrence) => {
+    if (!recurrence || recurrence.type === 'none') return null;
+    
+    let label = '';
+    switch (recurrence.type) {
+      case 'daily':
+        label = recurrence.interval > 1 ? `Every ${recurrence.interval} days` : 'Daily';
+        break;
+      case 'weekly':
+        if (recurrence.weekdays && recurrence.weekdays.length > 0) {
+          const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+          label = recurrence.weekdays.map(d => days[d]).join(', ');
+        } else {
+          label = recurrence.interval > 1 ? `Every ${recurrence.interval} weeks` : 'Weekly';
+        }
+        break;
+      case 'monthly':
+        label = recurrence.interval > 1 ? `Every ${recurrence.interval} months` : 'Monthly';
+        break;
+      case 'custom':
+        label = `Every ${recurrence.interval} days`;
+        break;
+      default:
+        return null;
+    }
+    
+    return (
+      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+        <RefreshCw className="w-3 h-3 mr-1" /> {label}
+      </Badge>
+    );
+  };
+
   const formatDateTime = (dateStr) => {
     const date = new Date(dateStr);
     return date.toLocaleString('en-IN', {
