@@ -149,11 +149,10 @@ _- Your WhatsApp Assistant_
 ## Backlog
 1. ~~**Backend Refactoring:** Split server.py into modular routers~~ DONE
 2. ~~**Reminder Bot Feature:** Full implementation (Phase 1-4)~~ DONE
-3. ~~**Meta Template Documentation:** Guide for users to set up WhatsApp templates~~ DONE (Enhanced Feb 2025)
-4. **Error Handling:** Improved error messages throughout the app
-5. **User Testing:** Full E2E testing of reminder flow with real OpenAI key
-6. **Retry Failed Reminders:** Add ability to retry failed reminders
-7. **Frontend Refactoring:** Break down large components (SendMessagesSimple.js, MyTemplates.js)
+3. ~~**Meta Template Documentation:** Guide for users to set up WhatsApp templates~~ DONE
+4. ~~**Frontend Refactoring:** Break down large components~~ DONE (Feb 2025)
+5. **Error Handling:** Improved error messages throughout the app
+6. **User Testing:** Full E2E testing of reminder flow with real OpenAI key
 
 ## Change Log
 
