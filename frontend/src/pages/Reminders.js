@@ -4,7 +4,7 @@ import {
   Bell, Plus, Phone, Clock, Settings, Trash2, Edit2, 
   Calendar, Filter, ChevronDown, Search, AlertCircle,
   CheckCircle, XCircle, Loader2, MessageSquare, FileText,
-  Copy, ExternalLink, BookOpen, RefreshCw, RotateCcw
+  Copy, BookOpen, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
