@@ -439,14 +439,27 @@ class TestIDOR:
     
     def test_user_cannot_access_other_user_reminder(self, user_headers_and_id, admin_headers):
         """Test user cannot access another user's reminder"""
-        user_headers, _ = user_headers_and_id
+        user_headers, user_id = user_headers_and_id
         
-        # First get admin's reminders
+        # Get admin's user ID
+        admin_me_response = requests.get(f"{BASE_URL}/api/auth/me", headers=admin_headers)
+        if admin_me_response.status_code != 200:
+            pytest.skip("Could not get admin info")
+        admin_id = admin_me_response.json()["id"]
+        
+        # Get all reminders as admin (admin can see all)
         admin_reminders_response = requests.get(f"{BASE_URL}/api/reminders", headers=admin_headers)
         if admin_reminders_response.status_code == 200:
             reminders = admin_reminders_response.json().get("reminders", [])
-            if reminders:
-                admin_reminder_id = reminders[0]["id"]
+            # Find a reminder that belongs to admin (not the test user)
+            admin_reminder = None
+            for r in reminders:
+                if r.get("userId") == admin_id:
+                    admin_reminder = r
+                    break
+            
+            if admin_reminder:
+                admin_reminder_id = admin_reminder["id"]
                 
                 # Try to access admin's reminder as regular user
                 response = requests.get(
@@ -457,9 +470,9 @@ class TestIDOR:
                 assert response.status_code == 404, f"Expected 404 for IDOR, got {response.status_code}"
                 print("✓ User cannot access other user's reminder (IDOR protected)")
             else:
-                print("⚠ No admin reminders to test IDOR")
+                print("⚠ No admin-owned reminders to test IDOR (admin has no reminders)")
         else:
-            print("⚠ Could not get admin reminders")
+            print("⚠ Could not get reminders")
 
 
 class TestNoSQLInjection:
