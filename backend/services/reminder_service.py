@@ -76,9 +76,21 @@ async def send_reminder_message(
                 payload = {
                     "phone_number": clean_phone,
                     "template_name": template_id,
-                    "template_language": "en",
-                    "field_1": formatted_message
+                    "template_language": "en_US",
+                    "field_1": message,
+                    "field_2": "",
+                    "field_3": ""
                 }
+                
+                # Try to extract time and date for template fields
+                try:
+                    scheduled_dt = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
+                    tz = pytz.timezone(recipient_timezone)
+                    local_time = scheduled_dt.astimezone(tz)
+                    payload["field_2"] = local_time.strftime("%I:%M %p").lstrip('0')
+                    payload["field_3"] = local_time.strftime("%d %b %Y")
+                except:
+                    pass
             else:
                 # Use session message (24-hour window) - direct text
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-message?token={token}"
@@ -87,20 +99,70 @@ async def send_reminder_message(
                     "message_body": formatted_message
                 }
             
-            logger.info(f"Sending reminder to {phone}")
+            logger.info(f"Sending reminder to {phone}, URL: {url}")
+            logger.info(f"Payload: {payload}")
             
             response = await client.post(url, json=payload, timeout=30.0)
+            response_text = response.text
             
-            if response.status_code in [200, 201]:
+            logger.info(f"BizChat Response Status: {response.status_code}")
+            logger.info(f"BizChat Response Body: {response_text}")
+            
+            # Parse response
+            try:
                 data = response.json()
-                return {"success": True, "data": data}
-            else:
-                error_msg = f"BizChat API Error: Status {response.status_code}, Response: {response.text}"
-                logger.error(error_msg)
-                return {"success": False, "error": error_msg}
+            except:
+                data = {"raw_response": response_text}
+            
+            # Check for success - BizChat API may return 200 but with error in body
+            if response.status_code in [200, 201]:
+                # Check if response indicates actual success
+                # Common patterns: {"success": true}, {"status": "sent"}, {"message_id": "xxx"}
+                is_success = False
+                error_in_response = None
                 
+                if isinstance(data, dict):
+                    # Check for explicit success indicators
+                    if data.get('success') == True:
+                        is_success = True
+                    elif data.get('status') in ['sent', 'queued', 'delivered']:
+                        is_success = True
+                    elif data.get('message_id') or data.get('messageId'):
+                        is_success = True
+                    elif data.get('id'):
+                        is_success = True
+                    # Check for error indicators even with 200 status
+                    elif data.get('error'):
+                        error_in_response = data.get('error')
+                    elif data.get('message') and 'error' in str(data.get('message', '')).lower():
+                        error_in_response = data.get('message')
+                    elif data.get('success') == False:
+                        error_in_response = data.get('message') or data.get('error') or str(data)
+                    else:
+                        # Assume success if no error indicators and status is 200
+                        is_success = True
+                
+                if is_success:
+                    return {"success": True, "data": data, "response_code": response.status_code}
+                else:
+                    error_msg = f"API returned 200 but message may not be sent. Response: {error_in_response or response_text[:500]}"
+                    logger.warning(error_msg)
+                    return {"success": False, "error": error_msg, "response_code": response.status_code, "data": data}
+            else:
+                error_msg = f"HTTP {response.status_code}: {response_text[:500]}"
+                logger.error(error_msg)
+                return {"success": False, "error": error_msg, "response_code": response.status_code}
+                
+    except httpx.TimeoutException:
+        error_msg = "Request timeout - BizChat API did not respond in 30 seconds"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
+    except httpx.ConnectError as e:
+        error_msg = f"Connection error to BizChat API: {str(e)}"
+        logger.error(error_msg)
+        return {"success": False, "error": error_msg}
     except Exception as e:
-        error_msg = f"Exception sending reminder: {str(e)}"
+        error_msg = f"Exception: {type(e).__name__}: {str(e)}"
         logger.error(error_msg)
         return {"success": False, "error": error_msg}
 
