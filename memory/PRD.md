@@ -161,19 +161,18 @@ _- Your WhatsApp Assistant_
 - **Fixed:** WhatsApp "show reminders" command now only shows reminders for the specific phone number that sent the message (not all user's numbers)
 - **Fixed:** All WhatsApp delete commands (delete by number, delete by name, delete all) now filter by phone number
 - **Fixed:** AI bot no longer replies to non-reminder messages (stops chatting, fixed "Your suggested reply to the user" bug)
-- **Enhanced:** Meta Template Guide (`/app/META_TEMPLATE_GUIDE.md`) with 5 ready-to-use template designs for Meta approval
-- **Added:** New "Template Guide" tab in Reminders page with:
-  - Quick start steps for template approval
-  - Ready-to-use templates with Copy buttons
-  - Do's and Don'ts for template approval
-  - Template status reference
-  - Direct link to Meta Business Suite
+- **Fixed:** API response handling for saved templates (handles both array and {templates:[]} formats)
+- **Updated:** Template Guide now shows only user's approved Meta template (`reminder_alert` en_US)
 - **Added:** Recurring Reminders feature:
   - Backend: RecurrenceConfig schema, calculate_next_occurrence(), auto-create next reminder after sending
   - Frontend: Repeat dropdown (Daily, Weekly, Monthly, Custom), weekday selector for weekly, interval settings
   - WhatsApp: Natural language support ("remind me daily", "every Monday", "every 2 weeks")
   - Reminders run forever until manually deleted
-- **Updated:** Added detailed template approval best practices and troubleshooting guide
+- **Refactored Frontend Components:**
+  - `SendMessagesSimple.js`: 936 → 469 lines
+  - `MyTemplates.js`: 573 → 352 lines
+  - New components: MediaUploader, RecipientUploader, TemplateSelector, TemplateCard
+  - New hooks: useMediaUpload, useRecipients
 
 ### WhatsApp Webhook Phone Filtering (Feb 2025)
 The following functions now accept optional `phone` parameter to filter reminders:
