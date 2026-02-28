@@ -373,13 +373,23 @@ const Reminders = ({ user, onLogout }) => {
                               <div className="flex items-start justify-between">
                                 <div className="flex items-center text-red-600 text-xs font-medium">
                                   <AlertCircle className="w-3 h-3 mr-1" />
-                                  Error
+                                  Error Details
                                 </div>
                               </div>
-                              <p className="text-red-700 text-xs mt-1 break-all whitespace-pre-wrap max-h-32 overflow-y-auto">
+                              <p className="text-red-700 text-xs mt-1 break-all whitespace-pre-wrap max-h-40 overflow-y-auto font-mono">
                                 {reminder.error}
                               </p>
                             </div>
+                          )}
+                          {reminder.status === 'sent' && reminder.apiResponse && (
+                            <details className="mt-2">
+                              <summary className="text-xs text-green-600 cursor-pointer hover:underline">
+                                View API Response
+                              </summary>
+                              <p className="text-slate-600 text-xs mt-1 break-all whitespace-pre-wrap max-h-32 overflow-y-auto font-mono bg-slate-50 p-2 rounded">
+                                {reminder.apiResponse}
+                              </p>
+                            </details>
                           )}
                         </div>
                         <div className="flex space-x-2">
