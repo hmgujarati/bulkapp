@@ -578,44 +578,6 @@ Date: {'{{3}}'}
             </Card>
           </div>
         )}
-                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Include URLs in utility templates</li>
-                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Use ALL CAPS or excessive punctuation</li>
-                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Make templates too long</li>
-                    <li className="flex items-start"><XCircle className="w-4 h-4 mr-2 text-red-500 flex-shrink-0 mt-0.5" /> Use wrong variable format like {'{1}'} or {'[1]'}</li>
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Status Reference */}
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="text-base">Template Status Reference</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 md:grid-cols-4">
-                  <div className="flex items-center space-x-2">
-                    <Badge className="bg-green-100 text-green-800">Approved</Badge>
-                    <span className="text-sm text-slate-600">Ready to use</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
-                    <span className="text-sm text-slate-600">Under review (24-48h)</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge className="bg-red-100 text-red-800">Rejected</Badge>
-                    <span className="text-sm text-slate-600">Modify and resubmit</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge className="bg-gray-100 text-gray-800">Paused</Badge>
-                    <span className="text-sm text-slate-600">Check quality rating</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
       {/* Add Number Dialog */}
       <Dialog open={showAddNumber} onOpenChange={setShowAddNumber}>
         <DialogContent>
