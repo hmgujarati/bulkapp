@@ -156,6 +156,14 @@ _- Your WhatsApp Assistant_
 
 ## Change Log
 
+### February 28, 2025
+- **Improved:** Enhanced BizChat API error handling - now checks response body for actual success/failure
+- **Improved:** Template message now correctly fills {{1}}, {{2}}, {{3}} fields (message, time, date)
+- **Improved:** Full error messages visible in UI with scrollable error box
+- **Added:** "View API Response" expandable section for sent messages to debug delivery issues
+- **Added:** Detailed logging of API requests and responses for debugging
+- **Fixed:** Template language changed from "en" to "en_US" to match approved template
+
 ### February 25, 2025
 - **Fixed:** WhatsApp "show reminders" command now only shows reminders for the specific phone number that sent the message (not all user's numbers)
 - **Fixed:** All WhatsApp delete commands (delete by number, delete by name, delete all) now filter by phone number
