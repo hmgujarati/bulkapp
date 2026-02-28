@@ -342,7 +342,9 @@ async def process_due_reminders():
                         "$set": {
                             "status": ReminderStatus.SENT.value,
                             "sentAt": now.isoformat(),
-                            "messageId": result.get('data', {}).get('message_id'),
+                            "messageId": result.get('data', {}).get('message_id') or result.get('data', {}).get('id'),
+                            "apiResponse": str(result.get('data', {}))[:500],
+                            "responseCode": result.get('response_code'),
                             "updatedAt": now.isoformat()
                         }
                     }
@@ -353,17 +355,27 @@ async def process_due_reminders():
                 if reminder.get('recurrence') and reminder['recurrence'].get('type') != 'none':
                     await create_next_recurring_reminder(reminder)
             else:
+                # Store detailed error info
+                error_details = result.get('error', 'Unknown error')
+                response_code = result.get('response_code', 'N/A')
+                api_data = str(result.get('data', {}))[:500] if result.get('data') else None
+                
+                full_error = f"[HTTP {response_code}] {error_details}"
+                if api_data:
+                    full_error += f"\nAPI Response: {api_data}"
+                
                 await db.reminders.update_one(
                     {"id": reminder['id']},
                     {
                         "$set": {
                             "status": ReminderStatus.FAILED.value,
-                            "error": result.get('error', 'Unknown error'),
+                            "error": full_error,
+                            "responseCode": response_code,
                             "updatedAt": now.isoformat()
                         }
                     }
                 )
-                logger.error(f"Reminder {reminder['id']} failed: {result.get('error')}")
+                logger.error(f"Reminder {reminder['id']} failed: {full_error}")
                 
         except Exception as e:
             logger.error(f"Error processing reminder {reminder['id']}: {str(e)}")
