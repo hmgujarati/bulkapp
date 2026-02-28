@@ -369,7 +369,17 @@ const Reminders = ({ user, onLogout }) => {
                             </span>
                           </div>
                           {reminder.error && (
-                            <p className="text-red-500 text-xs mt-2">Error: {reminder.error}</p>
+                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center text-red-600 text-xs font-medium">
+                                  <AlertCircle className="w-3 h-3 mr-1" />
+                                  Error
+                                </div>
+                              </div>
+                              <p className="text-red-700 text-xs mt-1 break-all whitespace-pre-wrap max-h-32 overflow-y-auto">
+                                {reminder.error}
+                              </p>
+                            </div>
                           )}
                         </div>
                         <div className="flex space-x-2">
