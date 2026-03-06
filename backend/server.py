@@ -26,12 +26,14 @@ from routes.upload import router as upload_router
 from routes.reminder_numbers import router as reminder_numbers_router
 from routes.reminders import router as reminders_router
 from routes.webhook import router as webhook_router
+from routes.contacts import router as contacts_router
 
 # Import utilities
 from utils.database import db, close_db_connection
 from utils.auth import hash_password, SUPER_ADMIN_EMAIL
 from models.schemas import User, Role, CampaignStatus
 from services.reminder_service import process_due_reminders
+from services.auto_message_service import process_auto_messages
 
 # Setup logging
 logging.basicConfig(
@@ -73,6 +75,7 @@ app.include_router(upload_router, prefix="/api")
 app.include_router(reminder_numbers_router, prefix="/api")
 app.include_router(reminders_router, prefix="/api")
 app.include_router(webhook_router, prefix="/api")
+app.include_router(contacts_router, prefix="/api")
 
 # Mount static files for uploads
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
@@ -178,6 +181,18 @@ async def check_due_reminders():
         await asyncio.sleep(30)
 
 
+async def check_auto_messages():
+    """Background task to check and send birthday/anniversary wishes"""
+    while True:
+        try:
+            await process_auto_messages()
+        except Exception as e:
+            logger.error(f"Error in check_auto_messages: {str(e)}")
+        
+        # Check every minute
+        await asyncio.sleep(60)
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize app on startup"""
@@ -204,6 +219,10 @@ async def startup_event():
     # Start reminders checker
     asyncio.create_task(check_due_reminders())
     logger.info("Reminders checker started")
+    
+    # Start auto-messages checker (birthdays/anniversaries)
+    asyncio.create_task(check_auto_messages())
+    logger.info("Auto-messages checker started")
 
 
 @app.on_event("shutdown")
@@ -215,4 +234,4 @@ async def shutdown_event():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "version": "2.1.0", "features": ["bulk_messaging", "reminder_bot"]}
+    return {"status": "healthy", "version": "2.2.0", "features": ["bulk_messaging", "reminder_bot", "contacts", "auto_wishes"]}

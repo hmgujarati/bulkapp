@@ -11,6 +11,7 @@ import CampaignHistory from './pages/CampaignHistory';
 import CampaignDetails from './pages/CampaignDetails';
 import Settings from './pages/Settings';
 import Reminders from './pages/Reminders';
+import Contacts from './pages/Contacts';
 import { Toaster } from '@/components/ui/sonner';
 import api from './utils/api';
 
@@ -183,6 +184,16 @@ const App = () => {
             element={
               user ? (
                 <Reminders user={user} onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
+            path="/contacts"
+            element={
+              user ? (
+                <Contacts user={user} onLogout={handleLogout} />
               ) : (
                 <Navigate to="/login" />
               )

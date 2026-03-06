@@ -156,6 +156,21 @@ _- Your WhatsApp Assistant_
 
 ## Change Log
 
+### March 6, 2025
+- **Added:** Complete Contact Manager feature:
+  - Store contacts with Name, Email, Phone, DOB, Anniversary
+  - Auto-add country code to phone numbers
+  - Contact groups with colors for organization
+  - Excel/CSV bulk import (Name, Email, Phone, DOB, Anniversary, Group)
+  - Upcoming birthdays/anniversaries dashboard cards
+  - Search and filter by group
+- **Added:** Auto-Message System for birthdays/anniversaries:
+  - Configure send time and timezone
+  - Enter Meta template name (user specifies approved template)
+  - Customize message preview with {{name}} variable
+  - Background scheduler checks and sends wishes automatically
+  - Tracks last wish sent to prevent duplicates
+
 ### February 28, 2025
 - **Improved:** Enhanced BizChat API error handling - now checks response body for actual success/failure
 - **Improved:** Template message now correctly fills {{1}}, {{2}}, {{3}} fields (message, time, date)
