@@ -19,7 +19,8 @@ async def send_wish_message(
     message_preview: str,
     token: str,
     vendor_uid: str,
-    wish_type: str  # "birthday" or "anniversary"
+    wish_type: str,  # "birthday" or "anniversary"
+    template_variable_count: int = 1  # Number of template variables
 ) -> Dict[str, Any]:
     """Send a birthday or anniversary wish via WhatsApp template"""
     try:
@@ -31,15 +32,30 @@ async def send_wish_message(
             # Replace {{name}} in message preview
             message = message_preview.replace("{{name}}", contact_name)
             
+            # Build base payload
             payload = {
                 "phone_number": clean_phone,
                 "template_name": template_name,
-                "template_language": "en_US",
-                "field_1": contact_name,
-                "field_2": message
+                "template_language": "en_US"
             }
             
-            logger.info(f"Sending {wish_type} wish to {phone}")
+            # DYNAMIC FIELD BUILDING: Only include the exact number of fields the template expects
+            var_count = template_variable_count if template_variable_count and template_variable_count > 0 else 1
+            
+            # Prepare field values in order (adjust based on typical wish template structure)
+            field_values = [
+                contact_name,   # field_1 = name
+                message,        # field_2 = message
+                "",             # field_3 (placeholder)
+                "",             # field_4 (placeholder)
+                ""              # field_5 (placeholder)
+            ]
+            
+            # Only add the exact number of fields the template expects
+            for i in range(min(var_count, 5)):
+                payload[f"field_{i + 1}"] = field_values[i]
+            
+            logger.info(f"Sending {wish_type} wish to {phone}, Template: {template_name}, Variables: {var_count}")
             
             response = await client.post(url, json=payload, timeout=30.0)
             response_text = response.text
@@ -81,6 +97,7 @@ async def process_birthday_wishes():
         message_preview = settings.get('birthdayMessagePreview', 'Happy Birthday!')
         user_timezone = settings.get('timezone', 'Asia/Kolkata')
         send_time = settings.get('birthdayTime', '09:00')
+        template_var_count = settings.get('birthdayTemplateVariableCount', 1)
         
         if not template_name:
             continue
@@ -127,7 +144,8 @@ async def process_birthday_wishes():
                 message_preview=message_preview,
                 token=user['bizChatToken'],
                 vendor_uid=user['bizChatVendorUID'],
-                wish_type="birthday"
+                wish_type="birthday",
+                template_variable_count=template_var_count
             )
             
             if result['success']:
@@ -164,6 +182,7 @@ async def process_anniversary_wishes():
         message_preview = settings.get('anniversaryMessagePreview', 'Happy Anniversary!')
         user_timezone = settings.get('timezone', 'Asia/Kolkata')
         send_time = settings.get('anniversaryTime', '09:00')
+        template_var_count = settings.get('anniversaryTemplateVariableCount', 1)
         
         if not template_name:
             continue
@@ -205,7 +224,8 @@ async def process_anniversary_wishes():
                 message_preview=message_preview,
                 token=user['bizChatToken'],
                 vendor_uid=user['bizChatVendorUID'],
-                wish_type="anniversary"
+                wish_type="anniversary",
+                template_variable_count=template_var_count
             )
             
             if result['success']:

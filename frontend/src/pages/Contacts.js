@@ -80,8 +80,10 @@ const Contacts = ({ user, onLogout }) => {
     defaultCountryCode: '+91',
     birthdayEnabled: true, birthdayTime: '09:00', birthdayTemplateName: '',
     birthdayMessagePreview: 'Happy Birthday {{name}}! Wishing you a wonderful day!',
+    birthdayTemplateVariableCount: 1,
     anniversaryEnabled: true, anniversaryTime: '09:00', anniversaryTemplateName: '',
     anniversaryMessagePreview: 'Happy Anniversary {{name}}! Wishing you many more years!',
+    anniversaryTemplateVariableCount: 1,
     timezone: 'Asia/Kolkata'
   });
   const [importData, setImportData] = useState([]);
@@ -636,6 +638,25 @@ const Contacts = ({ user, onLogout }) => {
                       </div>
                     </div>
                     <div>
+                      <Label className="text-xs">Template Variable Count</Label>
+                      <Select
+                        value={String(settingsForm.birthdayTemplateVariableCount || 1)}
+                        onValueChange={(v) => setSettingsForm({...settingsForm, birthdayTemplateVariableCount: parseInt(v)})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 variable</SelectItem>
+                          <SelectItem value="2">2 variables</SelectItem>
+                          <SelectItem value="3">3 variables</SelectItem>
+                          <SelectItem value="4">4 variables</SelectItem>
+                          <SelectItem value="5">5 variables</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-500 mt-1">Match to {"{{1}}"}, {"{{2}}"}, etc. in your template</p>
+                    </div>
+                    <div>
                       <Label className="text-xs">Message Preview</Label>
                       <Textarea value={settingsForm.birthdayMessagePreview} onChange={e => setSettingsForm({...settingsForm, birthdayMessagePreview: e.target.value})} rows={2} />
                       <p className="text-xs text-slate-500 mt-1">Use {'{{name}}'} for contact name</p>
@@ -660,6 +681,25 @@ const Contacts = ({ user, onLogout }) => {
                         <Label className="text-xs">Template Name</Label>
                         <Input value={settingsForm.anniversaryTemplateName} onChange={e => setSettingsForm({...settingsForm, anniversaryTemplateName: e.target.value})} placeholder="anniversary_wish" />
                       </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Template Variable Count</Label>
+                      <Select
+                        value={String(settingsForm.anniversaryTemplateVariableCount || 1)}
+                        onValueChange={(v) => setSettingsForm({...settingsForm, anniversaryTemplateVariableCount: parseInt(v)})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 variable</SelectItem>
+                          <SelectItem value="2">2 variables</SelectItem>
+                          <SelectItem value="3">3 variables</SelectItem>
+                          <SelectItem value="4">4 variables</SelectItem>
+                          <SelectItem value="5">5 variables</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-500 mt-1">Match to {"{{1}}"}, {"{{2}}"}, etc. in your template</p>
                     </div>
                     <div>
                       <Label className="text-xs">Message Preview</Label>

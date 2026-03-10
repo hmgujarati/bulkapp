@@ -55,7 +55,8 @@ async def send_reminder_message(
     use_template: bool = True,
     scheduled_time: str = None,
     recipient_timezone: str = "Asia/Kolkata",
-    title: str = None
+    title: str = None,
+    template_variable_count: int = None  # Number of variables the template expects (1-5)
 ) -> Dict[str, Any]:
     """Send a reminder message via BizChat API"""
     try:
@@ -76,8 +77,8 @@ async def send_reminder_message(
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
                 
                 # Parse time and date for template fields
-                time_str = "Soon"
-                date_str = "Today"
+                time_str = ""
+                date_str = ""
                 try:
                     scheduled_dt = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
                     tz = pytz.timezone(recipient_timezone)
@@ -87,29 +88,34 @@ async def send_reminder_message(
                 except Exception as e:
                     logger.warning(f"Could not parse scheduled time: {e}")
                 
-                # Template format for "reminder_alert" (en_US):
-                # Header: "Reminder Alert" (TEXT type - static, no variable needed)
-                # Body: Hi There!\n\nReminder: {{1}}\nTime: {{2}}\nDate: {{3}}\n\n- Your WhatsApp Assistant
-                # Body variables: {{1}} = message, {{2}} = time, {{3}} = date
-                
-                # Ensure no empty values - BizChat may reject empty fields
-                field_1_value = message if message else "Reminder"
-                field_2_value = time_str if time_str else "Now"
-                field_3_value = date_str if date_str else "Today"
-                
+                # Build base payload
                 payload = {
                     "phone_number": clean_phone,
                     "template_name": template_id,
-                    "template_language": "en_US",
-                    "field_1": field_1_value,
-                    "field_2": field_2_value,
-                    "field_3": field_3_value
+                    "template_language": "en_US"
                 }
                 
+                # DYNAMIC FIELD BUILDING: Only include the exact number of fields the template expects
+                # Default to 1 if not specified (safest option)
+                var_count = template_variable_count if template_variable_count and template_variable_count > 0 else 1
+                
+                # Prepare field values in order
+                field_values = [
+                    message or "",      # field_1 = reminder message
+                    time_str or "",     # field_2 = time  
+                    date_str or "",     # field_3 = date
+                    "",                 # field_4 (placeholder for future use)
+                    ""                  # field_5 (placeholder for future use)
+                ]
+                
+                # Only add the exact number of fields the template expects
+                for i in range(min(var_count, 5)):
+                    field_key = f"field_{i + 1}"
+                    payload[field_key] = field_values[i]
+                
                 logger.info(f"Sending template message to {clean_phone}")
-                logger.info(f"Template: {template_id}, Language: en_US")
-                logger.info(f"Fields - 1: {field_1_value}, 2: {field_2_value}, 3: {field_3_value}")
-                logger.info(f"Full payload: {payload}")
+                logger.info(f"Template: {template_id}, Language: en_US, Variables: {var_count}")
+                logger.info(f"Full payload: {json.dumps(payload)}")
             else:
                 # Use session message (24-hour window) - direct text
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-message?token={token}"
@@ -348,6 +354,10 @@ async def process_due_reminders():
                 )
                 continue
             
+            # Get user's reminder settings for template variable count
+            settings = await db.reminder_settings.find_one({"userId": reminder['userId']})
+            template_var_count = settings.get('templateVariableCount', 1) if settings else 1
+            
             # Send the reminder
             result = await send_reminder_message(
                 phone=reminder['phone'],
@@ -358,7 +368,8 @@ async def process_due_reminders():
                 use_template=reminder.get('useTemplate', True),
                 scheduled_time=reminder.get('scheduledAt'),
                 recipient_timezone=reminder.get('timezone', 'Asia/Kolkata'),
-                title=reminder.get('title')
+                title=reminder.get('title'),
+                template_variable_count=template_var_count
             )
             
             if result['success']:

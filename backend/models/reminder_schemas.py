@@ -129,6 +129,7 @@ class ReminderSettings(BaseModel):
 class ReminderSettingsUpdate(BaseModel):
     openaiApiKey: Optional[str] = None
     defaultTemplateId: Optional[str] = None
+    templateVariableCount: Optional[int] = None  # Number of variables in the template (1-5)
 
 
 # NLP Parse Response

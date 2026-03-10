@@ -112,8 +112,10 @@ class AutoMessageSettingsUpdate(BaseModel):
     birthdayTime: Optional[str] = None
     birthdayTemplateName: Optional[str] = None
     birthdayMessagePreview: Optional[str] = None
+    birthdayTemplateVariableCount: Optional[int] = None  # Number of variables in birthday template (1-5)
     anniversaryEnabled: Optional[bool] = None
     anniversaryTime: Optional[str] = None
     anniversaryTemplateName: Optional[str] = None
     anniversaryMessagePreview: Optional[str] = None
+    anniversaryTemplateVariableCount: Optional[int] = None  # Number of variables in anniversary template (1-5)
     timezone: Optional[str] = None

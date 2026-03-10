@@ -1,168 +1,146 @@
 <analysis>**original_problem_statement:**
-The user initially requested a full-stack website for sending bulk WhatsApp messages using the  API. This has since been built. The scope has now expanded to include a new major feature: an AI-powered Reminder Bot that uses natural language processing to schedule and send reminders.
+The user initially requested a full-stack website for sending bulk WhatsApp messages. The scope expanded to include an AI-powered Reminder Bot using natural language (via web UI and WhatsApp) to schedule reminders. Subsequent feature requests included recurring reminders, a comprehensive Contact Management system with automated birthday/anniversary messages, and various UI/UX improvements and bug fixes. The overall goal is a multi-featured WhatsApp automation platform.
 
-**PRODUCT REQUIREMENTS (New): Reminder Bot**
-*   **Core Functionality:** Allow users to set reminders using natural language (e.g., remind me to call Harsh at 10 am tomorrow).
-*   **Number Management:**
-    *   A dedicated UI for users to add and manage a list of phone numbers that can receive reminders.
-    *   Reminders are specific to each number.
-    *   Users can set reminders for their own registered number or any other number on their list.
-    *   Each number must have an associated timezone, set by the user upon adding it.
-*   **API Keys:** Users will provide their own OpenAI API keys. The system should be designed to use a cost-effective model (e.g., GPT-3.5-Turbo).
-*   **Reminder Management:**
-    *   A view to list all reminders, filterable by day, week, or a custom date range (up to 15 days).
-    *   Users can delete reminders.
-    *   Reminders are created immediately upon request without a confirmation step.
-*   **Unanswered Question:** The user asked how WhatsApp templates from Meta will be managed for the reminder messages. This needs to be addressed before development.
+**PRODUCT REQUIREMENTS:**
+*   **Reminder Bot:** Create, view, and delete reminders using natural language via web UI and WhatsApp.
+*   **Recurring Reminders:** Support for daily, weekly, monthly, and custom recurring reminders.
+*   **Contact Manager:**
+    *   Store user contacts with fields like Name, Email, Phone, DOB, and Anniversary.
+    *   Organize contacts into groups.
+    *   Automatically send WhatsApp messages on a contact's birthday and/or anniversary.
+*   **Configuration:** Users must provide their own OpenAI API key and Meta Template ID for WhatsApp messages. The system should gracefully handle missing configurations.
+*   **System Reliability:** Ensure messages are sent reliably and provide clear error feedback to the user for failed messages.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A complete full-stack application for bulk WhatsApp messaging. It includes user authentication (admin/user roles), an admin dashboard for user management, and a user-facing dashboard. Users can create, manage, and reuse message templates, which now support media (image, video, document) and location. Campaigns can be sent immediately or scheduled for later, with a background job processing scheduled tasks. The application has undergone extensive bug fixing and hardening, including removing third-party branding and preparing the code for deployment.
+A full-stack application with a React frontend and FastAPI backend. The application provides:
+*   User authentication with Admin and Regular user roles.
+*   A Reminder Bot to create and manage reminders via UI and WhatsApp, including support for recurring reminders.
+*   A full-featured Contact Manager to store contacts and groups, with an automated scheduler that sends birthday and anniversary wishes via WhatsApp.
+*   An admin panel for user and reminder management.
+*   A modular backend architecture and a refactored frontend with reusable components.
+*   A settings interface for users to configure API keys, templates, and automated message preferences.
 
 **Last working item**:
-- **Last item agent was working:** The agent was designing the architecture for the new Reminder Bot feature. The user provided feedback on the initial plan and clarified requirements, but explicitly instructed the agent **not to start building it yet**. The final interaction was the user asking a critical follow-up question about Meta templates.
-- **Status:** BLOCKED
-- **Agent Testing Done:** N/A (Planning phase)
-- **Which testing method agent to use?** N/A
-- **User Testing Done:** N/A
+- **Last item agent was working:** The agent was debugging a critical issue where the application would receive a  or  error from the BizChat API when sending template messages. The user confirmed that templates with a different number of variables were failing. The agent correctly identified that the backend was sending a hardcoded number of template fields (e.g., , , ) instead of dynamically building the payload based on the selected template's actual variable count.
+- **Status:** IN PROGRESS
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** backend testing agent. The agent should write a test to call the  function in  with mock reminders that use templates with 1, 2, and 3 variables respectively, and assert that the generated BizChat API payload is correct for each case.
+- **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1: Potential Session Instability (P1)**
-
-**Issues Detail:**
-- **Issue 1:**
-  - **Description:** The previous fork noted a critical bug where user sessions were unstable, leading to frequent, unexpected logouts. This root cause was never explicitly investigated or resolved in the current session. While the app appears functional, this underlying issue may still exist.
-  - **Attempted fixes:** None. The agent worked around it with repeated logins and  tests.
-  - **Next debug checklist:**
-    1. Log in via the UI and perform a series of actions: navigate between pages, then refresh the browser on a protected route (e.g., ).
-    2. If redirected to the login page, investigate  to check token storage () and  for auth state management.
-    3. Use browser developer tools to verify the  header is correctly sent on subsequent API requests.
-  - **Why fix this issue and what will be achieved with the fix?** Fixing this is essential for a stable and reliable user experience.
-  - **Status:** NOT STARTED
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** Frontend
-  - **Blocked on other issue:** None.
+-   **Issue 1: Dynamic Template Field Submission (P0)**
+    -   **Description:** The application sends a hardcoded number of template variable fields (, , ) in the API payload to BizChat. This causes a  or  error when a user selects a template that requires fewer (or more) than three variables, making the template feature unreliable for many users.
+    -   **Attempted fixes:** The agent identified the root cause by analyzing the code and a user-provided working payload but has not yet implemented a code fix.
+    -   **Next debug checklist:**
+        1.  Modify the  function in .
+        2.  Locate the section where the  dictionary is constructed.
+        3.  Change the logic to dynamically generate the  array. It should iterate through the template variables provided (e.g., , ) and only add the corresponding dictionary to the  list if the value is not null or empty.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a critical bug preventing users from reliably using WhatsApp templates, which is a core function for sending messages outside the 24-hour window. Fixing it will make the reminder and automated messaging features fully operational with any approved Meta template.
+    -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Backend
+    -   **Blocked on other issue:** None
 
 **In progress Task List**:
 - None.
 
 **Upcoming and Future Tasks**
-- **Upcoming Tasks:**
-    - **(P0) Address Unanswered User Question:** The user asked, **how will we manage templet from meta?**. This must be the first point of discussion. The next agent needs to propose a solution for how users will get their reminder message templates approved by Meta, as this is a prerequisite for sending business-initiated WhatsApp messages.
-    - **(P1) Design and Build Reminder Bot Feature:** After clarifying the Meta template strategy, implement the new feature based on the user-approved plan.
-        - **Phase 1: Backend Setup:** Create DB models (, ) and CRUD APIs.
-        - **Phase 2: OpenAI Integration:** Use user-provided keys to parse natural language reminders.
-        - **Phase 3: Scheduler and Sending:** Use the existing  to trigger reminders via .
-        - **Phase 4: Frontend UI:** Build the new Reminders tab, number management UI, and reminder list/creation interface.
 - **Future Tasks:**
-    - None specified.
+    - **(P1) Add Voice Call Reminders:** The user expressed strong interest in adding voice call capabilities for reminders. The agent provided a detailed breakdown of options including Twilio, Plivo, and Exotel, as well as a hybrid approach using self-hosted STT/TTS. The user decided to skip that for now, making it a prime candidate for future development.
 
 **Completed work in this session**
-- **Admin & Security:**
-  - Added a Settings link to the admin panel for password changes.
-  - Verified super admin protection and fixed deployment readiness issues (removed hardcoded values, updated ).
-- **Branding Removal:**
-  - Completely removed all third-party branding (Made with Emergent) and analytics () from  and other UI components.
-- **Campaign & Media Features:**
-  - Implemented a background scheduler () to process scheduled campaigns.
-  - Added support for sending personalized messages using  placeholders.
-  - Implemented sending of media (image, video, document) and location, with a UI dropdown to enforce sending only one media type at a time.
-  - Enabled file uploads from the My Templates page.
-- **File Handling:**
-  - Implemented a 5MB file size limit for all uploads (frontend and backend).
-  - Fixed a critical bug where uploaded file URLs were generated incorrectly. Ran a migration script to fix old URLs in the database.
-- **Bug Fixes:**
-  - Resolved numerous critical React frontend crashes, including , , and .
-- **Documentation:**
-  - Created several guides for deployment, admin features, personalization, and media handling.
+- **Contact Management System:** Implemented a complete Contacts feature allowing users to create/manage contacts and groups, and set up automated birthday/anniversary messages (, , ).
+- **Recurring Reminders:** Added full support for recurring reminders (daily, weekly, monthly, custom) in both the frontend UI and the backend scheduling logic.
+- **Frontend Refactoring:** Successfully refactored large components (, ) into smaller, reusable components and custom hooks, improving code maintainability.
+- **Template Guide UI:** Added a Template Guide tab to the Reminders page, which was later updated to display the user's specific approved template, guiding them on configuration.
+- **Bug Fix: AI Chatbot Behavior:** Fixed an issue where the AI would engage in general conversation by modifying the prompt in  to only handle reminder tasks.
+- **Bug Fix: Reminder Visibility:** Corrected a bug where querying reminders via WhatsApp would show reminders for all of a user's phone numbers instead of filtering by the sender's number.
+- **Improved Error Handling:** Enhanced the UI to show full, expandable error messages for failed reminders and improved backend error logging for the BizChat API.
+- **Comprehensive Testing:** Ran a full suite of functionality and security tests using the testing agent, all of which passed, and conducted a successful deployment health check.
 
 **Earlier issues found/mentioned but not fixed**
-- **Issue 1: Critical Login/Session Instability**
-  - **Debug checklist:** See Issue 1 in the **All Pending/In progress Issue list** section above.
-  - **Why to solve this issue and what will be achieved with this?** The application is fundamentally unreliable if users cannot maintain a stable login session.
-  - **Should Test frontend/backend/both after fix:** Frontend
-  - **Is recurring issue?** Y
+- None.
 
 **Known issue recurrence from previous fork**
-- The session instability issue is a known recurrence that was not addressed.
+- None. The  issue from the previous fork was resolved and did not recur.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, MongoDB (), JWT, , , **APScheduler** for background jobs.
-- **Frontend:** React, , , , , .
-- **File Handling:** Serving static files via a dedicated API endpoint () to work with ingress routing.
+- **Backend:** FastAPI, MongoDB (), Pydantic, JWT, , , APScheduler for background jobs.
+- **Frontend:** React, , , Shadcn UI,  (toasts), .
+- **Architecture:** Modular service-oriented backend. Asynchronous background jobs for sending reminders and automated messages. Component-based, refactored React frontend.
 
 **key DB schema**
 - **users**: 
-- **campaigns**: 
-- **templates**: 
+- **reminders**:  (schema updated)
+- **reminder_numbers**: 
+- **reminder_settings**: 
+- **contacts**:  (new)
+- **contact_groups**:  (new)
+- **auto_message_settings**:  (new)
 
 **All files of reference**
-- : Contains all backend logic. Needs refactoring.
-- : The main campaign creation UI.
-- : The template management UI.
-- : Now free of third-party branding/scripts.
+- : Contains the logic for sending reminders and needs to be fixed for the dynamic payload issue.
+- : Defines the logic for all WhatsApp interactions.
+- : The new UI for the contact management feature.
+- : The new API endpoints for the contact management feature.
+- : The new service that powers automated birthday/anniversary messages.
+- : Updated to include the new contact routes and start the auto-message scheduler.
+- : Recently refactored.
+- : Recently refactored.
 
 **Areas that need refactoring**:
-- **CRITICAL:**  is over 1000 lines and unmanageable. It must be broken down into a proper FastAPI project structure with separate routers (e.g., , ) and models. This should be done before adding the new reminder bot feature.
--  and  have grown large and could benefit from extracting logic into custom React hooks.
+- None. The previously identified refactoring tasks were completed in this session.
 
 **key api endpoints**
-- 
-- 
-- 
--  (POST): Endpoint for uploading media files.
--  (GET): Endpoint to serve uploaded media files.
+- : CRUD for reminders.
+- : Endpoint for all incoming WhatsApp commands.
+- : (NEW) CRUD for contacts.
+- : (NEW) CRUD for contact groups.
+- : (NEW) GET/POST for automated message settings.
 
 **Critical Info for New Agent**
-- **User's Next Priority:** The user wants a Reminder Bot but has instructed **not to start development yet**.
-- **IMMEDIATE BLOCKER:** You **MUST** first answer the user's pending question: **how will we manage templet from meta?**. This is a requirement for the reminder bot to function, as WhatsApp business messages require pre-approved templates. Propose a clear strategy for this before proceeding.
-- **Refactoring Recommendation:** The backend is a monolithic  file. Strongly recommend proposing a refactor to a modular structure before starting the new, complex reminder bot feature. This will prevent the codebase from becoming unmaintainable.
-- **Potential Hidden Bug:** Be mindful of the unresolved session instability issue. If the user reports being logged out unexpectedly, this is the first thing to investigate.
+- The immediate priority is fixing the  error when sending template messages. The issue is in . The payload construction for the BizChat API must be made dynamic to only include the  variables that a specific template requires. The current static approach is causing failures for any template not using exactly three variables.
+- Test credentials for admin and regular users are available to reproduce different user scenarios.
 
 **documents and test reports created in this job**
-- /app/DEPLOYMENT.md
-- /app/ADMIN_PASSWORD_CHANGE_GUIDE.md
-- /app/DATABASE_INFO.md
-- /app/DOWNLOAD_GUIDE.md
-- /app/DEPLOYMENT_READINESS_REPORT.md
-- /app/PERSONALIZATION_GUIDE.md
-- /app/SCHEDULED_CAMPAIGNS_GUIDE.md
-- /app/MEDIA_AND_LOCATION_GUIDE.md
-- /app/TEMPLATE_URL_FIX_GUIDE.md
-- /app/test_reports/iteration_1.json
+-  (Continuously updated)
+- 
+- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Reports  error. (Status: FIXED)
-2.  **User:** Reports  build error. (Status: FIXED)
-3.  **User:** Reports  error. (Status: FIXED)
-4.  **User:** Asks to add  and fix document upload in templates. (Status: FIXED)
-5.  **User:** Reports uploaded document links are broken. (Status: FIXED)
-6.  **User:** Reports template image links return a 404 error. (Status: FIXED)
-7.  **User:** Asks to add a 5MB file upload limit. (Status: IMPLEMENTED)
-8.  **User:** Proposes the new Reminder Bot feature. (Status: PLANNING)
-9.  **User:** Provides clarifications for the reminder bot. (Status: PENDING ACTION)
-10. **(PENDING) User Question:** how will we manage templet from meta?
+1.  **User:** Requests a Contact Manager to store user info (name, email, phone, DOB, anniversary) and send automated birthday/anniversary messages. (Status: IMPLEMENTED)
+2.  **User:** Confirms choices for the Contact Manager: use a template name field, provide a default message, allow contact groups, and show upcoming events on the dashboard. (Status: IMPLEMENTED)
+3.  **User:** Reports that a reminder was sent, but it was a self-typed message, not the approved Meta template. (Status: INVESTIGATED)
+4.  **User:** Provides the correct password for an account to help debug the template issue. (Status: ACKNOWLEDGED)
+5.  **User:** Provides an example of a working BizChat API payload. (Status: ACKNOWLEDGED, used for debugging)
+6.  **User:** Confirms that templates have a variable number of fields and asks the agent to ensure the payload is dynamic. Reports a  error code. (Status: ACKNOWLEDGED, root cause identified)
+7.  **User:** Asks for login passwords. (Status: PROVIDED)
+8.  **User:** Reports that messages are sometimes marked as sent but not received and that error codes are not fully visible. (Status: IMPLEMENTED - UI fixed to show full errors, backend logging improved).
+9.  **User:** Asks agent to test the whole app for bugs and security vulnerabilities. (Status: IMPLEMENTED - Testing agent was run successfully).
+10. **User:** Asks about adding voice calls for reminders and their cost, then asks about building a self-hosted solution. (Status: RESPONDED - user decided to skip for now).
 
 **Project Health Check:**
-- **Broken:** No known broken functionality, but the underlying **Session Instability** issue from a previous fork was never confirmed to be fixed and poses a risk.
+- **Broken:** The WhatsApp template messaging feature is partially broken due to the static payload issue.
 - **Mocked:** None.
 
 **3rd Party Integrations**
-- **bizchatapi.in**: Used for sending WhatsApp messages.
-- **OpenAI GPT (Planned):** To be used for the upcoming reminder bot. Will require a user-provided API key.
+- **bizchatapi.in**: Used for sending all WhatsApp messages.
+- **OpenAI GPT-3.5-Turbo**: Used for parsing natural language for creating reminders. Requires a user-provided API key.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES, a backend testing agent ran a suite of 28 tests, all of which passed.
+- **Testing agent used after significant changes:** YES. A full functionality and security test was run and passed.
 - **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** 
-- **Known regressions:** The login/session instability from the previous fork remains a potential, unverified issue.
+- **Test files created:** , 
+- **Known regressions:** None.
 
 **Credentials to test flow:**
 - **Admin User:**  / 
+- **Regular User:**  /  (or  / )
 
 **What agent forgot to execute**
-- The agent failed to answer the user's critical question about how Meta templates would be managed for the new reminder bot feature. This must be the next agent's first priority.</analysis>
+- The agent correctly diagnosed the critical bug with dynamic template fields but did not proceed to implement the fix before the session ended. This is the highest priority P0 task for the next agent.</analysis>

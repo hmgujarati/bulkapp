@@ -389,10 +389,12 @@ async def get_auto_message_settings(current_user=Depends(get_current_user)):
             "birthdayTime": "09:00",
             "birthdayTemplateName": "",
             "birthdayMessagePreview": "Happy Birthday {{name}}! Wishing you a wonderful day filled with joy and happiness!",
+            "birthdayTemplateVariableCount": 1,
             "anniversaryEnabled": True,
             "anniversaryTime": "09:00",
             "anniversaryTemplateName": "",
             "anniversaryMessagePreview": "Happy Anniversary {{name}}! Wishing you many more years of love and happiness!",
+            "anniversaryTemplateVariableCount": 1,
             "timezone": "Asia/Kolkata"
         }
     

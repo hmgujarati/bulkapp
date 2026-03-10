@@ -128,7 +128,8 @@ async def get_reminder_settings(current_user = Depends(get_current_user)):
         "userId": settings['userId'],
         "openaiApiKey": "sk-...configured" if settings.get('openaiApiKey') else None,
         "hasApiKey": bool(settings.get('openaiApiKey')),
-        "defaultTemplateId": settings.get('defaultTemplateId')
+        "defaultTemplateId": settings.get('defaultTemplateId'),
+        "templateVariableCount": settings.get('templateVariableCount', 3)  # Default to 3 for backwards compatibility
     }
 
 

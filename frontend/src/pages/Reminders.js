@@ -67,7 +67,7 @@ const Reminders = ({ user, onLogout }) => {
     recurrenceInterval: 1,
     recurrenceWeekdays: []
   });
-  const [settingsForm, setSettingsForm] = useState({ openaiApiKey: '', defaultTemplateId: '' });
+  const [settingsForm, setSettingsForm] = useState({ openaiApiKey: '', defaultTemplateId: '', templateVariableCount: '1' });
   const [formLoading, setFormLoading] = useState(false);
 
   useEffect(() => {
@@ -175,11 +175,12 @@ const Reminders = ({ user, onLogout }) => {
       const updateData = {};
       if (settingsForm.openaiApiKey) updateData.openaiApiKey = settingsForm.openaiApiKey;
       if (settingsForm.defaultTemplateId) updateData.defaultTemplateId = settingsForm.defaultTemplateId;
+      if (settingsForm.templateVariableCount) updateData.templateVariableCount = parseInt(settingsForm.templateVariableCount);
       
       await api.put('/reminders/settings', updateData);
       toast.success('Settings saved successfully');
       setShowSettings(false);
-      setSettingsForm({ openaiApiKey: '', defaultTemplateId: '' });
+      setSettingsForm({ openaiApiKey: '', defaultTemplateId: '', templateVariableCount: '1' });
       loadData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to save settings');
@@ -929,6 +930,30 @@ Date: {'{{3}}'}
                     Without a template, reminders outside 24-hour window won&apos;t be delivered!
                   </p>
                 )}
+              </div>
+              <div>
+                <Label htmlFor="templateVariableCount" className="mb-2">Template Variable Count</Label>
+                <Select
+                  value={settingsForm.templateVariableCount || String(settings.templateVariableCount || 1)}
+                  onValueChange={(value) => setSettingsForm({ ...settingsForm, templateVariableCount: value })}
+                >
+                  <SelectTrigger id="templateVariableCount" data-testid="template-var-count-select">
+                    <SelectValue placeholder="Select count" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 variable (message only)</SelectItem>
+                    <SelectItem value="2">2 variables (message + time)</SelectItem>
+                    <SelectItem value="3">3 variables (message + time + date)</SelectItem>
+                    <SelectItem value="4">4 variables</SelectItem>
+                    <SelectItem value="5">5 variables</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Match this to the number of {"{{1}}"}, {"{{2}}"}, etc. placeholders in your approved Meta template.
+                  {settings.templateVariableCount && (
+                    <span className="text-green-600 ml-1">Current: {settings.templateVariableCount}</span>
+                  )}
+                </p>
               </div>
             </div>
             <DialogFooter>
