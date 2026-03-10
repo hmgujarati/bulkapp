@@ -41,6 +41,15 @@ class User(BaseModel):
     dailyUsage: int = 0
     lastResetDate: Optional[str] = None
     isPaused: bool = False
+    # Feature access control - which features this user can access
+    features: dict = Field(default_factory=lambda: {
+        "bulk_messages": True,
+        "reminders": True,
+        "contacts": True,
+        "templates": True,
+        "campaigns": True,
+        "indiamart": False  # New feature - disabled by default
+    })
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

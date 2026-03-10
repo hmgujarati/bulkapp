@@ -81,6 +81,40 @@ async def set_user_limit(user_id: str, limit_data: UserLimitUpdate, current_user
     return {"message": "Daily limit updated successfully"}
 
 
+@router.put("/{user_id}/features")
+async def update_user_features(user_id: str, features: dict, current_user = Depends(require_admin)):
+    """Update user's feature access (admin only)"""
+    # Validate features dict
+    valid_features = ["bulk_messages", "reminders", "contacts", "templates", "campaigns", "indiamart"]
+    for key in features.keys():
+        if key not in valid_features:
+            raise HTTPException(status_code=400, detail=f"Invalid feature: {key}")
+    
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Merge with existing features
+    existing_features = user.get('features', {
+        "bulk_messages": True,
+        "reminders": True,
+        "contacts": True,
+        "templates": True,
+        "campaigns": True,
+        "indiamart": False
+    })
+    existing_features.update(features)
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"features": existing_features, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "User features updated successfully", "features": existing_features}
+
+
+
+
 @router.delete("/{user_id}")
 async def delete_user(user_id: str, current_user = Depends(require_admin)):
     """Delete a user (admin only)"""

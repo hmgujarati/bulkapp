@@ -32,13 +32,14 @@ const App = () => {
     try {
       // Validate token by calling /auth/me
       const response = await api.get('/auth/me');
-      // Update user data with fresh data from server
+      // Update user data with fresh data from server (including features)
       const freshUserData = {
         id: response.data.id,
         email: response.data.email,
         firstName: response.data.firstName,
         lastName: response.data.lastName,
-        role: response.data.role
+        role: response.data.role,
+        features: response.data.features || {}
       };
       localStorage.setItem('user', JSON.stringify(freshUserData));
       setUser(freshUserData);

@@ -166,6 +166,15 @@ _- Your WhatsApp Assistant_
 - **Updated:** `send_reminder_message()` in reminder_service.py now accepts `template_variable_count` parameter
 - **Updated:** `send_wish_message()` in auto_message_service.py now accepts `template_variable_count` parameter
 - **Updated:** Frontend settings dialogs to allow users to configure variable counts with helpful descriptions
+- **Fixed:** Send Messages - removed `components` array from payload, added detailed logging
+- **Added:** Feature Access Control in Admin Panel
+  - Admin can now control which features each user can access
+  - Features: Bulk Messages, Reminders, Contacts, Templates, Campaigns, Indiamart
+  - New API endpoint: PUT /api/users/{user_id}/features
+- **Improved:** Cleaner Header Navigation
+  - Main nav items shown directly, additional items in "More" dropdown
+  - User avatar dropdown for profile and logout
+  - Less cluttered, more professional look
 
 ### March 6, 2025
 - **Added:** Complete Contact Manager feature:

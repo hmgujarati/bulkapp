@@ -51,6 +51,17 @@ async def login(credentials: UserLogin):
     
     token = create_access_token(user['id'], user['email'], user['role'])
     
+    # Get user features with defaults
+    default_features = {
+        "bulk_messages": True,
+        "reminders": True,
+        "contacts": True,
+        "templates": True,
+        "campaigns": True,
+        "indiamart": False
+    }
+    user_features = user.get('features', default_features)
+    
     return {
         "token": token,
         "user": {
@@ -58,7 +69,8 @@ async def login(credentials: UserLogin):
             "email": user['email'],
             "firstName": user['firstName'],
             "lastName": user['lastName'],
-            "role": user['role']
+            "role": user['role'],
+            "features": user_features
         }
     }
 
