@@ -12,6 +12,7 @@ import CampaignDetails from './pages/CampaignDetails';
 import Settings from './pages/Settings';
 import Reminders from './pages/Reminders';
 import Contacts from './pages/Contacts';
+import Indiamart from './pages/Indiamart';
 import { Toaster } from '@/components/ui/sonner';
 import api from './utils/api';
 
@@ -195,6 +196,16 @@ const App = () => {
             element={
               user ? (
                 <Contacts user={user} onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
+            path="/indiamart"
+            element={
+              user ? (
+                <Indiamart user={user} onLogout={handleLogout} />
               ) : (
                 <Navigate to="/login" />
               )

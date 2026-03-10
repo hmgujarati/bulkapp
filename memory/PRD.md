@@ -175,6 +175,16 @@ _- Your WhatsApp Assistant_
   - Main nav items shown directly, additional items in "More" dropdown
   - User avatar dropdown for profile and logout
   - Less cluttered, more professional look
+- **NEW FEATURE:** Indiamart Lead Integration
+  - Webhook endpoint to receive leads from Indiamart Push API (`/api/indiamart/webhook/{user_id}`)
+  - Auto-reply WhatsApp messages when leads arrive
+  - Configurable delay before sending (immediate or delayed)
+  - Recurring messages support (follow-up messages at intervals)
+  - Lead management UI with status tracking (New, Sent, Failed, Converted, Closed)
+  - Settings UI with Webhook, Message, and Recurring tabs
+  - Lead storage for tracking and follow-up
+  - Background scheduler for delayed and recurring messages
+  - Placeholders for message content: {name}, {product}, {message}, {company}, {city}
 
 ### March 6, 2025
 - **Added:** Complete Contact Manager feature:
