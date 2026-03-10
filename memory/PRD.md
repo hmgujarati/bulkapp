@@ -156,6 +156,17 @@ _- Your WhatsApp Assistant_
 
 ## Change Log
 
+### March 10, 2025
+- **Fixed (P0):** Dynamic Template Variable Count issue
+  - Previously, the app sent hardcoded template fields (field_1, field_2, field_3) to BizChat API regardless of how many variables the template actually required, causing 400/422 errors
+  - Added `templateVariableCount` setting to Reminder Settings (1-5 variables)
+  - Added `birthdayTemplateVariableCount` and `anniversaryTemplateVariableCount` to Auto-Message Settings
+  - Payload now dynamically builds only the exact number of fields needed based on user configuration
+  - Default is 1 variable for safety (least likely to cause errors)
+- **Updated:** `send_reminder_message()` in reminder_service.py now accepts `template_variable_count` parameter
+- **Updated:** `send_wish_message()` in auto_message_service.py now accepts `template_variable_count` parameter
+- **Updated:** Frontend settings dialogs to allow users to configure variable counts with helpful descriptions
+
 ### March 6, 2025
 - **Added:** Complete Contact Manager feature:
   - Store contacts with Name, Email, Phone, DOB, Anniversary
