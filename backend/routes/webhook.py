@@ -687,7 +687,7 @@ async def handle_bizchat_webhook(request: Request):
             scheduledAt=scheduled_dt,
             timezone=user_timezone,
             recurrence=recurrence_config,
-            useTemplate=False,
+            useTemplate=True if settings.get('defaultTemplateId') else False,
             templateId=settings.get('defaultTemplateId')
         )
         
