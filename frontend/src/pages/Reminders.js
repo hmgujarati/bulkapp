@@ -301,6 +301,25 @@ const Reminders = ({ user, onLogout }) => {
         {/* Reminders Tab */}
         {activeTab === 'reminders' && (
           <div>
+            {/* Warning if template not configured */}
+            {!settings.defaultTemplateId && (
+              <Card className="mb-4 border-amber-300 bg-amber-50">
+                <CardContent className="p-4 flex items-start">
+                  <AlertCircle className="w-5 h-5 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-amber-800 font-medium">Template Not Configured</p>
+                    <p className="text-amber-700 text-sm">
+                      Reminders won&apos;t be delivered outside the 24-hour WhatsApp window. 
+                      Click &quot;API Settings&quot; to enter your approved Meta template name (e.g., <code className="bg-amber-100 px-1 rounded">reminder_alert</code>).
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-100" onClick={() => setShowSettings(true)}>
+                    Configure
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Actions Bar */}
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center space-x-4">
@@ -883,20 +902,33 @@ Date: {'{{3}}'}
                 </p>
               </div>
               <div>
-                <Label htmlFor="defaultTemplateId">Default Meta Template ID</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label htmlFor="defaultTemplateId">Default Meta Template ID</Label>
+                  {settings.defaultTemplateId ? (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle className="w-3 h-3 mr-1" /> Configured
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                      <AlertCircle className="w-3 h-3 mr-1" /> Required
+                    </Badge>
+                  )}
+                </div>
                 <Input
                   id="defaultTemplateId"
-                  placeholder={settings.defaultTemplateId || "reminder_template"}
+                  placeholder="reminder_alert"
                   value={settingsForm.defaultTemplateId}
                   onChange={(e) => setSettingsForm({ ...settingsForm, defaultTemplateId: e.target.value })}
                   data-testid="template-id-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">
-                  Pre-approved WhatsApp template name for sending reminders
-                  {settings.defaultTemplateId && (
-                    <span className="block mt-1 text-green-600">Current: {settings.defaultTemplateId}</span>
-                  )}
+                  Enter your approved Meta template name (e.g., <code className="bg-slate-100 px-1 rounded">reminder_alert</code>)
                 </p>
+                {!settings.defaultTemplateId && (
+                  <p className="text-xs text-red-600 mt-1">
+                    Without a template, reminders outside 24-hour window won&apos;t be delivered!
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter>

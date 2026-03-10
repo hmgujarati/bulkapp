@@ -73,24 +73,36 @@ async def send_reminder_message(
             if use_template and template_id:
                 # Use pre-approved template
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
-                payload = {
-                    "phone_number": clean_phone,
-                    "template_name": template_id,
-                    "template_language": "en_US",
-                    "field_1": message,
-                    "field_2": "",
-                    "field_3": ""
-                }
                 
-                # Try to extract time and date for template fields
+                # Parse time and date for template fields
+                time_str = ""
+                date_str = ""
                 try:
                     scheduled_dt = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
                     tz = pytz.timezone(recipient_timezone)
                     local_time = scheduled_dt.astimezone(tz)
-                    payload["field_2"] = local_time.strftime("%I:%M %p").lstrip('0')
-                    payload["field_3"] = local_time.strftime("%d %b %Y")
-                except:
-                    pass
+                    time_str = local_time.strftime("%I:%M %p").lstrip('0')
+                    date_str = local_time.strftime("%d %b %Y")
+                except Exception as e:
+                    logger.warning(f"Could not parse scheduled time: {e}")
+                    time_str = "Soon"
+                    date_str = ""
+                
+                # Template format for "reminder_alert" (en_US):
+                # Header: "Reminder Alert" (static text, no variable)
+                # Body: Hi There!\n\nReminder: {{1}}\nTime: {{2}}\nDate: {{3}}\n\n- Your WhatsApp Assistant
+                # So: field_1 = reminder message, field_2 = time, field_3 = date
+                
+                payload = {
+                    "phone_number": clean_phone,
+                    "template_name": template_id,
+                    "template_language": "en_US",
+                    "field_1": message,  # {{1}} - Reminder message
+                    "field_2": time_str,  # {{2}} - Time (e.g., "3:00 PM")
+                    "field_3": date_str   # {{3}} - Date (e.g., "25 Feb 2025")
+                }
+                
+                logger.info(f"Template payload: {payload}")
             else:
                 # Use session message (24-hour window) - direct text
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-message?token={token}"
