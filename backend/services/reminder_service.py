@@ -6,6 +6,7 @@ import logging
 import os
 import pytz
 import uuid
+import json
 
 from utils.database import db
 from models.reminder_schemas import ReminderStatus, RecurrenceType
@@ -89,20 +90,24 @@ async def send_reminder_message(
                     date_str = ""
                 
                 # Template format for "reminder_alert" (en_US):
-                # Header: "Reminder Alert" (static text, no variable)
+                # Header: "Reminder Alert" (TEXT type - static, no variable needed)
                 # Body: Hi There!\n\nReminder: {{1}}\nTime: {{2}}\nDate: {{3}}\n\n- Your WhatsApp Assistant
-                # So: field_1 = reminder message, field_2 = time, field_3 = date
+                # Body variables: {{1}} = message, {{2}} = time, {{3}} = date
                 
                 payload = {
                     "phone_number": clean_phone,
                     "template_name": template_id,
                     "template_language": "en_US",
-                    "field_1": message,  # {{1}} - Reminder message
-                    "field_2": time_str,  # {{2}} - Time (e.g., "3:00 PM")
-                    "field_3": date_str   # {{3}} - Date (e.g., "25 Feb 2025")
+                    # Body variables ({{1}}, {{2}}, {{3}})
+                    "field_1": message,
+                    "field_2": time_str,
+                    "field_3": date_str
                 }
                 
-                logger.info(f"Template payload: {payload}")
+                logger.info(f"Sending template message to {clean_phone}")
+                logger.info(f"Template: {template_id}, Language: en_US")
+                logger.info(f"Fields - 1: {message}, 2: {time_str}, 3: {date_str}")
+                logger.info(f"Full payload: {payload}")
             else:
                 # Use session message (24-hour window) - direct text
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-message?token={token}"
@@ -112,13 +117,20 @@ async def send_reminder_message(
                 }
             
             logger.info(f"Sending reminder to {phone}, URL: {url}")
-            logger.info(f"Payload: {payload}")
+            logger.info(f"Full Request Payload: {json.dumps(payload, indent=2)}")
             
             response = await client.post(url, json=payload, timeout=30.0)
             response_text = response.text
             
             logger.info(f"BizChat Response Status: {response.status_code}")
             logger.info(f"BizChat Response Body: {response_text}")
+            
+            # For 422 errors, log more details
+            if response.status_code == 422:
+                logger.error(f"422 Unprocessable Entity - Request rejected by BizChat")
+                logger.error(f"Request URL: {url}")
+                logger.error(f"Request Payload: {json.dumps(payload)}")
+                logger.error(f"Response: {response_text}")
             
             # Parse response
             try:
