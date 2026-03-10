@@ -86,6 +86,8 @@ class IndiamartSettings(BaseModel):
     messageField1: str = ""  # Usually the main message
     messageField2: str = ""
     messageField3: str = ""
+    messageField4: str = ""
+    messageField5: str = ""
     
     # Timing
     sendDelay: int = 0  # Delay in minutes before sending (0 = immediate)
@@ -96,8 +98,11 @@ class IndiamartSettings(BaseModel):
     recurringMaxCount: int = 3  # Max number of recurring messages
     recurringStopOnReply: bool = True  # Stop recurring if buyer replies
     
-    # Image for template (if needed)
+    # Header media (if needed)
+    headerMediaType: str = "none"  # none, image, video, document
     headerImage: Optional[str] = None
+    headerVideo: Optional[str] = None
+    headerDocument: Optional[str] = None
     
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -113,12 +118,17 @@ class IndiamartSettingsUpdate(BaseModel):
     messageField1: Optional[str] = None
     messageField2: Optional[str] = None
     messageField3: Optional[str] = None
+    messageField4: Optional[str] = None
+    messageField5: Optional[str] = None
     sendDelay: Optional[int] = None
     recurringEnabled: Optional[bool] = None
     recurringIntervalHours: Optional[int] = None
     recurringMaxCount: Optional[int] = None
     recurringStopOnReply: Optional[bool] = None
+    headerMediaType: Optional[str] = None
     headerImage: Optional[str] = None
+    headerVideo: Optional[str] = None
+    headerDocument: Optional[str] = None
 
 
 class LeadUpdate(BaseModel):

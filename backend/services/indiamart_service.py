@@ -18,7 +18,9 @@ async def send_lead_message(
     fields: Dict[str, str],
     token: str,
     vendor_uid: str,
-    header_image: Optional[str] = None
+    header_image: Optional[str] = None,
+    header_video: Optional[str] = None,
+    header_document: Optional[str] = None
 ) -> Dict[str, Any]:
     """Send a WhatsApp template message to an Indiamart lead"""
     try:
@@ -42,9 +44,13 @@ async def send_lead_message(
                 if value:
                     payload[key] = value
             
-            # Add header image if provided
+            # Add header media (only one type)
             if header_image:
                 payload["header_image"] = header_image
+            elif header_video:
+                payload["header_video"] = header_video
+            elif header_document:
+                payload["header_document"] = header_document
             
             logger.info(f"Sending Indiamart lead message to {clean_phone}")
             logger.info(f"Template: {template_name}, Payload: {json.dumps(payload)}")
@@ -85,7 +91,7 @@ def build_message_fields(settings: dict, lead: dict) -> Dict[str, str]:
     fields = {}
     var_count = settings.get('templateVariableCount', 1)
     
-    for i in range(1, var_count + 1):
+    for i in range(1, min(var_count + 1, 6)):  # Support up to 5 fields
         field_key = f"messageField{i}"
         field_value = settings.get(field_key, '')
         
@@ -138,7 +144,9 @@ async def process_new_lead(lead_id: str):
             fields=fields,
             token=user['bizChatToken'],
             vendor_uid=user['bizChatVendorUID'],
-            header_image=settings.get('headerImage')
+            header_image=settings.get('headerImage'),
+            header_video=settings.get('headerVideo'),
+            header_document=settings.get('headerDocument')
         )
         
         now = datetime.now(timezone.utc)

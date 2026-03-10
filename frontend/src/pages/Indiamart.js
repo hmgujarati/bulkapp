@@ -494,7 +494,7 @@ const Indiamart = ({ user, onLogout }) => {
                     Available placeholders: {'{name}'}, {'{product}'}, {'{message}'}, {'{company}'}, {'{city}'}
                   </p>
                   
-                  {[1, 2, 3].slice(0, settingsForm.templateVariableCount || 1).map((n) => (
+                  {[1, 2, 3, 4, 5].slice(0, settingsForm.templateVariableCount || 1).map((n) => (
                     <div key={n} className="space-y-1">
                       <Label className="text-xs">Field {n}</Label>
                       <Textarea
@@ -507,13 +507,85 @@ const Indiamart = ({ user, onLogout }) => {
                   ))}
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Header Image URL (optional)</Label>
-                  <Input
-                    value={settingsForm.headerImage || ''}
-                    onChange={(e) => setSettingsForm({...settingsForm, headerImage: e.target.value})}
-                    placeholder="https://..."
-                  />
+                {/* Header Media Section */}
+                <div className="space-y-3 p-4 bg-slate-50 rounded-lg">
+                  <Label className="text-sm font-medium">Header Media (optional)</Label>
+                  <p className="text-xs text-slate-500">Add image, video, or document to your template</p>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs">Media Type</Label>
+                    <Select
+                      value={settingsForm.headerMediaType || 'none'}
+                      onValueChange={(v) => setSettingsForm({...settingsForm, headerMediaType: v, headerImage: '', headerVideo: '', headerDocument: ''})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Header Media</SelectItem>
+                        <SelectItem value="image">Image</SelectItem>
+                        <SelectItem value="video">Video</SelectItem>
+                        <SelectItem value="document">Document</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {settingsForm.headerMediaType && settingsForm.headerMediaType !== 'none' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs">
+                        {settingsForm.headerMediaType === 'image' ? 'Image' : 
+                         settingsForm.headerMediaType === 'video' ? 'Video' : 'Document'} URL
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={settingsForm.headerMediaType === 'image' ? (settingsForm.headerImage || '') :
+                                 settingsForm.headerMediaType === 'video' ? (settingsForm.headerVideo || '') :
+                                 (settingsForm.headerDocument || '')}
+                          onChange={(e) => {
+                            const key = settingsForm.headerMediaType === 'image' ? 'headerImage' :
+                                        settingsForm.headerMediaType === 'video' ? 'headerVideo' : 'headerDocument';
+                            setSettingsForm({...settingsForm, [key]: e.target.value});
+                          }}
+                          placeholder="https://..."
+                        />
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept={settingsForm.headerMediaType === 'image' ? 'image/*' :
+                                    settingsForm.headerMediaType === 'video' ? 'video/*' : '*'}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              
+                              const formData = new FormData();
+                              const mediaType = settingsForm.headerMediaType === 'image' ? 'images' :
+                                               settingsForm.headerMediaType === 'video' ? 'videos' : 'documents';
+                              formData.append('file', file);
+                              formData.append('type', mediaType);
+                              
+                              try {
+                                const response = await api.post('/upload', formData);
+                                const url = response.data.url;
+                                const key = settingsForm.headerMediaType === 'image' ? 'headerImage' :
+                                            settingsForm.headerMediaType === 'video' ? 'headerVideo' : 'headerDocument';
+                                setSettingsForm({...settingsForm, [key]: url});
+                                toast.success('File uploaded successfully');
+                              } catch (error) {
+                                toast.error('Failed to upload file');
+                              }
+                            }}
+                          />
+                          <Button variant="outline" size="sm" type="button" asChild>
+                            <span>Upload</span>
+                          </Button>
+                        </label>
+                      </div>
+                      <p className="text-xs text-amber-600">
+                        Note: Use externally hosted URLs (like S3, Cloudinary) for best delivery reliability
+                      </p>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 
