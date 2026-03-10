@@ -47,11 +47,10 @@ async def send_whatsapp_message(
             payload = {
                 "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
                 "template_name": template_name,
-                "template_language": recipient_data.get("template_language", "en")
+                "template_language": recipient_data.get("template_language", "en_US")
             }
             
-            # Add direct field_1 through field_5 parameters
-            body_params = []
+            # Add direct field_1 through field_5 parameters (only if they have values)
             recipient_name = recipient_data.get('name', '')
             
             for i in range(1, 6):
@@ -62,36 +61,49 @@ async def send_whatsapp_message(
                         # Replace {name} placeholder with actual name
                         if '{name}' in value and recipient_name:
                             value = value.replace('{name}', recipient_name)
-                        
                         payload[field_key] = value
-                        body_params.append({
-                            "type": "text",
-                            "text": value
-                        })
             
-            # Add components array for WhatsApp format
-            if body_params:
-                payload["components"] = [{
-                    "type": "body",
-                    "parameters": body_params
-                }]
+            # Add media headers if present
+            if recipient_data.get('header_image'):
+                payload['header_image'] = recipient_data['header_image']
+            if recipient_data.get('header_video'):
+                payload['header_video'] = recipient_data['header_video']
+            if recipient_data.get('header_document'):
+                payload['header_document'] = recipient_data['header_document']
+            if recipient_data.get('header_document_name'):
+                payload['header_document_name'] = recipient_data['header_document_name']
+            if recipient_data.get('header_field_1'):
+                payload['header_field_1'] = recipient_data['header_field_1']
             
-            # Add other direct parameters
-            for key, value in recipient_data.items():
-                if key not in ["phone", "name", "template_language"] and not key.startswith("field_"):
-                    if value and str(value).strip():
-                        payload[key] = str(value).strip()
+            # Add location if present
+            if recipient_data.get('location_latitude'):
+                payload['location_latitude'] = recipient_data['location_latitude']
+            if recipient_data.get('location_longitude'):
+                payload['location_longitude'] = recipient_data['location_longitude']
+            if recipient_data.get('location_name'):
+                payload['location_name'] = recipient_data['location_name']
+            if recipient_data.get('location_address'):
+                payload['location_address'] = recipient_data['location_address']
             
             logger.info(f"Sending to BizChat - Phone: {phone}, Template: {template_name}")
+            logger.info(f"Full payload: {payload}")
             
             response = await client.post(url, json=payload, timeout=30.0)
             
+            logger.info(f"BizChat Response: Status {response.status_code}")
+            logger.info(f"BizChat Response Body: {response.text[:500]}")
+            
             if response.status_code in [200, 201]:
                 data = response.json()
+                # Check if response indicates actual success
+                if data.get('result') == 'failed':
+                    error_msg = data.get('message', 'Unknown error from BizChat')
+                    logger.error(f"BizChat returned failure: {error_msg}")
+                    return {"success": False, "error": error_msg}
                 return {"success": True, "data": data}
             else:
-                error_msg = f"BizChat API Error: Status {response.status_code}, Response: {response.text}"
-                logger.error(error_msg)
+                error_msg = f"HTTP {response.status_code}: {response.text[:500]}"
+                logger.error(f"BizChat API Error: {error_msg}")
                 return {"success": False, "error": error_msg}
     except Exception as e:
         error_msg = f"Exception sending message: {str(e)}"
