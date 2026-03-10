@@ -76,8 +76,8 @@ async def send_reminder_message(
                 url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
                 
                 # Parse time and date for template fields
-                time_str = ""
-                date_str = ""
+                time_str = "Soon"
+                date_str = "Today"
                 try:
                     scheduled_dt = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
                     tz = pytz.timezone(recipient_timezone)
@@ -86,27 +86,29 @@ async def send_reminder_message(
                     date_str = local_time.strftime("%d %b %Y")
                 except Exception as e:
                     logger.warning(f"Could not parse scheduled time: {e}")
-                    time_str = "Soon"
-                    date_str = ""
                 
                 # Template format for "reminder_alert" (en_US):
                 # Header: "Reminder Alert" (TEXT type - static, no variable needed)
                 # Body: Hi There!\n\nReminder: {{1}}\nTime: {{2}}\nDate: {{3}}\n\n- Your WhatsApp Assistant
                 # Body variables: {{1}} = message, {{2}} = time, {{3}} = date
                 
+                # Ensure no empty values - BizChat may reject empty fields
+                field_1_value = message if message else "Reminder"
+                field_2_value = time_str if time_str else "Now"
+                field_3_value = date_str if date_str else "Today"
+                
                 payload = {
                     "phone_number": clean_phone,
                     "template_name": template_id,
                     "template_language": "en_US",
-                    # Body variables ({{1}}, {{2}}, {{3}})
-                    "field_1": message,
-                    "field_2": time_str,
-                    "field_3": date_str
+                    "field_1": field_1_value,
+                    "field_2": field_2_value,
+                    "field_3": field_3_value
                 }
                 
                 logger.info(f"Sending template message to {clean_phone}")
                 logger.info(f"Template: {template_id}, Language: en_US")
-                logger.info(f"Fields - 1: {message}, 2: {time_str}, 3: {date_str}")
+                logger.info(f"Fields - 1: {field_1_value}, 2: {field_2_value}, 3: {field_3_value}")
                 logger.info(f"Full payload: {payload}")
             else:
                 # Use session message (24-hour window) - direct text
