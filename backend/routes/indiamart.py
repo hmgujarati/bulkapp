@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 import logging
 import asyncio
+import os
 
 from utils.database import db
 from utils.auth import get_current_user
@@ -144,8 +145,8 @@ async def get_indiamart_settings(current_user = Depends(get_current_user)):
         await db.indiamart_settings.insert_one(default_settings.model_dump())
         settings = default_settings.model_dump()
     
-    # Build webhook URL
-    base_url = "https://contact-scheduler-3.preview.emergentagent.com"
+    # Build webhook URL - use environment variable for base URL
+    base_url = os.environ.get('APP_BASE_URL', 'https://contact-scheduler-3.preview.emergentagent.com')
     webhook_url = f"{base_url}/api/indiamart/webhook/{current_user.userId}?secret={settings['webhookSecret']}"
     
     return {

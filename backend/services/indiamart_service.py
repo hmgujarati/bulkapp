@@ -2,13 +2,14 @@
 import logging
 import httpx
 import json
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from utils.database import db
 
 logger = logging.getLogger(__name__)
 
-BIZCHAT_API_BASE = "https://bizchatapi.in/api"
+BIZCHAT_API_BASE = os.environ.get('BIZCHAT_API_BASE', 'https://bizchatapi.in/api')
 
 
 async def send_lead_message(

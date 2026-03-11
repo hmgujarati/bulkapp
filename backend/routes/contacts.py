@@ -51,13 +51,17 @@ async def get_contact_groups(current_user=Depends(get_current_user)):
         {"_id": 0}
     ).sort("name", 1).to_list(100)
     
-    # Get contact count for each group
+    # Get contact counts using aggregation (single query instead of N+1)
+    count_pipeline = [
+        {"$match": {"userId": current_user.userId, "groupId": {"$ne": None}}},
+        {"$group": {"_id": "$groupId", "count": {"$sum": 1}}}
+    ]
+    counts = await db.contacts.aggregate(count_pipeline).to_list(100)
+    count_map = {c["_id"]: c["count"] for c in counts}
+    
+    # Map counts to groups
     for group in groups:
-        count = await db.contacts.count_documents({
-            "userId": current_user.userId,
-            "groupId": group["id"]
-        })
-        group["contactCount"] = count
+        group["contactCount"] = count_map.get(group["id"], 0)
     
     return {"groups": groups}
 
@@ -438,7 +442,7 @@ async def get_upcoming_events(
     
     today = date.today()
     
-    # Get all contacts with DOB or anniversary
+    # Get contacts with DOB or anniversary - only fetch required fields
     contacts = await db.contacts.find(
         {
             "userId": current_user.userId,
@@ -447,8 +451,8 @@ async def get_upcoming_events(
                 {"anniversary": {"$ne": None}}
             ]
         },
-        {"_id": 0}
-    ).to_list(1000)
+        {"_id": 0, "id": 1, "name": 1, "phone": 1, "dob": 1, "anniversary": 1}
+    ).to_list(500)  # Reasonable limit for upcoming events check
     
     upcoming_birthdays = []
     upcoming_anniversaries = []
