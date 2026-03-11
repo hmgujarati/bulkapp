@@ -120,11 +120,16 @@ const UserDashboard = ({ user, onLogout }) => {
               {userInfo ? (
                 <>
                   <div className="text-3xl font-bold text-blue-900">
-                    {userInfo.dailyLimit - (userInfo.dailyUsage || 0)}
+                    {userInfo.remaining !== undefined ? userInfo.remaining : (userInfo.dailyLimit - (userInfo.dailyUsage || 0))}
                   </div>
                   <p className="text-xs text-blue-700 mt-1">
                     of {userInfo.dailyLimit} daily limit
                   </p>
+                  {userInfo.nextResetAt && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Resets: {new Date(userInfo.nextResetAt).toLocaleString()}
+                    </p>
+                  )}
                 </>
               ) : (
                 <div className="text-3xl font-bold text-blue-900">-</div>

@@ -113,42 +113,38 @@ async def send_whatsapp_message(
 
 async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     """Process campaign with rate limiting (29 messages/second)"""
+    from utils.daily_limit import check_and_reset_daily_usage, update_last_activity
+    
     campaign = await db.campaigns.find_one({"id": campaign_id})
     if not campaign:
         return
     
-    # Get user to check daily limit
+    # Get user and check daily limit with 24-hour reset
     user = await db.users.find_one({"id": campaign['userId']})
     if not user:
         logger.error(f"User not found for campaign {campaign_id}")
         return
     
-    # Check and reset daily usage if needed
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    last_reset = user.get('lastResetDate')
+    # Check and reset daily usage if 24 hours have passed
+    user = await check_and_reset_daily_usage(campaign['userId'], user)
+    
     daily_usage = user.get('dailyUsage', 0)
     daily_limit = user.get('dailyLimit', 1000)
-    
-    if last_reset != today:
-        daily_usage = 0
-        await db.users.update_one(
-            {"id": campaign['userId']},
-            {"$set": {"dailyUsage": 0, "lastResetDate": today}}
-        )
     
     # Check if we have enough quota
     pending_recipients = [r for r in campaign['recipients'] if r['status'] == MessageStatus.PENDING.value]
     remaining = daily_limit - daily_usage
     
     if len(pending_recipients) > remaining:
-        # Not enough quota - mark campaign as failed with reason
-        logger.warning(f"Campaign {campaign_id}: Need {len(pending_recipients)} but only {remaining} available today")
+        # Not enough quota - mark campaign as paused, will retry after limit resets
+        next_reset = user.get('nextResetAt', 'in 24 hours')
+        logger.warning(f"Campaign {campaign_id}: Need {len(pending_recipients)} but only {remaining} available")
         await db.campaigns.update_one(
             {"id": campaign_id},
             {
                 "$set": {
-                    "status": CampaignStatus.FAILED.value,
-                    "error": f"Daily limit exceeded. Need {len(pending_recipients)} messages but only {remaining} available. Will retry tomorrow.",
+                    "status": CampaignStatus.PAUSED.value,
+                    "error": f"Daily limit reached. Need {len(pending_recipients)} messages but only {remaining} available. Will resume after {next_reset}",
                     "updatedAt": datetime.now(timezone.utc).isoformat()
                 }
             }
@@ -231,11 +227,8 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         }
     )
     
-    # Update user's daily usage
-    await db.users.update_one(
-        {"id": campaign['userId']},
-        {"$inc": {"dailyUsage": sent_count}}
-    )
+    # Update user's daily usage and set last activity time (for 24-hour reset window)
+    await update_last_activity(campaign['userId'], sent_count)
 
 
 @router.post("/send")
@@ -257,23 +250,20 @@ async def send_messages(
     is_scheduled = request.scheduledAt is not None
     
     if not is_scheduled:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        last_reset = user.get('lastResetDate')
+        from utils.daily_limit import check_and_reset_daily_usage
+        
+        # Check and reset daily usage if 24 hours have passed
+        user = await check_and_reset_daily_usage(current_user.userId, user)
+        
         daily_usage = user.get('dailyUsage', 0)
         daily_limit = user.get('dailyLimit', 1000)
+        remaining = user.get('remaining', daily_limit - daily_usage)
         
-        if last_reset != today:
-            daily_usage = 0
-            await db.users.update_one(
-                {"id": current_user.userId},
-                {"$set": {"dailyUsage": 0, "lastResetDate": today}}
-            )
-        
-        remaining = daily_limit - daily_usage
         if len(request.recipients) > remaining:
+            next_reset = user.get('nextResetAt', 'in 24 hours')
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot send campaign. You need {len(request.recipients)} messages but only {remaining} available today. Daily limit: {daily_limit}/day"
+                detail=f"Cannot send campaign. You need {len(request.recipients)} messages but only {remaining} available. Limit resets at {next_reset}"
             )
     
     # Prepare recipients

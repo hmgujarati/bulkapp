@@ -39,7 +39,7 @@ class User(BaseModel):
     bizChatVendorUID: Optional[str] = None
     dailyLimit: int = 1000
     dailyUsage: int = 0
-    lastResetDate: Optional[str] = None
+    lastResetDateTime: Optional[str] = None  # Full ISO datetime for 24-hour reset
     isPaused: bool = False
     # Feature access control - which features this user can access
     features: dict = Field(default_factory=lambda: {
