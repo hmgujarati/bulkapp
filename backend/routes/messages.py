@@ -117,6 +117,44 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     if not campaign:
         return
     
+    # Get user to check daily limit
+    user = await db.users.find_one({"id": campaign['userId']})
+    if not user:
+        logger.error(f"User not found for campaign {campaign_id}")
+        return
+    
+    # Check and reset daily usage if needed
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last_reset = user.get('lastResetDate')
+    daily_usage = user.get('dailyUsage', 0)
+    daily_limit = user.get('dailyLimit', 1000)
+    
+    if last_reset != today:
+        daily_usage = 0
+        await db.users.update_one(
+            {"id": campaign['userId']},
+            {"$set": {"dailyUsage": 0, "lastResetDate": today}}
+        )
+    
+    # Check if we have enough quota
+    pending_recipients = [r for r in campaign['recipients'] if r['status'] == MessageStatus.PENDING.value]
+    remaining = daily_limit - daily_usage
+    
+    if len(pending_recipients) > remaining:
+        # Not enough quota - mark campaign as failed with reason
+        logger.warning(f"Campaign {campaign_id}: Need {len(pending_recipients)} but only {remaining} available today")
+        await db.campaigns.update_one(
+            {"id": campaign_id},
+            {
+                "$set": {
+                    "status": CampaignStatus.FAILED.value,
+                    "error": f"Daily limit exceeded. Need {len(pending_recipients)} messages but only {remaining} available. Will retry tomorrow.",
+                    "updatedAt": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        return
+    
     # Update status to processing
     await db.campaigns.update_one(
         {"id": campaign_id},
@@ -214,25 +252,29 @@ async def send_messages(
     if not user.get('bizChatVendorUID'):
         raise HTTPException(status_code=400, detail="BizChat Vendor UID not configured")
     
-    # Check daily limit
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    last_reset = user.get('lastResetDate')
-    daily_usage = user.get('dailyUsage', 0)
-    daily_limit = user.get('dailyLimit', 1000)
+    # Check daily limit ONLY for immediate campaigns, not scheduled ones
+    # Scheduled campaigns will be checked when they actually run
+    is_scheduled = request.scheduledAt is not None
     
-    if last_reset != today:
-        daily_usage = 0
-        await db.users.update_one(
-            {"id": current_user.userId},
-            {"$set": {"dailyUsage": 0, "lastResetDate": today}}
-        )
-    
-    remaining = daily_limit - daily_usage
-    if len(request.recipients) > remaining:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot send campaign. You need {len(request.recipients)} messages but only {remaining} available today. Daily limit: {daily_limit}/day"
-        )
+    if not is_scheduled:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        last_reset = user.get('lastResetDate')
+        daily_usage = user.get('dailyUsage', 0)
+        daily_limit = user.get('dailyLimit', 1000)
+        
+        if last_reset != today:
+            daily_usage = 0
+            await db.users.update_one(
+                {"id": current_user.userId},
+                {"$set": {"dailyUsage": 0, "lastResetDate": today}}
+            )
+        
+        remaining = daily_limit - daily_usage
+        if len(request.recipients) > remaining:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot send campaign. You need {len(request.recipients)} messages but only {remaining} available today. Daily limit: {daily_limit}/day"
+            )
     
     # Prepare recipients
     recipients = []
