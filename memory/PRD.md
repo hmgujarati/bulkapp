@@ -156,6 +156,27 @@ _- Your WhatsApp Assistant_
 
 ## Change Log
 
+### March 11, 2025
+- **Fixed:** MongoDB ObjectId serialization bug in contacts API
+  - POST /api/contacts and POST /api/contacts/groups were returning 500 errors
+  - Root cause: MongoDB's insert_one() adds _id field which cannot be JSON serialized
+  - Fix: Remove _id from dict before returning response
+- **Implemented:** 24-hour time-based daily limit reset
+  - Limit now resets exactly 24 hours after last message sent (not midnight)
+  - New field: `lastResetDateTime` stores full ISO datetime
+  - Dashboard shows "Resets: [datetime]" so users know when limit refreshes
+  - Scheduled campaigns bypass daily limit check at creation (checked when they run)
+- **Fixed:** Daily limit dropdown in Admin Panel
+  - Changed from `defaultValue` to `value` (controlled component)
+  - Added more limit options: 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000
+- **Fixed:** Indiamart settings - variable fields not showing above 3
+  - Changed slice from [1,2,3] to [1,2,3,4,5] to show all 5 fields
+- **Added:** Header media options in Indiamart settings
+  - Media type selector: None, Image, Video, Document
+  - Upload button for direct file upload
+  - URL input for external media links
+- **Comprehensive E2E Testing:** 34/34 backend tests passed, all frontend pages verified
+
 ### March 10, 2025
 - **Fixed (P0):** Dynamic Template Variable Count issue
   - Previously, the app sent hardcoded template fields (field_1, field_2, field_3) to BizChat API regardless of how many variables the template actually required, causing 400/422 errors
