@@ -81,6 +81,9 @@ async def create_contact_group(
     
     await db.contact_groups.insert_one(group_dict)
     
+    # Remove MongoDB _id before returning
+    group_dict.pop('_id', None)
+    
     return {"message": "Group created", "group": group_dict}
 
 
@@ -242,6 +245,9 @@ async def create_contact(
     contact_dict['updatedAt'] = contact_dict['updatedAt'].isoformat()
     
     await db.contacts.insert_one(contact_dict)
+    
+    # Remove MongoDB _id before returning
+    contact_dict.pop('_id', None)
     
     return {"message": "Contact created", "contact": contact_dict}
 
