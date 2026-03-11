@@ -81,6 +81,20 @@ async def get_me(current_user = Depends(get_current_user)):
     user = await db.users.find_one({"id": current_user.userId}, {"_id": 0, "password": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if daily usage should be reset (24 hour reset)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last_reset = user.get('lastResetDate')
+    
+    if last_reset != today:
+        # Reset daily usage for the new day
+        await db.users.update_one(
+            {"id": current_user.userId},
+            {"$set": {"dailyUsage": 0, "lastResetDate": today}}
+        )
+        user['dailyUsage'] = 0
+        user['lastResetDate'] = today
+    
     return user
 
 
