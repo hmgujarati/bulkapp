@@ -1,260 +1,144 @@
 # WhatsApp Bulk Messenger - Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack website for sending bulk WhatsApp messages using the `bizchatapi.in` API. Later expanded to include a "Reminder Bot" feature using AI-powered natural language processing.
+Build a full-stack website for sending bulk WhatsApp messages using the `bizchatapi.in` API. The scope expanded to include a "Reminder Bot", Contact Management, Indiamart Integration, and a WhatsApp Lead Qualification Chatbot. The overall goal is a multi-featured WhatsApp automation platform.
 
 ## User Personas
-1. **Admin** - Manages users, can view all campaigns, configure system
-2. **User** - Sends bulk WhatsApp messages, manages templates, views campaign history
+1. **Admin** - Manages users, can view all campaigns, configure system, enable/disable features per user
+2. **User** - Sends bulk WhatsApp messages, manages templates, views campaign history, uses chatbot
 
-## Core Requirements (Completed)
+## Core Requirements (All Completed)
 - [x] User authentication (admin/user roles)
-- [x] Admin dashboard for user management
+- [x] Admin dashboard for user management with feature-gating
 - [x] User dashboard with campaign creation
-- [x] Message templates with personalization ({name} placeholders)
+- [x] Message templates with personalization
 - [x] Media support (image, video, document) with 5MB limit
-- [x] Location sharing support
 - [x] Campaign scheduling (immediate or scheduled)
-- [x] Background job processing for scheduled campaigns (APScheduler)
 - [x] Campaign history and statistics
-- [x] Settings page for password change
-- [x] Super admin protection (cannot be deleted/paused)
+- [x] Reminder Bot (natural language, recurring)
+- [x] Contact Manager (birthday/anniversary auto-wishes)
+- [x] Indiamart Integration (Push API webhook, auto-messaging)
+- [x] **Lead Qualification Chatbot** (NEW - March 2026)
 
 ## Technical Architecture
-- **Frontend:** React, react-router-dom, axios, shadcn/ui, sonner (toasts), papaparse, lucide-react
+- **Frontend:** React, react-router-dom, axios, shadcn/ui, sonner (toasts), lucide-react
 - **Backend:** FastAPI (modular structure), MongoDB (motor), JWT auth, bcrypt, httpx
-- **File Handling:** Static files served via `/api/uploads/...`
-- **Scheduling:** Async background tasks for campaign processing
+- **Scheduling:** Async background tasks for campaigns, reminders, auto-wishes, chatbot follow-ups
 
-### Backend Structure (Refactored v2.0.0)
+### Backend Structure
 ```
 /app/backend/
-├── server.py           # Main app entry point
+├── server.py
 ├── models/
-│   └── schemas.py      # Pydantic models
+│   ├── schemas.py
+│   ├── reminder_schemas.py
+│   ├── contact_schemas.py
+│   ├── indiamart_schemas.py
+│   └── chatbot_schemas.py          # NEW
 ├── routes/
-│   ├── auth.py         # Authentication routes
-│   ├── users.py        # User management routes
-│   ├── campaigns.py    # Campaign routes
-│   ├── messages.py     # Message sending routes
-│   ├── templates.py    # Template routes
-│   └── upload.py       # File upload routes
+│   ├── auth.py
+│   ├── users.py
+│   ├── campaigns.py
+│   ├── messages.py
+│   ├── templates.py
+│   ├── upload.py
+│   ├── reminder_numbers.py
+│   ├── reminders.py
+│   ├── webhook.py                   # UPDATED (chatbot integration)
+│   ├── contacts.py
+│   ├── indiamart.py
+│   └── chatbot.py                   # NEW
+├── services/
+│   ├── reminder_service.py
+│   ├── auto_message_service.py
+│   ├── indiamart_service.py
+│   └── chatbot_service.py           # NEW
 └── utils/
-    ├── auth.py         # JWT and password utilities
-    ├── database.py     # MongoDB connection
-    └── helpers.py      # Phone number normalization, etc.
+    ├── auth.py
+    ├── database.py
+    └── daily_limit.py
 ```
 
-## Current Status (January 2025)
+## Lead Qualification Chatbot (NEW - March 12, 2026)
 
-### Fixed Issues
-- **Session Instability (P1):** FIXED - Token validation added on app load, improved 401 error handling
-- **Backend Refactoring (P1):** COMPLETED - Monolithic server.py split into modular structure
+### Feature Description
+WhatsApp chatbot that qualifies leads by asking sequential questions. Supports:
+- **Category → Product hierarchy** with bulk CSV upload for 1000s of products
+- **Sequential question flows** per category (text, button, or list type)
+- **Product search** - client types letters, bot searches and shows matching list via WhatsApp interactive messages
+- **Follow-up reminders** - custom delay (any minutes), custom max attempts for abandoned conversations
+- **Lead notifications** - main user gets all leads, category-assigned employees get product-specific leads
+- **Lead routing** per category to assigned employee WhatsApp
+- **Excel/CSV export** with filters (by product, date range, status)
+- **Admin feature-gating** - chatbot can be enabled/disabled per user
 
-### Implementation Details (Session Fix)
-1. `App.js` now validates tokens by calling `/auth/me` on app load
-2. `api.js` only clears session on definite auth errors (401/403 with specific messages)
-3. Network errors no longer trigger unnecessary logouts
-4. Added 30-second timeout to API calls
+### API Endpoints (Chatbot)
+- `GET/PUT /api/chatbot/settings` - Chatbot settings (toggle, messages, follow-up config, notification)
+- `GET/POST /api/chatbot/categories` - Categories CRUD
+- `PUT/DELETE /api/chatbot/categories/{id}` - Category update/delete (cascades)
+- `GET/POST /api/chatbot/products` - Products CRUD with search and filtering
+- `PUT/DELETE /api/chatbot/products/{id}` - Product update/delete
+- `POST /api/chatbot/products/bulk-upload` - CSV bulk upload
+- `DELETE /api/chatbot/products/bulk-delete` - Bulk delete products
+- `GET /api/chatbot/questions/{category_id}` - Get flow questions
+- `POST /api/chatbot/questions` - Create question
+- `PUT/DELETE /api/chatbot/questions/{id}` - Update/delete question
+- `PUT /api/chatbot/questions/reorder/{category_id}` - Reorder questions
+- `GET /api/chatbot/leads` - List leads with filters
+- `PUT/DELETE /api/chatbot/leads/{id}` - Update/delete lead
+- `GET /api/chatbot/leads/export` - Export leads as CSV
+- `GET /api/chatbot/stats` - Chatbot statistics
 
-### Backend Refactoring Details
-- Split 1100+ line `server.py` into modular structure
-- Created separate route files: `auth.py`, `users.py`, `campaigns.py`, `messages.py`, `templates.py`, `upload.py`
-- Added reminder routes: `reminder_numbers.py`, `reminders.py`
-- Added reminder service: `services/reminder_service.py`
-- Moved models to `models/schemas.py` and `models/reminder_schemas.py`
-- Moved utilities to `utils/auth.py`, `utils/database.py`, `utils/helpers.py`
-- Added health check endpoint: `/api/health`
-- API version: 2.1.0
+### DB Collections (Chatbot)
+- `chatbot_settings` - Per-user settings
+- `chatbot_categories` - Categories with employee routing
+- `chatbot_products` - Products under categories
+- `chatbot_flow_questions` - Sequential qualifying questions per category
+- `chatbot_conversations` - Active conversation sessions
+- `chatbot_leads` - Completed/partial lead records
 
-### Reminder Bot Implementation (Phase 1-4 COMPLETED)
-- **Phase 1 (Backend Models):** Created `reminder_numbers`, `reminders`, `reminder_settings` DB models
-- **Phase 2 (OpenAI Integration):** NLP parsing for natural language reminders using GPT-3.5-Turbo
-- **Phase 3 (Scheduler):** Background task checks due reminders every 30 seconds
-- **Phase 4 (Frontend UI):** Complete Reminders page with:
-  - Phone numbers management with timezone support
-  - Natural language reminder creation
-  - Reminder list with filtering (all, today, week, pending, sent, failed)
-  - Settings for OpenAI API key and Meta template ID
+### WhatsApp Interactive Messages
+Uses bizchatapi.in Send Interactive Message API:
+- **Buttons** (up to 3) for category selection, yes/no questions
+- **Lists** (up to 10 items per section) for product selection, multi-option questions
+- **Text messages** for free-text questions and follow-ups
 
-### Reminder Message Format
-```
-🔔 *Reminder Alert*
-
-✨ [Your reminder message]
-
-⏰ Scheduled: 4:30 PM
-📅 21 Jan 2026
-
-_- Your WhatsApp Assistant_
-```
-
-## Upcoming Features: Reminder Bot
-
-### User Requirements (ALL IMPLEMENTED)
-- ✅ Natural language reminder creation (e.g., "remind me to call Harsh at 10 am tomorrow")
-- ✅ Number management with timezone support
-- ✅ Use pre-approved Meta template IDs OR 24-hour session window for direct messages
-- ✅ Reminders filterable by day, week, or custom date range (up to 15 days)
-- ✅ Delete reminders functionality
-- ✅ Users provide their own OpenAI API keys (GPT-3.5-Turbo)
-
-### Meta Template Strategy (User-Confirmed & Implemented)
-1. ✅ Use pre-approved template ID for business-initiated messages
-2. ✅ Provide documentation for users to create templates in Meta Business Manager
-3. ✅ Utilize 24-hour session window when available for direct messages
-
-### API Endpoints (Reminder Bot)
-- `GET /api/reminder-numbers` - List phone numbers
-- `POST /api/reminder-numbers` - Add phone number
-- `DELETE /api/reminder-numbers/{id}` - Delete phone number
-- `GET /api/reminder-numbers/timezones` - Get available timezones
-- `GET /api/reminders` - List reminders with filters
-- `POST /api/reminders` - Create reminder using NLP
-- `POST /api/reminders/direct` - Create reminder directly
-- `DELETE /api/reminders/{id}` - Delete reminder
-- `GET /api/reminders/settings` - Get user settings
-- `PUT /api/reminders/settings` - Update settings (API key, template)
-
-## API Endpoints
-- `/api/auth/login` - User login
-- `/api/auth/me` - Session validation (NEW)
-- `/api/auth/register` - Admin-only user creation
-- `/api/auth/change-password` - Password change
-- `/api/users` - User management (admin)
-- `/api/messages/send` - Send campaigns
-- `/api/campaigns` - Campaign management
-- `/api/saved-templates` - User template presets
-- `/api/upload/media` - File uploads
-- `/api/uploads/{type}/{filename}` - Serve uploaded files
-
-## Key Files
-- `/app/backend/server.py` - Main app entry, router setup, startup events
-- `/app/backend/routes/` - All API route handlers
-- `/app/backend/routes/reminder_numbers.py` - Reminder numbers CRUD
-- `/app/backend/routes/reminders.py` - Reminders CRUD with NLP parsing
-- `/app/backend/models/schemas.py` - Pydantic models
-- `/app/backend/models/reminder_schemas.py` - Reminder-specific models
-- `/app/backend/services/reminder_service.py` - Reminder sending service
-- `/app/backend/utils/` - Shared utilities
-- `/app/frontend/src/App.js` - Main app with session management
-- `/app/frontend/src/utils/api.js` - API client with auth interceptors
-- `/app/frontend/src/pages/Reminders.js` - Reminder Bot UI
-- `/app/frontend/src/pages/` - All page components
-- `/app/frontend/src/components/Layout.js` - Navigation with Reminders link
+### Chatbot Conversation Flow
+1. Client sends message → Webhook receives it
+2. Check if chatbot is enabled for user
+3. New conversation: Send greeting + category list (interactive list/buttons)
+4. Client selects category → Check product count:
+   - 0 products: Skip to questions
+   - ≤10 products: Show list directly
+   - >10 products: Ask client to search by typing letters
+5. Client selects product → Start qualifying questions (sequential)
+6. After all questions → Store lead, send notifications
+7. If abandoned: Follow-up after configured delay, max attempts configurable
 
 ## Credentials
 - **Admin:** bizchatapi@gmail.com / adminpassword
+- **User:** rapidexpresstechnologies@gmail.com / [user-set]
 
-## Backlog
-1. ~~**Backend Refactoring:** Split server.py into modular routers~~ DONE
-2. ~~**Reminder Bot Feature:** Full implementation (Phase 1-4)~~ DONE
-3. ~~**Meta Template Documentation:** Guide for users to set up WhatsApp templates~~ DONE
-4. ~~**Frontend Refactoring:** Break down large components~~ DONE (Feb 2025)
-5. **Error Handling:** Improved error messages throughout the app
-6. **User Testing:** Full E2E testing of reminder flow with real OpenAI key
+## Feature Flags
+Features controlled per-user by admin:
+- bulk_messages, reminders, contacts, templates, campaigns, indiamart, chatbot
+
+## Backlog / Future Tasks
+1. **(P1) Indiamart Pull API** - Fetch historical leads (deferred by user)
+2. **(P2) Voice Call Reminders** - Add voice call capabilities (deferred by user)
 
 ## Change Log
 
-### March 11, 2025
-- **Fixed:** MongoDB ObjectId serialization bug in contacts API
-  - POST /api/contacts and POST /api/contacts/groups were returning 500 errors
-  - Root cause: MongoDB's insert_one() adds _id field which cannot be JSON serialized
-  - Fix: Remove _id from dict before returning response
-- **Implemented:** 24-hour time-based daily limit reset
-  - Limit now resets exactly 24 hours after last message sent (not midnight)
-  - New field: `lastResetDateTime` stores full ISO datetime
-  - Dashboard shows "Resets: [datetime]" so users know when limit refreshes
-  - Scheduled campaigns bypass daily limit check at creation (checked when they run)
-- **Fixed:** Daily limit dropdown in Admin Panel
-  - Changed from `defaultValue` to `value` (controlled component)
-  - Added more limit options: 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000
-- **Fixed:** Indiamart settings - variable fields not showing above 3
-  - Changed slice from [1,2,3] to [1,2,3,4,5] to show all 5 fields
-- **Added:** Header media options in Indiamart settings
-  - Media type selector: None, Image, Video, Document
-  - Upload button for direct file upload
-  - URL input for external media links
-- **Comprehensive E2E Testing:** 34/34 backend tests passed, all frontend pages verified
-
-### March 10, 2025
-- **Fixed (P0):** Dynamic Template Variable Count issue
-  - Previously, the app sent hardcoded template fields (field_1, field_2, field_3) to BizChat API regardless of how many variables the template actually required, causing 400/422 errors
-  - Added `templateVariableCount` setting to Reminder Settings (1-5 variables)
-  - Added `birthdayTemplateVariableCount` and `anniversaryTemplateVariableCount` to Auto-Message Settings
-  - Payload now dynamically builds only the exact number of fields needed based on user configuration
-  - Default is 1 variable for safety (least likely to cause errors)
-- **Updated:** `send_reminder_message()` in reminder_service.py now accepts `template_variable_count` parameter
-- **Updated:** `send_wish_message()` in auto_message_service.py now accepts `template_variable_count` parameter
-- **Updated:** Frontend settings dialogs to allow users to configure variable counts with helpful descriptions
-- **Fixed:** Send Messages - removed `components` array from payload, added detailed logging
-- **Added:** Feature Access Control in Admin Panel
-  - Admin can now control which features each user can access
-  - Features: Bulk Messages, Reminders, Contacts, Templates, Campaigns, Indiamart
-  - New API endpoint: PUT /api/users/{user_id}/features
-- **Improved:** Cleaner Header Navigation
-  - Main nav items shown directly, additional items in "More" dropdown
-  - User avatar dropdown for profile and logout
-  - Less cluttered, more professional look
-- **NEW FEATURE:** Indiamart Lead Integration
-  - Webhook endpoint to receive leads from Indiamart Push API (`/api/indiamart/webhook/{user_id}`)
-  - Auto-reply WhatsApp messages when leads arrive
-  - Configurable delay before sending (immediate or delayed)
-  - Recurring messages support (follow-up messages at intervals)
-  - Lead management UI with status tracking (New, Sent, Failed, Converted, Closed)
-  - Settings UI with Webhook, Message, and Recurring tabs
-  - Lead storage for tracking and follow-up
-  - Background scheduler for delayed and recurring messages
-  - Placeholders for message content: {name}, {product}, {message}, {company}, {city}
-
-### March 6, 2025
-- **Added:** Complete Contact Manager feature:
-  - Store contacts with Name, Email, Phone, DOB, Anniversary
-  - Auto-add country code to phone numbers
-  - Contact groups with colors for organization
-  - Excel/CSV bulk import (Name, Email, Phone, DOB, Anniversary, Group)
-  - Upcoming birthdays/anniversaries dashboard cards
-  - Search and filter by group
-- **Added:** Auto-Message System for birthdays/anniversaries:
-  - Configure send time and timezone
-  - Enter Meta template name (user specifies approved template)
-  - Customize message preview with {{name}} variable
-  - Background scheduler checks and sends wishes automatically
-  - Tracks last wish sent to prevent duplicates
-
-### February 28, 2025
-- **Improved:** Enhanced BizChat API error handling - now checks response body for actual success/failure
-- **Improved:** Template message now correctly fills {{1}}, {{2}}, {{3}} fields (message, time, date)
-- **Improved:** Full error messages visible in UI with scrollable error box
-- **Added:** "View API Response" expandable section for sent messages to debug delivery issues
-- **Added:** Detailed logging of API requests and responses for debugging
-- **Fixed:** Template language changed from "en" to "en_US" to match approved template
-
-### February 25, 2025
-- **Fixed:** WhatsApp "show reminders" command now only shows reminders for the specific phone number that sent the message (not all user's numbers)
-- **Fixed:** All WhatsApp delete commands (delete by number, delete by name, delete all) now filter by phone number
-- **Fixed:** AI bot no longer replies to non-reminder messages (stops chatting, fixed "Your suggested reply to the user" bug)
-- **Fixed:** API response handling for saved templates (handles both array and {templates:[]} formats)
-- **Updated:** Template Guide now shows only user's approved Meta template (`reminder_alert` en_US)
-- **Added:** Recurring Reminders feature:
-  - Backend: RecurrenceConfig schema, calculate_next_occurrence(), auto-create next reminder after sending
-  - Frontend: Repeat dropdown (Daily, Weekly, Monthly, Custom), weekday selector for weekly, interval settings
-  - WhatsApp: Natural language support ("remind me daily", "every Monday", "every 2 weeks")
-  - Reminders run forever until manually deleted
-- **Refactored Frontend Components:**
-  - `SendMessagesSimple.js`: 936 → 469 lines
-  - `MyTemplates.js`: 573 → 352 lines
-  - New components: MediaUploader, RecipientUploader, TemplateSelector, TemplateCard
-  - New hooks: useMediaUpload, useRecipients
-
-### WhatsApp Webhook Phone Filtering (Feb 2025)
-The following functions now accept optional `phone` parameter to filter reminders:
-- `get_reminders_list(user_id, timezone, phone=None)`
-- `delete_reminder_by_name(user_id, search_text, timezone, phone=None)`
-- `delete_reminder_by_number(user_id, reminder_num, timezone, phone=None)`
-- `delete_all_matching_reminders(user_id, search_text, phone=None)`
-- `delete_all_reminders(user_id, phone=None)`
-
-## API Endpoints (Webhook)
-- `POST /api/webhook/bizchat` - Receive incoming WhatsApp messages
-- `GET /api/webhook/bizchat` - Webhook verification
+### March 12, 2026
+- **NEW FEATURE:** Lead Qualification Chatbot
+  - Backend: Full CRUD for categories, products, flow questions, leads
+  - Backend: Chatbot conversation engine with WhatsApp interactive messages (buttons/lists)
+  - Backend: Product search for categories with many products
+  - Backend: Follow-up scheduler for abandoned conversations
+  - Backend: Lead notifications to main user and category-assigned employees
+  - Backend: CSV export for leads with filters
+  - Backend: CSV bulk upload for products
+  - Frontend: New ChatbotPage with 5 tabs (Settings, Categories, Products, Flows, Leads)
+  - Admin: Chatbot feature added to feature-gating system
+  - Webhook: Chatbot message handler integrated before reminder bot
+  - Testing: 30/30 backend tests passed, all frontend tabs verified
