@@ -1,5 +1,5 @@
 <analysis>**original_problem_statement:**
-The user initially requested a full-stack website for sending bulk WhatsApp messages. The scope expanded to include an AI-powered Reminder Bot using natural language (via web UI and WhatsApp) to schedule reminders. Subsequent feature requests included recurring reminders, a comprehensive Contact Management system with automated birthday/anniversary messages, and various UI/UX improvements and bug fixes. The overall goal is a multi-featured WhatsApp automation platform.
+The user initially requested a full-stack website for sending bulk WhatsApp messages. The scope expanded to include an AI-powered Reminder Bot using natural language (via web UI and WhatsApp) to schedule reminders. Subsequent feature requests included recurring reminders, a comprehensive Contact Management system with automated birthday/anniversary messages, various UI/UX improvements, bug fixes, admin feature-gating, and an integration with Indiamart to automate messaging for incoming leads. The overall goal is a multi-featured WhatsApp automation platform.
 
 **PRODUCT REQUIREMENTS:**
 *   **Reminder Bot:** Create, view, and delete reminders using natural language via web UI and WhatsApp.
@@ -8,139 +8,151 @@ The user initially requested a full-stack website for sending bulk WhatsApp mess
     *   Store user contacts with fields like Name, Email, Phone, DOB, and Anniversary.
     *   Organize contacts into groups.
     *   Automatically send WhatsApp messages on a contact's birthday and/or anniversary.
+*   **Indiamart Integration:**
+    *   Receive new leads in real-time from Indiamart via a Push API (webhook).
+    *   Store incoming leads in the database.
+    *   Automatically send a configured WhatsApp template message to new leads.
+*   **Admin Controls:**
+    *   Admin panel to manage users.
+    *   Ability for an admin to enable/disable specific features (e.g., Reminders, Indiamart) for each user.
+*   **Messaging Limits:** A 24-hour rolling window for daily message sending limits, which resets 24 hours after the last message was sent.
 *   **Configuration:** Users must provide their own OpenAI API key and Meta Template ID for WhatsApp messages. The system should gracefully handle missing configurations.
-*   **System Reliability:** Ensure messages are sent reliably and provide clear error feedback to the user for failed messages.
+*   **System Reliability:** Ensure messages are sent reliably and the application is scalable and free of critical bugs.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application with a React frontend and FastAPI backend. The application provides:
+A full-stack application with a React frontend and FastAPI backend. The application is in a stable, deployment-ready state and provides:
 *   User authentication with Admin and Regular user roles.
-*   A Reminder Bot to create and manage reminders via UI and WhatsApp, including support for recurring reminders.
-*   A full-featured Contact Manager to store contacts and groups, with an automated scheduler that sends birthday and anniversary wishes via WhatsApp.
-*   An admin panel for user and reminder management.
-*   A modular backend architecture and a refactored frontend with reusable components.
-*   A settings interface for users to configure API keys, templates, and automated message preferences.
+*   An admin panel to manage users, including setting daily message limits and toggling access to specific features for each user.
+*   A Reminder Bot to create and manage reminders, including support for recurring reminders.
+*   A Contact Manager to store contacts and groups, with an automated scheduler that sends birthday and anniversary wishes.
+*   An Indiamart Integration that receives new leads via a webhook, stores them, and supports sending automated template messages (including media headers).
+*   A robust daily message limit system based on a 24-hour rolling window.
+*   A refactored, cleaner header UI with dropdowns for better navigation.
+*   Settings interfaces for users to configure API keys, templates, and automated messages.
+*   A modular backend architecture that has been optimized to fix N+1 query issues and hardcoded URLs.
 
 **Last working item**:
-- **Last item agent was working:** The agent was debugging a critical issue where the application would receive a  or  error from the BizChat API when sending template messages. The user confirmed that templates with a different number of variables were failing. The agent correctly identified that the backend was sending a hardcoded number of template fields (e.g., , , ) instead of dynamically building the payload based on the selected template's actual variable count.
-- **Status:** IN PROGRESS
-- **Agent Testing Done:** N
-- **Which testing method agent to use?** backend testing agent. The agent should write a test to call the  function in  with mock reminders that use templates with 1, 2, and 3 variables respectively, and assert that the generated BizChat API payload is correct for each case.
+- **Last item agent was working:** The agent ran the  to check for deployment readiness. The agent identified four critical issues: an N+1 query problem, unbounded queries, and two instances of hardcoded URLs. The agent successfully fixed all four issues and re-ran the deployment agent, which confirmed that all critical blockers for deployment were resolved.
+- **Status:** USER VERIFICATION PENDING
+- **Agent Testing Done:** Y
+- **Which testing method agent to use?** NA (Testing is complete)
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Dynamic Template Field Submission (P0)**
-    -   **Description:** The application sends a hardcoded number of template variable fields (, , ) in the API payload to BizChat. This causes a  or  error when a user selects a template that requires fewer (or more) than three variables, making the template feature unreliable for many users.
-    -   **Attempted fixes:** The agent identified the root cause by analyzing the code and a user-provided working payload but has not yet implemented a code fix.
-    -   **Next debug checklist:**
-        1.  Modify the  function in .
-        2.  Locate the section where the  dictionary is constructed.
-        3.  Change the logic to dynamically generate the  array. It should iterate through the template variables provided (e.g., , ) and only add the corresponding dictionary to the  list if the value is not null or empty.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a critical bug preventing users from reliably using WhatsApp templates, which is a core function for sending messages outside the 24-hour window. Fixing it will make the reminder and automated messaging features fully operational with any approved Meta template.
-    -   **Status:** IN PROGRESS
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Backend
-    -   **Blocked on other issue:** None
+- None. All known issues have been addressed.
 
 **In progress Task List**:
 - None.
 
 **Upcoming and Future Tasks**
 - **Future Tasks:**
-    - **(P1) Add Voice Call Reminders:** The user expressed strong interest in adding voice call capabilities for reminders. The agent provided a detailed breakdown of options including Twilio, Plivo, and Exotel, as well as a hybrid approach using self-hosted STT/TTS. The user decided to skip that for now, making it a prime candidate for future development.
+    - **(P1) Indiamart Pull API:** The user considered fetching existing/historical leads from Indiamart using their Pull API but decided against it for now (not needed for now!). This can be implemented in the future to allow users to import their lead history.
+    - **(P2) Add Voice Call Reminders:** The user previously expressed interest in adding voice call capabilities for reminders. The user decided to skip that for now, making it a candidate for future development.
 
 **Completed work in this session**
-- **Contact Management System:** Implemented a complete Contacts feature allowing users to create/manage contacts and groups, and set up automated birthday/anniversary messages (, , ).
-- **Recurring Reminders:** Added full support for recurring reminders (daily, weekly, monthly, custom) in both the frontend UI and the backend scheduling logic.
-- **Frontend Refactoring:** Successfully refactored large components (, ) into smaller, reusable components and custom hooks, improving code maintainability.
-- **Template Guide UI:** Added a Template Guide tab to the Reminders page, which was later updated to display the user's specific approved template, guiding them on configuration.
-- **Bug Fix: AI Chatbot Behavior:** Fixed an issue where the AI would engage in general conversation by modifying the prompt in  to only handle reminder tasks.
-- **Bug Fix: Reminder Visibility:** Corrected a bug where querying reminders via WhatsApp would show reminders for all of a user's phone numbers instead of filtering by the sender's number.
-- **Improved Error Handling:** Enhanced the UI to show full, expandable error messages for failed reminders and improved backend error logging for the BizChat API.
-- **Comprehensive Testing:** Ran a full suite of functionality and security tests using the testing agent, all of which passed, and conducted a successful deployment health check.
+- **Critical Bug Fix:** Resolved the  error for WhatsApp template messages by implementing dynamic payload generation based on the template's variable count.
+- **Admin Feature Gating:** Implemented a system allowing admins to enable/disable features (Bulk Messages, Reminders, Contacts, Indiamart, etc.) for individual users from the admin dashboard.
+- **UI Refactoring:** Cleaned up the main header navigation, organizing links into a More dropdown to reduce clutter.
+- **Indiamart Integration (Push API):**
+    - Created backend endpoints () to handle webhook configuration and lead data.
+    - Implemented a service to process and store new leads from Indiamart.
+    - Built a new frontend page () for users to view incoming leads and configure automated WhatsApp responses.
+    - Enhanced the configuration to support up to 5 template variables and media headers (Image, Video, Document) with file upload capability.
+- **Daily Limit Logic Enhancement:**
+    - Fixed a bug preventing the daily message limit from updating correctly in the admin UI.
+    - Overhauled the daily limit reset mechanism from a fixed daily reset to a 24-hour rolling window that starts after the last message activity.
+    - Fixed a bug that prevented users from scheduling campaigns for future dates if their current day's limit was exhausted.
+- **Comprehensive Testing & Bug Fixes:**
+    - Ran a full-suite testing agent that discovered and fixed a critical  serialization bug in the Contacts API, which was causing 500 errors.
+- **Deployment Readiness:**
+    - Used the deployment agent to identify and fix 4 critical production issues: an N+1 query, an unbounded query, and two hardcoded URLs, making the application ready for deployment.
 
 **Earlier issues found/mentioned but not fixed**
 - None.
 
 **Known issue recurrence from previous fork**
-- None. The  issue from the previous fork was resolved and did not recur.
+- None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, MongoDB (), Pydantic, JWT, , , APScheduler for background jobs.
-- **Frontend:** React, , , Shadcn UI,  (toasts), .
-- **Architecture:** Modular service-oriented backend. Asynchronous background jobs for sending reminders and automated messages. Component-based, refactored React frontend.
+- **Backend:** FastAPI, MongoDB (), Pydantic, JWT, , , APScheduler.
+- **Frontend:** React, , , Shadcn UI, , .
+- **Architecture:** Modular service-oriented backend. Asynchronous background jobs. Component-based React frontend. The codebase has been hardened for production (e.g., fixed N+1 queries, removed hardcoded URLs).
 
 **key DB schema**
-- **users**: 
-- **reminders**:  (schema updated)
-- **reminder_numbers**: 
-- **reminder_settings**: 
-- **contacts**:  (new)
-- **contact_groups**:  (new)
-- **auto_message_settings**:  (new)
+- **users**:  (schema updated)
+- **reminders**: 
+- **contacts**: 
+- **indiamart_settings**:  (new)
+- **indiamart_leads**:  (new)
 
 **All files of reference**
-- : Contains the logic for sending reminders and needs to be fixed for the dynamic payload issue.
-- : Defines the logic for all WhatsApp interactions.
-- : The new UI for the contact management feature.
-- : The new API endpoints for the contact management feature.
-- : The new service that powers automated birthday/anniversary messages.
-- : Updated to include the new contact routes and start the auto-message scheduler.
-- : Recently refactored.
-- : Recently refactored.
+- : New route for admin-specific actions like managing user features.
+- : New routes for the Indiamart integration (webhook, settings, leads).
+- : New service containing the business logic for Indiamart integration.
+- : Updated with a utility function for the 24-hour rolling daily limit reset.
+- : New frontend page for the Indiamart feature.
+- : Updated to include UI for managing user features and daily limits.
+- : Updated with the refactored, cleaner header navigation.
+- : Updated to display the new 24-hour rolling reset time.
 
 **Areas that need refactoring**:
-- None. The previously identified refactoring tasks were completed in this session.
+- None.
 
 **key api endpoints**
-- : CRUD for reminders.
-- : Endpoint for all incoming WhatsApp commands.
-- : (NEW) CRUD for contacts.
-- : (NEW) CRUD for contact groups.
-- : (NEW) GET/POST for automated message settings.
+- : (NEW) PUT endpoint for updating a user's feature access.
+- : (NEW) POST endpoint for Indiamart to push new leads.
+- : (NEW) GET/POST for managing Indiamart integration settings.
+- : (NEW) GET endpoint to fetch stored Indiamart leads.
+- : (UPDATED) Now handles the 24-hour rolling reset of the daily message limit.
+- : (FIXED) Resolved  serialization error.
 
 **Critical Info for New Agent**
-- The immediate priority is fixing the  error when sending template messages. The issue is in . The payload construction for the BizChat API must be made dynamic to only include the  variables that a specific template requires. The current static approach is causing failures for any template not using exactly three variables.
-- Test credentials for admin and regular users are available to reproduce different user scenarios.
+- The application has been thoroughly tested and prepared for deployment. All critical bugs and performance issues identified by the testing and deployment agents have been fixed.
+- The immediate next step is likely deployment, as requested by the user. Await user confirmation to proceed with the .
+- The user has de-prioritized fetching historical Indiamart leads (Pull API) and voice call reminders. These should be treated as future backlog items unless the user brings them up again.
+- The daily message limit now operates on a 24-hour rolling window, resetting 24 hours after the last message activity. This logic is centralized in .
 
 **documents and test reports created in this job**
+- 
+- 
+- 
+- 
 -  (Continuously updated)
-- 
-- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Requests a Contact Manager to store user info (name, email, phone, DOB, anniversary) and send automated birthday/anniversary messages. (Status: IMPLEMENTED)
-2.  **User:** Confirms choices for the Contact Manager: use a template name field, provide a default message, allow contact groups, and show upcoming events on the dashboard. (Status: IMPLEMENTED)
-3.  **User:** Reports that a reminder was sent, but it was a self-typed message, not the approved Meta template. (Status: INVESTIGATED)
-4.  **User:** Provides the correct password for an account to help debug the template issue. (Status: ACKNOWLEDGED)
-5.  **User:** Provides an example of a working BizChat API payload. (Status: ACKNOWLEDGED, used for debugging)
-6.  **User:** Confirms that templates have a variable number of fields and asks the agent to ensure the payload is dynamic. Reports a  error code. (Status: ACKNOWLEDGED, root cause identified)
-7.  **User:** Asks for login passwords. (Status: PROVIDED)
-8.  **User:** Reports that messages are sometimes marked as sent but not received and that error codes are not fully visible. (Status: IMPLEMENTED - UI fixed to show full errors, backend logging improved).
-9.  **User:** Asks agent to test the whole app for bugs and security vulnerabilities. (Status: IMPLEMENTED - Testing agent was run successfully).
-10. **User:** Asks about adding voice calls for reminders and their cost, then asks about building a self-hosted solution. (Status: RESPONDED - user decided to skip for now).
+1.  **User:** Asks if the Indiamart integration gets existing inquiries or only new ones. (Status: ANSWERED - Push API gets new leads only).
+2.  **User:** Decides against implementing the Indiamart Pull API for now. (Status: ACKNOWLEDGED).
+3.  **User:** Requests a comprehensive, full-app test to find and fix all bugs. (Status: IMPLEMENTED - Testing agent was run).
+4.  **User:**  (after agent fixed bug found by testing agent). (Status: ACKNOWLEDGED).
+5.  **User:** Asks to call the deployer agent and run a health check for deployment readiness. (Status: IMPLEMENTED).
+6.  **User:** Asks about Indiamart variable count fields and adding media header options. (Status: IMPLEMENTED).
+7.  **User:** Reports the daily user limit is not updating on the admin page. (Status: IMPLEMENTED - Bug was fixed).
+8.  **User:** Clarifies that the available today count should reset after 24 hours. (Status: IMPLEMENTED - Logic was fixed).
+9.  **User:** Asks about scheduling with an exhausted daily limit and requests a time-based reset. (Status: IMPLEMENTED - Scheduling fixed, 24-hour rolling reset implemented).
+10. **User:** Confirms they want the 24-hour rolling window reset (option 2 is good). (Status: IMPLEMENTED).
 
 **Project Health Check:**
-- **Broken:** The WhatsApp template messaging feature is partially broken due to the static payload issue.
-- **Mocked:** None.
+- **Healthy:** The application is stable. All known critical bugs, performance bottlenecks, and deployment blockers have been resolved.
 
 **3rd Party Integrations**
 - **bizchatapi.in**: Used for sending all WhatsApp messages.
-- **OpenAI GPT-3.5-Turbo**: Used for parsing natural language for creating reminders. Requires a user-provided API key.
+- **OpenAI GPT-3.5-Turbo**: Used for parsing natural language for creating reminders.
+- **Indiamart Push API**: (NEW) For receiving new leads in real-time via webhooks.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES. A full functionality and security test was run and passed.
+- **Testing agent used after significant changes:** YES. The agent ran a comprehensive test suite which found and fixed a critical bug.
 - **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** , 
+- **Test files created:** 
 - **Known regressions:** None.
 
 **Credentials to test flow:**
 - **Admin User:**  / 
-- **Regular User:**  /  (or  / )
+- **Regular User:**  / 
 
 **What agent forgot to execute**
-- The agent correctly diagnosed the critical bug with dynamic template fields but did not proceed to implement the fix before the session ended. This is the highest priority P0 task for the next agent.</analysis>
+- Nothing. The agent was thorough and addressed all user requests and issues from the previous session, in addition to successfully implementing new features and preparing the app for deployment.</analysis>

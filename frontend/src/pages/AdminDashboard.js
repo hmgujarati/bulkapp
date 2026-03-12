@@ -20,6 +20,7 @@ const FEATURE_DEFINITIONS = {
   templates: { label: 'Templates', description: 'Message template library' },
   campaigns: { label: 'Campaigns', description: 'Campaign history & analytics' },
   indiamart: { label: 'Indiamart', description: 'Indiamart lead integration' },
+  chatbot: { label: 'Lead Chatbot', description: 'WhatsApp lead qualification chatbot' },
 };
 
 const AdminDashboard = ({ user, onLogout }) => {
@@ -108,7 +109,8 @@ const AdminDashboard = ({ user, onLogout }) => {
         contacts: true,
         templates: true,
         campaigns: true,
-        indiamart: false
+        indiamart: false,
+        chatbot: false
       }
     });
     setFeaturesDialogOpen(true);

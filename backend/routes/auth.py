@@ -58,7 +58,8 @@ async def login(credentials: UserLogin):
         "contacts": True,
         "templates": True,
         "campaigns": True,
-        "indiamart": False
+        "indiamart": False,
+        "chatbot": False
     }
     user_features = user.get('features', default_features)
     

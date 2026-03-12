@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import Reminders from './pages/Reminders';
 import Contacts from './pages/Contacts';
 import Indiamart from './pages/Indiamart';
+import ChatbotPage from './pages/ChatbotPage';
 import { Toaster } from '@/components/ui/sonner';
 import api from './utils/api';
 
@@ -206,6 +207,16 @@ const App = () => {
             element={
               user ? (
                 <Indiamart user={user} onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
+            path="/chatbot"
+            element={
+              user ? (
+                <ChatbotPage user={user} onLogout={handleLogout} />
               ) : (
                 <Navigate to="/login" />
               )

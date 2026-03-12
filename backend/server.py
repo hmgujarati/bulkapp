@@ -28,6 +28,7 @@ from routes.reminders import router as reminders_router
 from routes.webhook import router as webhook_router
 from routes.contacts import router as contacts_router
 from routes.indiamart import router as indiamart_router
+from routes.chatbot import router as chatbot_router
 
 # Import utilities
 from utils.database import db, close_db_connection
@@ -36,6 +37,7 @@ from models.schemas import User, Role, CampaignStatus
 from services.reminder_service import process_due_reminders
 from services.auto_message_service import process_auto_messages
 from services.indiamart_service import start_indiamart_scheduler
+from services.chatbot_service import start_chatbot_scheduler
 
 # Setup logging
 logging.basicConfig(
@@ -79,6 +81,7 @@ app.include_router(reminders_router, prefix="/api")
 app.include_router(webhook_router, prefix="/api")
 app.include_router(contacts_router, prefix="/api")
 app.include_router(indiamart_router, prefix="/api")
+app.include_router(chatbot_router, prefix="/api")
 
 # Mount static files for uploads
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
@@ -230,6 +233,10 @@ async def startup_event():
     # Start Indiamart lead message scheduler
     asyncio.create_task(start_indiamart_scheduler())
     logger.info("Indiamart lead scheduler started")
+    
+    # Start chatbot follow-up scheduler
+    asyncio.create_task(start_chatbot_scheduler())
+    logger.info("Chatbot follow-up scheduler started")
 
 
 @app.on_event("shutdown")

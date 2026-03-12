@@ -10,6 +10,7 @@ import re
 
 from models.reminder_schemas import Reminder, ReminderStatus, RecurrenceConfig, RecurrenceType
 from utils.database import db
+from services.chatbot_service import handle_chatbot_message
 
 logger = logging.getLogger(__name__)
 
@@ -501,6 +502,28 @@ async def handle_bizchat_webhook(request: Request):
         
         logger.info(f"Processing incoming message from {clean_phone}: {message_text}")
         
+        # === CHATBOT HANDLING ===
+        # Check if any user has chatbot enabled for this phone via reminder_numbers
+        # The chatbot intercepts messages before the reminder bot
+        number_record_for_chatbot = await db.reminder_numbers.find_one({"phone": clean_phone})
+        if not number_record_for_chatbot:
+            number_record_for_chatbot = await db.reminder_numbers.find_one({"phone": phone.replace('-', '').replace(' ', '')})
+        
+        if number_record_for_chatbot:
+            chatbot_user_id = number_record_for_chatbot['userId']
+            client_name = None
+            if 'contact' in body and body['contact']:
+                client_name = body['contact'].get('first_name', '')
+                last_name = body['contact'].get('last_name', '')
+                if last_name:
+                    client_name = f"{client_name} {last_name}".strip()
+            
+            chatbot_handled = await handle_chatbot_message(chatbot_user_id, clean_phone, message_text, client_name)
+            if chatbot_handled:
+                logger.info(f"Message handled by chatbot for user {chatbot_user_id}")
+                return {"status": "success", "handler": "chatbot"}
+        
+        # === REMINDER BOT HANDLING ===
         # Find the user associated with this phone number (check reminder_numbers)
         number_record = await db.reminder_numbers.find_one({"phone": clean_phone})
         

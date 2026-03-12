@@ -48,7 +48,8 @@ class User(BaseModel):
         "contacts": True,
         "templates": True,
         "campaigns": True,
-        "indiamart": False  # New feature - disabled by default
+        "indiamart": False,
+        "chatbot": False
     })
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

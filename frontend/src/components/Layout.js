@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
   MessageSquare, Send, FileText, History, Settings, LogOut, 
   Users, Menu, X, Bell, Contact, ChevronDown, LayoutDashboard,
-  Megaphone
+  Megaphone, Bot
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,6 +28,7 @@ const Layout = ({ children, user, onLogout }) => {
     templates: { name: 'My Templates', path: '/my-templates', icon: FileText },
     campaigns: { name: 'Campaigns', path: '/campaigns', icon: History },
     indiamart: { name: 'Indiamart Leads', path: '/indiamart', icon: Megaphone },
+    chatbot: { name: 'Lead Chatbot', path: '/chatbot', icon: Bot },
   };
 
   // Build navigation based on user's enabled features
