@@ -1,11 +1,12 @@
 """Chatbot routes - configuration, categories, products, flows, leads"""
-from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone
 from typing import Optional, List
 import logging
 import csv
 import io
+import os
 import uuid
 
 from utils.database import db
@@ -25,12 +26,25 @@ logger = logging.getLogger(__name__)
 # ============= SETTINGS =============
 
 @router.get("/settings")
-async def get_chatbot_settings(current_user=Depends(get_current_user)):
+async def get_chatbot_settings(request: Request, current_user=Depends(get_current_user)):
     settings = await db.chatbot_settings.find_one({"userId": current_user.userId}, {"_id": 0})
     if not settings:
         default = ChatbotSettings(userId=current_user.userId)
         await db.chatbot_settings.insert_one(default.model_dump())
         settings = default.model_dump()
+
+    # Generate webhook URL for this user
+    base_url = os.environ.get('APP_URL', '').rstrip('/')
+    if not base_url:
+        # Fallback to request URL but use the forwarded host if behind proxy
+        forwarded_host = request.headers.get('x-forwarded-host') or request.headers.get('host')
+        forwarded_proto = request.headers.get('x-forwarded-proto', 'https')
+        if forwarded_host:
+            base_url = f"{forwarded_proto}://{forwarded_host}"
+        else:
+            base_url = str(request.base_url).rstrip('/')
+    settings["webhookUrl"] = f"{base_url}/api/webhook/chatbot-webhook/{current_user.userId}"
+
     return settings
 
 

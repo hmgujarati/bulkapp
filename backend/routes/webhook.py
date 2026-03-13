@@ -503,8 +503,7 @@ async def handle_bizchat_webhook(request: Request):
         logger.info(f"Processing incoming message from {clean_phone}: {message_text}")
         
         # === CHATBOT HANDLING ===
-        # Check if any user has chatbot enabled for this phone via reminder_numbers
-        # The chatbot intercepts messages before the reminder bot
+        # First try to find the user via reminder_numbers (for business owner's own messages)
         number_record_for_chatbot = await db.reminder_numbers.find_one({"phone": clean_phone})
         if not number_record_for_chatbot:
             number_record_for_chatbot = await db.reminder_numbers.find_one({"phone": phone.replace('-', '').replace(' ', '')})
@@ -521,6 +520,24 @@ async def handle_bizchat_webhook(request: Request):
             chatbot_handled = await handle_chatbot_message(chatbot_user_id, clean_phone, message_text, client_name)
             if chatbot_handled:
                 logger.info(f"Message handled by chatbot for user {chatbot_user_id}")
+                return {"status": "success", "handler": "chatbot"}
+        
+        # Also check if there's an active chatbot conversation for this phone number
+        # (client may already be in a conversation started via /chatbot-webhook/{user_id})
+        active_conv = await db.chatbot_conversations.find_one({
+            "clientPhone": clean_phone,
+            "status": {"$in": ["active", "followup_pending"]}
+        })
+        if active_conv:
+            client_name = None
+            if 'contact' in body and body['contact']:
+                client_name = body['contact'].get('first_name', '')
+                last_name = body['contact'].get('last_name', '')
+                if last_name:
+                    client_name = f"{client_name} {last_name}".strip()
+            chatbot_handled = await handle_chatbot_message(active_conv['userId'], clean_phone, message_text, client_name)
+            if chatbot_handled:
+                logger.info(f"Message handled by active chatbot conversation for user {active_conv['userId']}")
                 return {"status": "success", "handler": "chatbot"}
         
         # === REMINDER BOT HANDLING ===
@@ -795,3 +812,82 @@ async def verify_webhook(request: Request):
     if 'hub.challenge' in params:
         return int(params['hub.challenge'])
     return {"status": "ok", "message": "Webhook endpoint active"}
+
+
+
+@router.post("/chatbot-webhook/{user_id}")
+async def handle_chatbot_webhook(user_id: str, request: Request):
+    """
+    Dedicated chatbot webhook endpoint. Each user gets a unique URL:
+    /api/webhook/chatbot-webhook/{user_id}
+    
+    Users configure this URL in their BizChat settings so that ALL incoming
+    client messages are routed to the chatbot for their account.
+    """
+    try:
+        body = await request.json()
+        logger.info(f"Chatbot webhook for user {user_id}: {json.dumps(body)[:500]}")
+        
+        # Verify user exists
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            return {"status": "error", "message": "Invalid user"}
+        
+        # Extract phone number
+        phone = None
+        if 'contact' in body and body['contact']:
+            phone = body['contact'].get('phone_number')
+        if not phone:
+            phone = body.get('phone_number') or body.get('from') or body.get('sender')
+        
+        # Extract message text
+        message_text = None
+        if 'message' in body and body['message']:
+            message_text = body['message'].get('body') or body['message'].get('text')
+        if not message_text:
+            message_text = body.get('message') or body.get('text') or body.get('body') or body.get('message_body')
+        
+        # Check if new message
+        is_new_message = True
+        if 'message' in body and body['message']:
+            is_new_message = body['message'].get('is_new_message', True)
+        
+        if not phone or not message_text:
+            return {"status": "ignored", "reason": "missing phone or message"}
+        
+        if not is_new_message:
+            return {"status": "ignored", "reason": "not a new message"}
+        
+        clean_phone = '+' + str(phone).replace('+', '').replace('-', '').replace(' ', '')
+        
+        # Extract client name
+        client_name = None
+        if 'contact' in body and body['contact']:
+            client_name = body['contact'].get('first_name', '')
+            last_name = body['contact'].get('last_name', '')
+            if last_name:
+                client_name = f"{client_name} {last_name}".strip()
+        
+        logger.info(f"Chatbot processing: user={user_id}, client={clean_phone}, msg={message_text}")
+        
+        handled = await handle_chatbot_message(user_id, clean_phone, message_text, client_name)
+        
+        if handled:
+            return {"status": "success", "handler": "chatbot"}
+        else:
+            return {"status": "ignored", "reason": "no matching trigger or chatbot not active"}
+    
+    except Exception as e:
+        logger.error(f"Chatbot webhook error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/chatbot-webhook/{user_id}")
+async def verify_chatbot_webhook(user_id: str, request: Request):
+    """Verify chatbot webhook endpoint"""
+    params = dict(request.query_params)
+    if 'challenge' in params:
+        return {"challenge": params['challenge']}
+    if 'hub.challenge' in params:
+        return int(params['hub.challenge'])
+    return {"status": "ok", "message": "Chatbot webhook active", "user_id": user_id}

@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Bot, Settings, Package, ListOrdered, Users2, Plus, Trash2, Edit2,
   Upload, Download, Search, GripVertical, Loader2, ChevronDown, ChevronUp,
-  Phone, FileText, BarChart3, Eye
+  Phone, FileText, BarChart3, Eye, Copy, Link
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -43,8 +43,42 @@ const SettingsTab = () => {
 
   if (!settings) return <div className="text-center py-8 text-slate-500">Loading...</div>;
 
+  const copyWebhookUrl = () => {
+    if (settings.webhookUrl) {
+      navigator.clipboard.writeText(settings.webhookUrl);
+      toast.success('Webhook URL copied!');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {settings.webhookUrl && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Link className="h-5 w-5 text-blue-600" /> Chatbot Webhook URL
+            </CardTitle>
+            <CardDescription>Configure this URL in your BizChat settings to receive client messages</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Input
+                data-testid="webhook-url"
+                readOnly
+                value={settings.webhookUrl}
+                className="font-mono text-xs bg-white"
+              />
+              <Button variant="outline" size="sm" onClick={copyWebhookUrl} className="shrink-0">
+                <Copy className="h-4 w-4 mr-1" /> Copy
+              </Button>
+            </div>
+            <p className="text-xs text-blue-600 mt-2">
+              Set this as your webhook URL in BizChat so all incoming client messages trigger the chatbot.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
