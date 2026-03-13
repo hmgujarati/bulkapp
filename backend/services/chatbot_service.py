@@ -222,56 +222,114 @@ async def handle_chatbot_message(user_id: str, client_phone: str, message_text: 
     if not token or not vendor_uid:
         return False
 
-    # Find or create conversation
+    # Find existing active conversation
     conversation = await find_active_conversation(user_id, client_phone)
 
     now = datetime.now(timezone.utc)
 
     if not conversation:
-        # Check if user typed a stop/exit command - no active conv, ignore
+        # No active conversation - check if message matches a category trigger keyword
         if message_text.lower().strip() in ['stop', 'exit', 'quit', 'cancel', 'bye']:
             return False
 
-        # Start new conversation
+        # Find category by trigger keyword match
         categories = await db.chatbot_categories.find({
             "userId": user_id, "isActive": True
         }).sort("sortOrder", 1).to_list(100)
 
         if not categories:
+            return False
+
+        msg_lower = message_text.lower().strip()
+        matched_category = None
+
+        for cat in categories:
+            triggers = cat.get('triggerKeywords', [])
+            for trigger in triggers:
+                if trigger.lower().strip() == msg_lower:
+                    matched_category = cat
+                    break
+                # Also allow partial/contains match
+                if trigger.lower().strip() in msg_lower or msg_lower in trigger.lower().strip():
+                    matched_category = cat
+                    break
+            if matched_category:
+                break
+
+        if not matched_category:
+            # No trigger matched - don't handle this message, let reminder bot process it
+            return False
+
+        # Trigger matched! Start conversation directly with this category
+        greeting = settings.get('greetingMessage', 'Hello! Welcome.')
+
+        # Check product count for matched category
+        product_count = await db.chatbot_products.count_documents({
+            "userId": user_id, "categoryId": matched_category['id'], "isActive": True
+        })
+
+        if product_count == 0:
+            # No products - create conversation and go straight to questions
+            conv = ChatbotConversation(
+                userId=user_id,
+                clientPhone=client_phone,
+                clientName=client_name,
+                categoryId=matched_category['id'],
+                categoryName=matched_category['name'],
+                currentStep="question_0"
+            )
+            await db.chatbot_conversations.insert_one(conv.model_dump())
+            await send_first_question(conv.model_dump(), matched_category['id'], token, vendor_uid, greeting_prefix=f"{greeting}\n\n")
+        elif product_count <= 10:
+            # Few products - show list
+            products = await db.chatbot_products.find({
+                "userId": user_id, "categoryId": matched_category['id'], "isActive": True
+            }).to_list(10)
+
+            conv = ChatbotConversation(
+                userId=user_id,
+                clientPhone=client_phone,
+                clientName=client_name,
+                categoryId=matched_category['id'],
+                categoryName=matched_category['name'],
+                currentStep="product_select"
+            )
+            await db.chatbot_conversations.insert_one(conv.model_dump())
+
+            body_text = f"{greeting}\n\nYou're interested in *{matched_category['name']}*. Please select a product:"
+            if len(products) <= 3:
+                buttons = {}
+                for i, prod in enumerate(products[:3], 1):
+                    buttons[str(i)] = prod['name'][:20]
+                await send_interactive_buttons(
+                    client_phone, body_text, buttons, token, vendor_uid,
+                    header_text=matched_category['name']
+                )
+            else:
+                sections = build_product_list_sections(products)
+                await send_interactive_list(
+                    client_phone, body_text, "View Products", sections, token, vendor_uid,
+                    header_text=matched_category['name']
+                )
+        else:
+            # Many products - ask to search
+            conv = ChatbotConversation(
+                userId=user_id,
+                clientPhone=client_phone,
+                clientName=client_name,
+                categoryId=matched_category['id'],
+                categoryName=matched_category['name'],
+                currentStep="product_search"
+            )
+            await db.chatbot_conversations.insert_one(conv.model_dump())
             await send_text_message(
                 client_phone,
-                "Sorry, we don't have any products configured yet. Please try again later.",
+                f"{greeting}\n\n"
+                f"You're interested in *{matched_category['name']}*. We have {product_count} products.\n\n"
+                f"Type the first few letters of the product you're looking for, and I'll find it for you.",
                 token, vendor_uid
             )
-            return True
 
-        # Create conversation
-        conv = ChatbotConversation(
-            userId=user_id,
-            clientPhone=client_phone,
-            clientName=client_name,
-            currentStep="category_select"
-        )
-        await db.chatbot_conversations.insert_one(conv.model_dump())
-
-        # Send greeting + category selection
-        greeting = settings.get('greetingMessage', 'Hello! Welcome.')
-        body_text = f"{greeting}\n\nPlease select a category you're interested in:"
-
-        if len(categories) <= 3:
-            buttons = {}
-            for i, cat in enumerate(categories[:3], 1):
-                buttons[str(i)] = cat['name'][:20]
-            await send_interactive_buttons(
-                client_phone, body_text, buttons, token, vendor_uid,
-                header_text="Welcome", footer_text="Select a category"
-            )
-        else:
-            sections = build_category_list_sections(categories)
-            await send_interactive_list(
-                client_phone, body_text, "View Categories", sections, token, vendor_uid,
-                header_text="Welcome", footer_text="Select a category"
-            )
         return True
 
     # Existing conversation - process based on current step
@@ -604,7 +662,7 @@ async def process_product_selection(conversation: dict, message_text: str, setti
     )
 
 
-async def send_first_question(conversation: dict, category_id: str, token: str, vendor_uid: str, product_name: Optional[str] = None):
+async def send_first_question(conversation: dict, category_id: str, token: str, vendor_uid: str, product_name: Optional[str] = None, greeting_prefix: str = ""):
     """Send the first qualifying question"""
     user_id = conversation['userId']
     client_phone = conversation['clientPhone']
@@ -625,13 +683,16 @@ async def send_first_question(conversation: dict, category_id: str, token: str, 
         completion_msg = (settings or {}).get('completionMessage', 'Thank you! Our team will contact you shortly.')
         if product_name:
             completion_msg = f"Great choice - *{product_name}*!\n\n{completion_msg}"
+        completion_msg = greeting_prefix + completion_msg
         await send_text_message(client_phone, completion_msg, token, vendor_uid)
         await create_lead_from_conversation(conv_id)
         return
 
     # Send first question
     question = questions[0]
-    prefix = f"Great choice - *{product_name}*!\n\n" if product_name else ""
+    prefix = greeting_prefix
+    if product_name:
+        prefix += f"Great choice - *{product_name}*!\n\n"
     await send_question(client_phone, question, token, vendor_uid, prefix=prefix)
 
 

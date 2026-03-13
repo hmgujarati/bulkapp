@@ -32,6 +32,7 @@ class ChatbotCategory(BaseModel):
     userId: str
     name: str
     description: Optional[str] = None
+    triggerKeywords: List[str] = Field(default_factory=list)  # Keywords that trigger this category's flow
     employeePhone: Optional[str] = None  # Employee WhatsApp number for lead routing
     employeeName: Optional[str] = None
     isActive: bool = True
@@ -43,6 +44,7 @@ class ChatbotCategory(BaseModel):
 class CategoryCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    triggerKeywords: List[str] = Field(default_factory=list)
     employeePhone: Optional[str] = None
     employeeName: Optional[str] = None
 
@@ -50,6 +52,7 @@ class CategoryCreate(BaseModel):
 class CategoryUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    triggerKeywords: Optional[List[str]] = None
     employeePhone: Optional[str] = None
     employeeName: Optional[str] = None
     isActive: Optional[bool] = None

@@ -178,7 +178,8 @@ const CategoriesTab = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCat, setEditingCat] = useState(null);
-  const [form, setForm] = useState({ name: '', description: '', employeePhone: '', employeeName: '' });
+  const [form, setForm] = useState({ name: '', description: '', employeePhone: '', employeeName: '', triggerKeywords: [] });
+  const [newTrigger, setNewTrigger] = useState('');
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -192,13 +193,15 @@ const CategoriesTab = () => {
 
   const openCreate = () => {
     setEditingCat(null);
-    setForm({ name: '', description: '', employeePhone: '', employeeName: '' });
+    setForm({ name: '', description: '', employeePhone: '', employeeName: '', triggerKeywords: [] });
+    setNewTrigger('');
     setDialogOpen(true);
   };
 
   const openEdit = (cat) => {
     setEditingCat(cat);
-    setForm({ name: cat.name, description: cat.description || '', employeePhone: cat.employeePhone || '', employeeName: cat.employeeName || '' });
+    setForm({ name: cat.name, description: cat.description || '', employeePhone: cat.employeePhone || '', employeeName: cat.employeeName || '', triggerKeywords: cat.triggerKeywords || [] });
+    setNewTrigger('');
     setDialogOpen(true);
   };
 
@@ -264,6 +267,13 @@ const CategoriesTab = () => {
                       </span>
                     )}
                   </div>
+                  {cat.triggerKeywords?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {cat.triggerKeywords.map((kw, i) => (
+                        <Badge key={i} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">{kw}</Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(cat)}>
@@ -300,6 +310,41 @@ const CategoriesTab = () => {
             <div className="space-y-2">
               <Label>Employee WhatsApp (with country code)</Label>
               <Input value={form.employeePhone} onChange={(e) => setForm({ ...form, employeePhone: e.target.value })} placeholder="e.g. 919876543210" />
+            </div>
+            <div className="space-y-2">
+              <Label>Trigger Keywords *</Label>
+              <p className="text-xs text-slate-500">When a client sends any of these words, this category's chatbot flow starts</p>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {form.triggerKeywords.map((kw, i) => (
+                  <Badge key={i} variant="secondary" className="flex items-center gap-1">
+                    {kw}
+                    <button onClick={() => setForm({ ...form, triggerKeywords: form.triggerKeywords.filter((_, idx) => idx !== i) })} className="ml-1 text-red-500 hover:text-red-700">&times;</button>
+                  </Badge>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  data-testid="trigger-keyword-input"
+                  value={newTrigger}
+                  onChange={(e) => setNewTrigger(e.target.value)}
+                  placeholder="e.g. phones, catalog, info..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (newTrigger.trim()) {
+                        setForm({ ...form, triggerKeywords: [...form.triggerKeywords, newTrigger.trim()] });
+                        setNewTrigger('');
+                      }
+                    }
+                  }}
+                />
+                <Button variant="outline" size="sm" onClick={() => {
+                  if (newTrigger.trim()) {
+                    setForm({ ...form, triggerKeywords: [...form.triggerKeywords, newTrigger.trim()] });
+                    setNewTrigger('');
+                  }
+                }}>Add</Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
