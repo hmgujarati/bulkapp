@@ -43,7 +43,7 @@ async def get_chatbot_settings(request: Request, current_user=Depends(get_curren
             base_url = f"{forwarded_proto}://{forwarded_host}"
         else:
             base_url = str(request.base_url).rstrip('/')
-    settings["webhookUrl"] = f"{base_url}/api/webhook/chatbot-webhook/{current_user.userId}"
+    settings["webhookUrl"] = f"{base_url}/api/webhook/{current_user.userId}"
 
     return settings
 

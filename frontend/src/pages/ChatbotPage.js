@@ -56,9 +56,9 @@ const SettingsTab = () => {
         <Card className="border-blue-200 bg-blue-50/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Link className="h-5 w-5 text-blue-600" /> Chatbot Webhook URL
+              <Link className="h-5 w-5 text-blue-600" /> Your Webhook URL
             </CardTitle>
-            <CardDescription>Configure this URL in your BizChat settings to receive client messages</CardDescription>
+            <CardDescription>Set this single URL in your BizChat settings - it handles chatbot, reminders, and all features</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -73,7 +73,7 @@ const SettingsTab = () => {
               </Button>
             </div>
             <p className="text-xs text-blue-600 mt-2">
-              Set this as your webhook URL in BizChat so all incoming client messages trigger the chatbot.
+              One webhook for everything. Configure this in BizChat and all incoming messages will be routed automatically.
             </p>
           </CardContent>
         </Card>

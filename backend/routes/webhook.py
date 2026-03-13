@@ -458,321 +458,311 @@ async def send_whatsapp_reply(phone: str, message: str, token: str, vendor_uid: 
 
 @router.post("/bizchat")
 async def handle_bizchat_webhook(request: Request):
-    """Handle incoming WhatsApp messages from BizChat"""
+    """Legacy webhook - handles messages from users with registered reminder numbers"""
     try:
-        # Get the raw body
         body = await request.json()
-        logger.info(f"Received webhook: {json.dumps(body)[:500]}")
-        
-        # BizChat webhook format:
-        # {
-        #   "contact": {"phone_number": "918200663263", "first_name": "...", ...},
-        #   "message": {"body": "message text", "is_new_message": true, ...}
-        # }
-        
-        # Extract phone number - try multiple possible locations
-        phone = None
-        if 'contact' in body and body['contact']:
-            phone = body['contact'].get('phone_number')
-        if not phone:
-            phone = body.get('phone_number') or body.get('from') or body.get('sender')
-        
-        # Extract message text - try multiple possible locations
-        message_text = None
-        if 'message' in body and body['message']:
-            message_text = body['message'].get('body') or body['message'].get('text')
-        if not message_text:
-            message_text = body.get('message') or body.get('text') or body.get('body') or body.get('message_body')
-        
-        # Check if it's a new message (ignore status updates)
-        is_new_message = True
-        if 'message' in body and body['message']:
-            is_new_message = body['message'].get('is_new_message', True)
-        
+        logger.info(f"Received legacy webhook: {json.dumps(body)[:500]}")
+
+        phone, message_text, is_new_message, client_name = extract_message_data(body)
+
         if not phone or not message_text:
-            logger.warning(f"Missing phone or message in webhook data")
             return {"status": "ignored", "reason": "missing phone or message"}
-        
         if not is_new_message:
-            logger.info(f"Ignoring non-new message (status update)")
             return {"status": "ignored", "reason": "not a new message"}
-        
-        # Clean phone number
+
         clean_phone = '+' + str(phone).replace('+', '').replace('-', '').replace(' ', '')
-        
-        logger.info(f"Processing incoming message from {clean_phone}: {message_text}")
-        
-        # === CHATBOT HANDLING ===
-        # First try to find the user via reminder_numbers (for business owner's own messages)
-        number_record_for_chatbot = await db.reminder_numbers.find_one({"phone": clean_phone})
-        if not number_record_for_chatbot:
-            number_record_for_chatbot = await db.reminder_numbers.find_one({"phone": phone.replace('-', '').replace(' ', '')})
-        
-        if number_record_for_chatbot:
-            chatbot_user_id = number_record_for_chatbot['userId']
-            client_name = None
-            if 'contact' in body and body['contact']:
-                client_name = body['contact'].get('first_name', '')
-                last_name = body['contact'].get('last_name', '')
-                if last_name:
-                    client_name = f"{client_name} {last_name}".strip()
-            
-            chatbot_handled = await handle_chatbot_message(chatbot_user_id, clean_phone, message_text, client_name)
-            if chatbot_handled:
-                logger.info(f"Message handled by chatbot for user {chatbot_user_id}")
-                return {"status": "success", "handler": "chatbot"}
-        
-        # Also check if there's an active chatbot conversation for this phone number
-        # (client may already be in a conversation started via /chatbot-webhook/{user_id})
-        active_conv = await db.chatbot_conversations.find_one({
-            "clientPhone": clean_phone,
-            "status": {"$in": ["active", "followup_pending"]}
-        })
-        if active_conv:
-            client_name = None
-            if 'contact' in body and body['contact']:
-                client_name = body['contact'].get('first_name', '')
-                last_name = body['contact'].get('last_name', '')
-                if last_name:
-                    client_name = f"{client_name} {last_name}".strip()
-            chatbot_handled = await handle_chatbot_message(active_conv['userId'], clean_phone, message_text, client_name)
-            if chatbot_handled:
-                logger.info(f"Message handled by active chatbot conversation for user {active_conv['userId']}")
-                return {"status": "success", "handler": "chatbot"}
-        
-        # === REMINDER BOT HANDLING ===
-        # Find the user associated with this phone number (check reminder_numbers)
+
+        # Find user via reminder_numbers
         number_record = await db.reminder_numbers.find_one({"phone": clean_phone})
-        
         if not number_record:
-            # Try without + prefix
             number_record = await db.reminder_numbers.find_one({"phone": phone.replace('-', '').replace(' ', '')})
-        
+
         if not number_record:
-            logger.info(f"Phone {clean_phone} not registered for reminders")
+            # Also check active chatbot conversations
+            active_conv = await db.chatbot_conversations.find_one({
+                "clientPhone": clean_phone,
+                "status": {"$in": ["active", "followup_pending"]}
+            })
+            if active_conv:
+                return await process_user_message(active_conv['userId'], clean_phone, message_text, client_name, body)
             return {"status": "ignored", "reason": "phone not registered"}
-        
+
         user_id = number_record['userId']
-        user_timezone = number_record.get('timezone', 'Asia/Kolkata')
-        
-        # Get user's settings (OpenAI key) and BizChat credentials
-        settings = await db.reminder_settings.find_one({"userId": user_id})
+        return await process_user_message(user_id, clean_phone, message_text, client_name, body)
+
+    except Exception as e:
+        logger.error(f"Legacy webhook error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.post("/{user_id}")
+async def handle_universal_webhook(user_id: str, request: Request):
+    """
+    Universal webhook - single URL per user that handles ALL features:
+    chatbot, reminders, and any future features.
+    URL: /api/webhook/{user_id}
+    """
+    try:
+        # Verify user exists
         user = await db.users.find_one({"id": user_id})
-        
-        # Check for commands first (before requiring API key)
-        message_lower = message_text.lower().strip()
-        
-        # Handle LIST commands
-        if any(cmd in message_lower for cmd in LIST_COMMANDS):
-            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                # Pass the phone number to filter reminders for this specific number only
-                reminders_list = await get_reminders_list(user_id, user_timezone, clean_phone)
-                await send_whatsapp_reply(
-                    clean_phone,
-                    reminders_list,
-                    user['bizChatToken'],
-                    user['bizChatVendorUID']
-                )
-            return {"status": "success", "action": "list_reminders"}
-        
-        # Handle HELP commands
-        if any(cmd in message_lower for cmd in HELP_COMMANDS):
-            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                help_msg = await get_help_message()
-                await send_whatsapp_reply(
-                    clean_phone,
-                    help_msg,
-                    user['bizChatToken'],
-                    user['bizChatVendorUID']
-                )
-            return {"status": "success", "action": "help"}
-        
-        # Handle DELETE ALL with search term (e.g., "delete all call", "cancel all meetings")
-        delete_all_search_match = re.match(r'^(delete|cancel|remove)\s+all\s+(.+)$', message_lower)
-        if delete_all_search_match:
-            search_text = delete_all_search_match.group(2).strip()
-            if search_text and search_text not in ['reminders', 'my reminders']:
-                if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                    delete_msg = await delete_all_matching_reminders(user_id, search_text, clean_phone)
-                    await send_whatsapp_reply(
-                        clean_phone,
-                        delete_msg,
-                        user['bizChatToken'],
-                        user['bizChatVendorUID']
-                    )
-                return {"status": "success", "action": "delete_all_matching", "search": search_text}
-        
-        # Handle DELETE ALL commands (no search term)
-        if any(cmd in message_lower for cmd in DELETE_ALL_COMMANDS):
-            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                delete_msg = await delete_all_reminders(user_id, clean_phone)
-                await send_whatsapp_reply(
-                    clean_phone,
-                    delete_msg,
-                    user['bizChatToken'],
-                    user['bizChatVendorUID']
-                )
-            return {"status": "success", "action": "delete_all"}
-        
-        # Handle DELETE specific reminder (e.g., "delete 1", "delete 2", "cancel 1")
-        delete_match = re.match(r'^(delete|cancel|remove)\s*#?\s*(\d+)$', message_lower)
-        if delete_match:
-            reminder_num = int(delete_match.group(2))
-            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                # First try to delete from search context
-                delete_msg = await delete_from_search_context(user_id, reminder_num)
-                if not delete_msg:
-                    # No search context, use regular delete by list number
-                    delete_msg = await delete_reminder_by_number(user_id, reminder_num, user_timezone, clean_phone)
-                await send_whatsapp_reply(
-                    clean_phone,
-                    delete_msg,
-                    user['bizChatToken'],
-                    user['bizChatVendorUID']
-                )
-            return {"status": "success", "action": "delete_reminder", "number": reminder_num}
-        
-        # Handle just a number (after search results)
-        if message_lower.isdigit():
-            reminder_num = int(message_lower)
-            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                # Try to delete from search context first
-                delete_msg = await delete_from_search_context(user_id, reminder_num)
-                if delete_msg:
-                    await send_whatsapp_reply(
-                        clean_phone,
-                        delete_msg,
-                        user['bizChatToken'],
-                        user['bizChatVendorUID']
-                    )
-                    return {"status": "success", "action": "delete_from_search", "number": reminder_num}
-            # If no search context, fall through to create reminder
-        
-        # Handle natural language cancel (e.g., "cancel bni reminder", "delete call diku", "remove reminder to call")
-        # More flexible pattern to catch variations like "cancle", "remove reminders to", etc.
-        cancel_patterns = [
-            r'^(delete|cancel|cancle|remove)\s+(?:reminders?\s+)?(?:to\s+)?(.+)$',
-            r'^(?:please\s+)?(delete|cancel|cancle|remove)\s+(.+)$',
-        ]
-        
-        for pattern in cancel_patterns:
-            cancel_name_match = re.match(pattern, message_lower)
-            if cancel_name_match:
-                search_text = cancel_name_match.group(2).strip()
-                # Clean up common words
-                search_text = re.sub(r'^(the\s+|my\s+|reminder\s+to\s+|reminder\s+for\s+)', '', search_text)
-                # Don't match if it's just "all" (handled above)
-                if search_text and search_text not in ['all', 'all reminders', 'everything', 'all my reminders']:
-                    if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                        delete_msg = await delete_reminder_by_name(user_id, search_text, user_timezone, clean_phone)
-                        await send_whatsapp_reply(
-                            clean_phone,
-                            delete_msg,
-                            user['bizChatToken'],
-                            user['bizChatVendorUID']
-                        )
-                    return {"status": "success", "action": "delete_by_name", "search": search_text}
-                break
-        
-        # For creating reminders, we need the OpenAI API key
-        if not settings or not settings.get('openaiApiKey'):
-            logger.warning(f"User {user_id} has no OpenAI API key configured")
-            # Send reply if possible
-            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-                await send_whatsapp_reply(
-                    clean_phone,
-                    "⚠️ Reminder bot is not fully configured. Please set up your OpenAI API key in the dashboard.\n\n💡 You can still use:\n• \"show reminders\" - View your reminders\n• \"help\" - See available commands",
-                    user['bizChatToken'],
-                    user['bizChatVendorUID']
-                )
-            return {"status": "error", "reason": "no API key configured"}
-        
-        # Parse the message using OpenAI
-        parsed = await parse_reminder_from_message(
-            message_text,
-            user_timezone,
-            settings['openaiApiKey']
-        )
-        
-        # Check if it's a reminder request
-        if not parsed.get('is_reminder', False):
-            # Not a reminder - just ignore, don't reply to random messages
-            logger.info(f"Message from {clean_phone} was not a reminder request, ignoring")
-            return {"status": "ignored", "reason": "not a reminder request"}
-        
-        # Create the reminder
-        try:
-            scheduled_dt = datetime.fromisoformat(parsed['scheduled_time'])
-        except:
-            scheduled_dt = datetime.now(timezone.utc)
-        
-        # Parse recurrence from AI response
-        recurrence_data = parsed.get('recurrence', {})
-        recurrence_config = None
-        if recurrence_data and recurrence_data.get('type') != 'none':
-            recurrence_config = RecurrenceConfig(
-                type=RecurrenceType(recurrence_data.get('type', 'none')),
-                interval=recurrence_data.get('interval', 1),
-                weekdays=recurrence_data.get('weekdays', [])
-            )
-        
-        reminder = Reminder(
-            userId=user_id,
-            numberId=number_record['id'],
-            phone=clean_phone,
-            contactName=number_record['name'],
-            title=parsed.get('title', 'Reminder')[:50],
-            message=parsed.get('message', message_text),
-            originalInput=message_text,
-            scheduledAt=scheduled_dt,
-            timezone=user_timezone,
-            recurrence=recurrence_config,
-            useTemplate=True if settings.get('defaultTemplateId') else False,
-            templateId=settings.get('defaultTemplateId')
-        )
-        
-        reminder_dict = reminder.model_dump()
-        reminder_dict['createdAt'] = reminder_dict['createdAt'].isoformat()
-        reminder_dict['updatedAt'] = reminder_dict['updatedAt'].isoformat()
-        reminder_dict['scheduledAt'] = reminder_dict['scheduledAt'].isoformat()
-        # Convert recurrence to dict for MongoDB
-        if reminder_dict.get('recurrence'):
-            reminder_dict['recurrence'] = {
-                'type': reminder_dict['recurrence']['type'].value if hasattr(reminder_dict['recurrence']['type'], 'value') else reminder_dict['recurrence']['type'],
-                'interval': reminder_dict['recurrence']['interval'],
-                'weekdays': reminder_dict['recurrence']['weekdays']
-            }
-        
-        await db.reminders.insert_one(reminder_dict)
-        logger.info(f"Created reminder from WhatsApp: {reminder.id}")
-        
-        # Send confirmation
+        if not user:
+            return {"status": "error", "message": "Invalid user"}
+
+        body = await request.json()
+        logger.info(f"Universal webhook for user {user_id}: {json.dumps(body)[:500]}")
+
+        phone, message_text, is_new_message, client_name = extract_message_data(body)
+
+        if not phone or not message_text:
+            return {"status": "ignored", "reason": "missing phone or message"}
+        if not is_new_message:
+            return {"status": "ignored", "reason": "not a new message"}
+
+        clean_phone = '+' + str(phone).replace('+', '').replace('-', '').replace(' ', '')
+
+        return await process_user_message(user_id, clean_phone, message_text, client_name, body)
+
+    except Exception as e:
+        logger.error(f"Universal webhook error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/bizchat")
+async def verify_bizchat_webhook(request: Request):
+    """Verify legacy webhook endpoint"""
+    params = dict(request.query_params)
+    if 'challenge' in params:
+        return {"challenge": params['challenge']}
+    if 'hub.challenge' in params:
+        return int(params['hub.challenge'])
+    return {"status": "ok", "message": "Webhook endpoint active"}
+
+
+@router.get("/{user_id}")
+async def verify_universal_webhook(user_id: str, request: Request):
+    """Verify universal webhook endpoint"""
+    params = dict(request.query_params)
+    if 'challenge' in params:
+        return {"challenge": params['challenge']}
+    if 'hub.challenge' in params:
+        return int(params['hub.challenge'])
+    return {"status": "ok", "message": "Webhook active", "user_id": user_id}
+
+
+def extract_message_data(body: dict):
+    """Extract phone, message text, is_new_message, and client name from webhook payload"""
+    phone = None
+    if 'contact' in body and body['contact']:
+        phone = body['contact'].get('phone_number')
+    if not phone:
+        phone = body.get('phone_number') or body.get('from') or body.get('sender')
+
+    message_text = None
+    if 'message' in body and body['message']:
+        message_text = body['message'].get('body') or body['message'].get('text')
+    if not message_text:
+        message_text = body.get('message') or body.get('text') or body.get('body') or body.get('message_body')
+
+    is_new_message = True
+    if 'message' in body and body['message']:
+        is_new_message = body['message'].get('is_new_message', True)
+
+    client_name = None
+    if 'contact' in body and body['contact']:
+        client_name = body['contact'].get('first_name', '')
+        last_name = body['contact'].get('last_name', '')
+        if last_name:
+            client_name = f"{client_name} {last_name}".strip()
+
+    return phone, message_text, is_new_message, client_name
+
+
+async def process_user_message(user_id: str, clean_phone: str, message_text: str, client_name: str, body: dict):
+    """
+    Core message processor. Routes messages through features in priority order:
+    1. Chatbot (trigger keywords / active conversation)
+    2. Reminder Bot (commands and natural language)
+    3. Future features can be added here
+    """
+    logger.info(f"Processing message for user {user_id} from {clean_phone}: {message_text}")
+
+    # === 1. CHATBOT ===
+    chatbot_handled = await handle_chatbot_message(user_id, clean_phone, message_text, client_name)
+    if chatbot_handled:
+        logger.info(f"Message handled by chatbot for user {user_id}")
+        return {"status": "success", "handler": "chatbot"}
+
+    # === 2. REMINDER BOT ===
+    # Check if user has a reminder number registered for this phone
+    number_record = await db.reminder_numbers.find_one({"phone": clean_phone})
+    if not number_record:
+        number_record = await db.reminder_numbers.find_one({"phone": clean_phone.replace('+', '')})
+
+    if not number_record or number_record['userId'] != user_id:
+        # Phone not registered for reminders under this user - nothing more to do
+        logger.info(f"No reminder number for {clean_phone} under user {user_id}")
+        return {"status": "ignored", "reason": "no matching handler"}
+
+    user = await db.users.find_one({"id": user_id})
+    user_timezone = number_record.get('timezone', 'Asia/Kolkata')
+    settings = await db.reminder_settings.find_one({"userId": user_id})
+
+    message_lower = message_text.lower().strip()
+
+    # Handle LIST commands
+    if any(cmd in message_lower for cmd in LIST_COMMANDS):
         if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
-            # Format the scheduled time nicely
-            import pytz
-            tz = pytz.timezone(user_timezone)
-            local_time = scheduled_dt.astimezone(tz)
-            formatted_time = local_time.strftime("%I:%M %p").lstrip('0')
-            formatted_date = local_time.strftime("%d %b %Y")
-            
-            # Add recurrence info to confirmation
-            recurrence_text = ""
-            if recurrence_config and recurrence_config.type != RecurrenceType.NONE:
-                if recurrence_config.type == RecurrenceType.DAILY:
-                    recurrence_text = "\n🔄 Repeats: Daily"
-                elif recurrence_config.type == RecurrenceType.WEEKLY:
-                    if recurrence_config.weekdays:
-                        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-                        day_names = [days[d] for d in recurrence_config.weekdays]
-                        recurrence_text = f"\n🔄 Repeats: Every {', '.join(day_names)}"
-                    else:
-                        recurrence_text = "\n🔄 Repeats: Weekly"
-                elif recurrence_config.type == RecurrenceType.MONTHLY:
-                    recurrence_text = "\n🔄 Repeats: Monthly"
-                elif recurrence_config.type == RecurrenceType.CUSTOM:
-                    recurrence_text = f"\n🔄 Repeats: Every {recurrence_config.interval} days"
-            
-            confirmation = f"""✅ *Reminder Set!*
+            reminders_list = await get_reminders_list(user_id, user_timezone, clean_phone)
+            await send_whatsapp_reply(clean_phone, reminders_list, user['bizChatToken'], user['bizChatVendorUID'])
+        return {"status": "success", "action": "list_reminders"}
+
+    # Handle HELP commands
+    if any(cmd in message_lower for cmd in HELP_COMMANDS):
+        if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+            help_msg = await get_help_message()
+            await send_whatsapp_reply(clean_phone, help_msg, user['bizChatToken'], user['bizChatVendorUID'])
+        return {"status": "success", "action": "help"}
+
+    # Handle DELETE ALL with search term
+    delete_all_search_match = re.match(r'^(delete|cancel|remove)\s+all\s+(.+)$', message_lower)
+    if delete_all_search_match:
+        search_text = delete_all_search_match.group(2).strip()
+        if search_text and search_text not in ['reminders', 'my reminders']:
+            if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+                delete_msg = await delete_all_matching_reminders(user_id, search_text, clean_phone)
+                await send_whatsapp_reply(clean_phone, delete_msg, user['bizChatToken'], user['bizChatVendorUID'])
+            return {"status": "success", "action": "delete_all_matching", "search": search_text}
+
+    # Handle DELETE ALL commands
+    if any(cmd in message_lower for cmd in DELETE_ALL_COMMANDS):
+        if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+            delete_msg = await delete_all_reminders(user_id, clean_phone)
+            await send_whatsapp_reply(clean_phone, delete_msg, user['bizChatToken'], user['bizChatVendorUID'])
+        return {"status": "success", "action": "delete_all"}
+
+    # Handle DELETE specific reminder
+    delete_match = re.match(r'^(delete|cancel|remove)\s*#?\s*(\d+)$', message_lower)
+    if delete_match:
+        reminder_num = int(delete_match.group(2))
+        if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+            delete_msg = await delete_from_search_context(user_id, reminder_num)
+            if not delete_msg:
+                delete_msg = await delete_reminder_by_number(user_id, reminder_num, user_timezone, clean_phone)
+            await send_whatsapp_reply(clean_phone, delete_msg, user['bizChatToken'], user['bizChatVendorUID'])
+        return {"status": "success", "action": "delete_reminder", "number": reminder_num}
+
+    # Handle just a number (after search results)
+    if message_lower.isdigit():
+        reminder_num = int(message_lower)
+        if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+            delete_msg = await delete_from_search_context(user_id, reminder_num)
+            if delete_msg:
+                await send_whatsapp_reply(clean_phone, delete_msg, user['bizChatToken'], user['bizChatVendorUID'])
+                return {"status": "success", "action": "delete_from_search", "number": reminder_num}
+
+    # Handle natural language cancel
+    cancel_patterns = [
+        r'^(delete|cancel|cancle|remove)\s+(?:reminders?\s+)?(?:to\s+)?(.+)$',
+        r'^(?:please\s+)?(delete|cancel|cancle|remove)\s+(.+)$',
+    ]
+    for pattern in cancel_patterns:
+        cancel_name_match = re.match(pattern, message_lower)
+        if cancel_name_match:
+            search_text = cancel_name_match.group(2).strip()
+            search_text = re.sub(r'^(the\s+|my\s+|reminder\s+to\s+|reminder\s+for\s+)', '', search_text)
+            if search_text and search_text not in ['all', 'all reminders', 'everything', 'all my reminders']:
+                if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+                    delete_msg = await delete_reminder_by_name(user_id, search_text, user_timezone, clean_phone)
+                    await send_whatsapp_reply(clean_phone, delete_msg, user['bizChatToken'], user['bizChatVendorUID'])
+                return {"status": "success", "action": "delete_by_name", "search": search_text}
+            break
+
+    # For creating reminders, we need the OpenAI API key
+    if not settings or not settings.get('openaiApiKey'):
+        if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+            await send_whatsapp_reply(
+                clean_phone,
+                "⚠️ Reminder bot is not fully configured. Please set up your OpenAI API key in the dashboard.\n\n💡 You can still use:\n• \"show reminders\" - View your reminders\n• \"help\" - See available commands",
+                user['bizChatToken'], user['bizChatVendorUID']
+            )
+        return {"status": "error", "reason": "no API key configured"}
+
+    # Parse the message using OpenAI
+    parsed = await parse_reminder_from_message(message_text, user_timezone, settings['openaiApiKey'])
+
+    if not parsed.get('is_reminder', False):
+        logger.info(f"Message from {clean_phone} was not a reminder request, ignoring")
+        return {"status": "ignored", "reason": "not a reminder request"}
+
+    # Create the reminder
+    try:
+        scheduled_dt = datetime.fromisoformat(parsed['scheduled_time'])
+    except:
+        scheduled_dt = datetime.now(timezone.utc)
+
+    recurrence_data = parsed.get('recurrence', {})
+    recurrence_config = None
+    if recurrence_data and recurrence_data.get('type') != 'none':
+        recurrence_config = RecurrenceConfig(
+            type=RecurrenceType(recurrence_data.get('type', 'none')),
+            interval=recurrence_data.get('interval', 1),
+            weekdays=recurrence_data.get('weekdays', [])
+        )
+
+    reminder = Reminder(
+        userId=user_id,
+        numberId=number_record['id'],
+        phone=clean_phone,
+        contactName=number_record['name'],
+        title=parsed.get('title', 'Reminder')[:50],
+        message=parsed.get('message', message_text),
+        originalInput=message_text,
+        scheduledAt=scheduled_dt,
+        timezone=user_timezone,
+        recurrence=recurrence_config,
+        useTemplate=True if settings.get('defaultTemplateId') else False,
+        templateId=settings.get('defaultTemplateId')
+    )
+
+    reminder_dict = reminder.model_dump()
+    reminder_dict['createdAt'] = reminder_dict['createdAt'].isoformat()
+    reminder_dict['updatedAt'] = reminder_dict['updatedAt'].isoformat()
+    reminder_dict['scheduledAt'] = reminder_dict['scheduledAt'].isoformat()
+    if reminder_dict.get('recurrence'):
+        reminder_dict['recurrence'] = {
+            'type': reminder_dict['recurrence']['type'].value if hasattr(reminder_dict['recurrence']['type'], 'value') else reminder_dict['recurrence']['type'],
+            'interval': reminder_dict['recurrence']['interval'],
+            'weekdays': reminder_dict['recurrence']['weekdays']
+        }
+
+    await db.reminders.insert_one(reminder_dict)
+    logger.info(f"Created reminder from WhatsApp: {reminder.id}")
+
+    # Send confirmation
+    if user and user.get('bizChatToken') and user.get('bizChatVendorUID'):
+        import pytz
+        tz = pytz.timezone(user_timezone)
+        local_time = scheduled_dt.astimezone(tz)
+        formatted_time = local_time.strftime("%I:%M %p").lstrip('0')
+        formatted_date = local_time.strftime("%d %b %Y")
+
+        recurrence_text = ""
+        if recurrence_config and recurrence_config.type != RecurrenceType.NONE:
+            if recurrence_config.type == RecurrenceType.DAILY:
+                recurrence_text = "\n🔄 Repeats: Daily"
+            elif recurrence_config.type == RecurrenceType.WEEKLY:
+                if recurrence_config.weekdays:
+                    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                    day_names = [days[d] for d in recurrence_config.weekdays]
+                    recurrence_text = f"\n🔄 Repeats: Every {', '.join(day_names)}"
+                else:
+                    recurrence_text = "\n🔄 Repeats: Weekly"
+            elif recurrence_config.type == RecurrenceType.MONTHLY:
+                recurrence_text = "\n🔄 Repeats: Monthly"
+            elif recurrence_config.type == RecurrenceType.CUSTOM:
+                recurrence_text = f"\n🔄 Repeats: Every {recurrence_config.interval} days"
+
+        confirmation = f"""✅ *Reminder Set!*
 
 📝 {parsed.get('message', message_text)}
 
@@ -782,112 +772,15 @@ async def handle_bizchat_webhook(request: Request):
 I'll remind you at the scheduled time!
 
 _- Your WhatsApp Assistant_"""
-            
-            await send_whatsapp_reply(
-                clean_phone,
-                confirmation,
-                user['bizChatToken'],
-                user['bizChatVendorUID']
-            )
-        
-        return {
-            "status": "success",
-            "reminder_id": reminder.id,
-            "scheduled_at": reminder_dict['scheduledAt'],
-            "recurrence": recurrence_data if recurrence_data else None
-        }
-        
-    except Exception as e:
-        logger.error(f"Webhook error: {str(e)}")
-        return {"status": "error", "message": str(e)}
+
+        await send_whatsapp_reply(clean_phone, confirmation, user['bizChatToken'], user['bizChatVendorUID'])
+
+    return {
+        "status": "success",
+        "reminder_id": reminder.id,
+        "scheduled_at": reminder_dict['scheduledAt'],
+        "recurrence": recurrence_data if recurrence_data else None
+    }
 
 
-@router.get("/bizchat")
-async def verify_webhook(request: Request):
-    """Verify webhook endpoint (some services require GET for verification)"""
-    # Return challenge if provided
-    params = dict(request.query_params)
-    if 'challenge' in params:
-        return {"challenge": params['challenge']}
-    if 'hub.challenge' in params:
-        return int(params['hub.challenge'])
-    return {"status": "ok", "message": "Webhook endpoint active"}
-
-
-
-@router.post("/chatbot-webhook/{user_id}")
-async def handle_chatbot_webhook(user_id: str, request: Request):
-    """
-    Dedicated chatbot webhook endpoint. Each user gets a unique URL:
-    /api/webhook/chatbot-webhook/{user_id}
-    
-    Users configure this URL in their BizChat settings so that ALL incoming
-    client messages are routed to the chatbot for their account.
-    """
-    try:
-        body = await request.json()
-        logger.info(f"Chatbot webhook for user {user_id}: {json.dumps(body)[:500]}")
-        
-        # Verify user exists
-        user = await db.users.find_one({"id": user_id})
-        if not user:
-            return {"status": "error", "message": "Invalid user"}
-        
-        # Extract phone number
-        phone = None
-        if 'contact' in body and body['contact']:
-            phone = body['contact'].get('phone_number')
-        if not phone:
-            phone = body.get('phone_number') or body.get('from') or body.get('sender')
-        
-        # Extract message text
-        message_text = None
-        if 'message' in body and body['message']:
-            message_text = body['message'].get('body') or body['message'].get('text')
-        if not message_text:
-            message_text = body.get('message') or body.get('text') or body.get('body') or body.get('message_body')
-        
-        # Check if new message
-        is_new_message = True
-        if 'message' in body and body['message']:
-            is_new_message = body['message'].get('is_new_message', True)
-        
-        if not phone or not message_text:
-            return {"status": "ignored", "reason": "missing phone or message"}
-        
-        if not is_new_message:
-            return {"status": "ignored", "reason": "not a new message"}
-        
-        clean_phone = '+' + str(phone).replace('+', '').replace('-', '').replace(' ', '')
-        
-        # Extract client name
-        client_name = None
-        if 'contact' in body and body['contact']:
-            client_name = body['contact'].get('first_name', '')
-            last_name = body['contact'].get('last_name', '')
-            if last_name:
-                client_name = f"{client_name} {last_name}".strip()
-        
-        logger.info(f"Chatbot processing: user={user_id}, client={clean_phone}, msg={message_text}")
-        
-        handled = await handle_chatbot_message(user_id, clean_phone, message_text, client_name)
-        
-        if handled:
-            return {"status": "success", "handler": "chatbot"}
-        else:
-            return {"status": "ignored", "reason": "no matching trigger or chatbot not active"}
-    
-    except Exception as e:
-        logger.error(f"Chatbot webhook error: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-
-@router.get("/chatbot-webhook/{user_id}")
-async def verify_chatbot_webhook(user_id: str, request: Request):
-    """Verify chatbot webhook endpoint"""
-    params = dict(request.query_params)
-    if 'challenge' in params:
-        return {"challenge": params['challenge']}
-    if 'hub.challenge' in params:
-        return int(params['hub.challenge'])
-    return {"status": "ok", "message": "Chatbot webhook active", "user_id": user_id}
+# === 3. FUTURE FEATURES can be added to process_user_message above ===
