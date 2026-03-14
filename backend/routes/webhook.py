@@ -463,12 +463,15 @@ async def handle_bizchat_webhook(request: Request):
         body = await request.json()
         logger.info(f"Received legacy webhook: {json.dumps(body)[:500]}")
 
-        phone, message_text, is_new_message, client_name = extract_message_data(body)
+        phone, message_text, is_new_message, client_name, message_id = extract_message_data(body)
 
         if not phone or not message_text:
             return {"status": "ignored", "reason": "missing phone or message"}
         if not is_new_message:
             return {"status": "ignored", "reason": "not a new message"}
+        if is_duplicate_message(message_id):
+            logger.info(f"Duplicate message {message_id} ignored")
+            return {"status": "ignored", "reason": "duplicate message"}
 
         clean_phone = '+' + str(phone).replace('+', '').replace('-', '').replace(' ', '')
 
@@ -511,12 +514,15 @@ async def handle_universal_webhook(user_id: str, request: Request):
         body = await request.json()
         logger.info(f"Universal webhook for user {user_id}: {json.dumps(body)[:500]}")
 
-        phone, message_text, is_new_message, client_name = extract_message_data(body)
+        phone, message_text, is_new_message, client_name, message_id = extract_message_data(body)
 
         if not phone or not message_text:
             return {"status": "ignored", "reason": "missing phone or message"}
         if not is_new_message:
             return {"status": "ignored", "reason": "not a new message"}
+        if is_duplicate_message(message_id):
+            logger.info(f"Duplicate message {message_id} ignored")
+            return {"status": "ignored", "reason": "duplicate message"}
 
         clean_phone = '+' + str(phone).replace('+', '').replace('-', '').replace(' ', '')
 
@@ -550,7 +556,7 @@ async def verify_universal_webhook(user_id: str, request: Request):
 
 
 def extract_message_data(body: dict):
-    """Extract phone, message text, is_new_message, and client name from webhook payload"""
+    """Extract phone, message text, is_new_message, message_id, and client name from webhook payload"""
     phone = None
     if 'contact' in body and body['contact']:
         phone = body['contact'].get('phone_number')
@@ -567,6 +573,11 @@ def extract_message_data(body: dict):
     if 'message' in body and body['message']:
         is_new_message = body['message'].get('is_new_message', True)
 
+    # Extract WhatsApp message ID for deduplication
+    message_id = None
+    if 'message' in body and body['message']:
+        message_id = body['message'].get('whatsapp_message_id')
+
     client_name = None
     if 'contact' in body and body['contact']:
         client_name = body['contact'].get('first_name', '')
@@ -574,7 +585,31 @@ def extract_message_data(body: dict):
         if last_name:
             client_name = f"{client_name} {last_name}".strip()
 
-    return phone, message_text, is_new_message, client_name
+    return phone, message_text, is_new_message, client_name, message_id
+
+
+# In-memory deduplication cache (TTL-based)
+_processed_message_ids = {}
+_DEDUP_TTL_SECONDS = 30
+
+
+def is_duplicate_message(message_id: str) -> bool:
+    """Check if this message was already processed (prevents duplicate webhooks)"""
+    if not message_id:
+        return False
+
+    now = datetime.now(timezone.utc).timestamp()
+
+    # Clean old entries
+    expired = [mid for mid, ts in _processed_message_ids.items() if now - ts > _DEDUP_TTL_SECONDS]
+    for mid in expired:
+        del _processed_message_ids[mid]
+
+    if message_id in _processed_message_ids:
+        return True
+
+    _processed_message_ids[message_id] = now
+    return False
 
 
 async def process_user_message(user_id: str, clean_phone: str, message_text: str, client_name: str, body: dict):

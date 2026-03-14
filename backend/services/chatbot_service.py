@@ -43,7 +43,7 @@ async def send_interactive_buttons(
     token: str, vendor_uid: str,
     header_text: Optional[str] = None, footer_text: Optional[str] = None
 ) -> bool:
-    """Send interactive button message (max 3 buttons)"""
+    """Send interactive button message (max 3 buttons). Falls back to text if API rejects."""
     try:
         clean_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
         if not clean_phone.startswith('91') and len(clean_phone) == 10:
@@ -54,18 +54,38 @@ async def send_interactive_buttons(
             payload = {
                 "phone_number": clean_phone,
                 "interactive_type": "button",
-                "header_type": "text",
-                "header_text": header_text or "",
                 "body_text": body_text,
-                "footer_text": footer_text or "",
                 "buttons": buttons
             }
+            # Only include header/footer if they have actual content
+            if header_text:
+                payload["header_type"] = "text"
+                payload["header_text"] = header_text
+            if footer_text:
+                payload["footer_text"] = footer_text
+
             response = await client.post(url, json=payload, timeout=30.0)
-            logger.info(f"Interactive buttons to {clean_phone}: {response.status_code}")
-            return response.status_code in [200, 201]
+            if response.status_code in [200, 201]:
+                logger.info(f"Interactive buttons to {clean_phone}: {response.status_code}")
+                return True
+
+            # Log the error response for debugging
+            logger.warning(f"Interactive buttons failed ({response.status_code}): {response.text[:300]}")
+
+            # Fallback to text message with numbered options
+            options_text = "\n".join([f"{k}. {v}" for k, v in buttons.items()])
+            fallback_msg = f"{body_text}\n\n{options_text}\n\n_Reply with the number of your choice_"
+            return await send_text_message(clean_phone, fallback_msg, token, vendor_uid)
+
     except Exception as e:
         logger.error(f"Error sending interactive buttons: {e}")
-        return False
+        # Fallback to text
+        try:
+            options_text = "\n".join([f"{k}. {v}" for k, v in buttons.items()])
+            fallback_msg = f"{body_text}\n\n{options_text}\n\n_Reply with the number of your choice_"
+            return await send_text_message(phone, fallback_msg, token, vendor_uid)
+        except:
+            return False
 
 
 async def send_interactive_list(
@@ -73,7 +93,7 @@ async def send_interactive_list(
     sections: Dict[str, Any], token: str, vendor_uid: str,
     header_text: Optional[str] = None, footer_text: Optional[str] = None
 ) -> bool:
-    """Send interactive list message"""
+    """Send interactive list message. Falls back to text if API rejects."""
     try:
         clean_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
         if not clean_phone.startswith('91') and len(clean_phone) == 10:
@@ -84,18 +104,41 @@ async def send_interactive_list(
             payload = {
                 "phone_number": clean_phone,
                 "interactive_type": "list",
-                "header_type": "text",
-                "header_text": header_text or "",
                 "body_text": body_text,
-                "footer_text": footer_text or "",
                 "list_data": {
                     "button_text": button_text,
                     "sections": sections
                 }
             }
+            if header_text:
+                payload["header_type"] = "text"
+                payload["header_text"] = header_text
+            if footer_text:
+                payload["footer_text"] = footer_text
+
             response = await client.post(url, json=payload, timeout=30.0)
-            logger.info(f"Interactive list to {clean_phone}: {response.status_code}")
-            return response.status_code in [200, 201]
+            if response.status_code in [200, 201]:
+                logger.info(f"Interactive list to {clean_phone}: {response.status_code}")
+                return True
+
+            # Log error and fallback
+            logger.warning(f"Interactive list failed ({response.status_code}): {response.text[:300]}")
+
+            # Fallback: build a numbered text list
+            items = []
+            idx = 1
+            for sec_key, sec in sections.items():
+                for row_key, row in sec.get('rows', {}).items():
+                    title = row.get('title', '')
+                    desc = row.get('description', '')
+                    line = f"{idx}. {title}"
+                    if desc:
+                        line += f" - {desc}"
+                    items.append(line)
+                    idx += 1
+            fallback_msg = f"{body_text}\n\n" + "\n".join(items) + "\n\n_Reply with the number of your choice_"
+            return await send_text_message(clean_phone, fallback_msg, token, vendor_uid)
+
     except Exception as e:
         logger.error(f"Error sending interactive list: {e}")
         return False
