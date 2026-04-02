@@ -1,0 +1,146 @@
+{
+  "summary": "Comprehensive full-app testing completed. 41/41 backend API tests passed (100%). All frontend pages and features verified working. Fixed bug: 'chatbot' feature was missing from valid_features list in /api/users/{user_id}/features endpoint.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_full_app_api.py",
+    "/app/test_reports/pytest/full_app_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "bug_fixes_applied": [
+    {
+      "file": "/app/backend/routes/users.py",
+      "issue": "The 'chatbot' feature was missing from the valid_features list in the PUT /api/users/{user_id}/features endpoint. This caused 400 errors when trying to update the chatbot feature via API.",
+      "fix": "Added 'chatbot' to valid_features list and default features dict"
+    }
+  ],
+  "tests_summary": {
+    "auth_tests": {
+      "tests_passed": 6,
+      "covered": [
+        "POST /api/auth/login - Admin login success",
+        "POST /api/auth/login - User login success",
+        "POST /api/auth/login - Invalid credentials rejected (401)",
+        "GET /api/auth/me - Get current user with token",
+        "GET /api/auth/me - Unauthorized without token",
+        "POST /api/auth/login-as/{user_id} - Admin can login as user"
+      ]
+    },
+    "admin_tests": {
+      "tests_passed": 5,
+      "covered": [
+        "POST /api/auth/login-as/{user_id} - Non-admin rejected (403)",
+        "POST /api/auth/login-as/{user_id} - 404 for non-existent user",
+        "GET /api/users - Admin can list all users",
+        "PUT /api/users/{user_id}/features - Admin can update features including chatbot",
+        "PUT /api/users/{user_id}/limit - Admin can update daily limit"
+      ]
+    },
+    "chatbot_tests": {
+      "tests_passed": 18,
+      "covered": [
+        "GET /api/chatbot/settings - Returns settings with webhookUrl",
+        "PUT /api/chatbot/settings - Update settings",
+        "POST /api/chatbot/categories - Create with triggerKeywords",
+        "GET /api/chatbot/categories - List with product/question counts",
+        "PUT /api/chatbot/categories/{id} - Update category",
+        "DELETE /api/chatbot/categories/{id} - Delete with cascade",
+        "POST /api/chatbot/products - Create product",
+        "GET /api/chatbot/products - List with filters and search",
+        "POST /api/chatbot/products/bulk-upload - CSV upload",
+        "DELETE /api/chatbot/products/{id} - Delete product",
+        "POST /api/chatbot/questions - Create question",
+        "GET /api/chatbot/questions/{category_id} - List in order",
+        "PUT /api/chatbot/questions/reorder/{category_id} - Reorder",
+        "DELETE /api/chatbot/questions/{id} - Delete question",
+        "GET /api/chatbot/leads - List with filters",
+        "GET /api/chatbot/leads - Status filter",
+        "GET /api/chatbot/leads/export - Export CSV",
+        "GET /api/chatbot/stats - Get statistics"
+      ]
+    },
+    "webhook_tests": {
+      "tests_passed": 5,
+      "covered": [
+        "GET /api/webhook/{user_id} - Verify universal webhook",
+        "GET /api/webhook/bizchat - Verify legacy webhook",
+        "POST /api/webhook/{user_id} - Ignores is_new_message=false",
+        "POST /api/webhook/{user_id} - Deduplicates same whatsapp_message_id",
+        "POST /api/webhook/bizchat - Legacy webhook POST works"
+      ]
+    },
+    "other_tests": {
+      "tests_passed": 7,
+      "covered": [
+        "GET /api/health - Health check",
+        "POST /api/campaigns/{id}/retry-failed - 404 for non-existent",
+        "GET /api/contacts - List contacts",
+        "POST /api/contacts - Create contact",
+        "GET /api/reminders - List reminders",
+        "GET /api/indiamart/settings - Get settings",
+        "Cleanup test data"
+      ]
+    }
+  },
+  "frontend_tests": {
+    "login_page": "PASS - Login form loads with email/password inputs and Sign In button",
+    "admin_dashboard": "PASS - Shows users with Login As, Manage Features, Pause, Delete actions",
+    "login_as_feature": "PASS - Admin can click Login As to switch to user account, redirects to user dashboard",
+    "chatbot_page": "PASS - Loads with 5 tabs (Settings, Categories, Products, Flows, Leads)",
+    "chatbot_settings_tab": "PASS - Shows webhook URL with copy button, chatbot toggle, messages config",
+    "chatbot_categories_tab": "PASS - Shows Add Category button, empty state message",
+    "chatbot_products_tab": "PASS - Shows CSV Upload, Add Product, category filter, search",
+    "chatbot_flows_tab": "PASS - Shows question management, requires categories first",
+    "chatbot_leads_tab": "PASS - Shows lead stats (Total, New, Qualified, Contacted), filters, Export CSV",
+    "campaign_history": "PASS - Shows campaigns with stats, View Details, Delete buttons",
+    "settings_page": "PASS - Shows Webhook URL section with setup instructions, profile, API config, password change"
+  },
+  "updated_files": [
+    "/app/backend/routes/users.py",
+    "/app/backend/tests/test_full_app_api.py"
+  ],
+  "success_rate": {
+    "backend": "100% (41/41 tests passed)",
+    "frontend": "100% (all pages and features verified)"
+  },
+  "test_credentials": {
+    "admin": {
+      "email": "bizchatapi@gmail.com",
+      "password": "adminpassword"
+    },
+    "user": {
+      "email": "rapidexpresstechnologies@gmail.com",
+      "password": "admin",
+      "user_id": "61b4ea2d-4358-4cf9-be71-cc0f92433d6f"
+    }
+  },
+  "seed_data_creation": "Created and cleaned up TEST_ prefixed categories, products, questions, and contacts during testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Full app testing completed. All features working: Auth (login, login-as), Admin (user management, features, limits), Chatbot (settings, categories, products, questions, leads, stats, webhook URL), Webhooks (universal and legacy), Campaigns (retry-failed), Contacts, Reminders, Indiamart. Bug fixed: 'chatbot' was missing from valid_features in users.py. The chatbot feature requires 'chatbot: true' in user features to show Lead Chatbot in navigation More dropdown.",
+  "features_verified": [
+    "Auth: Login (admin/user), Login-As (admin only), Get current user",
+    "Admin: List users, Update features (including chatbot), Update daily limit",
+    "Chatbot Settings: GET/PUT with webhookUrl",
+    "Chatbot Categories: CRUD with triggerKeywords, cascade delete",
+    "Chatbot Products: CRUD with filters, search, CSV bulk upload",
+    "Chatbot Questions: CRUD with reorder",
+    "Chatbot Leads: List with filters, stats, CSV export",
+    "Chatbot Stats: Categories, products, leads, active conversations",
+    "Universal Webhook: POST/GET with deduplication, is_new_message check",
+    "Legacy Webhook: POST/GET /bizchat still works",
+    "Campaigns: Retry failed messages endpoint",
+    "Contacts: List, Create",
+    "Reminders: List",
+    "Indiamart: Get settings",
+    "Frontend: All pages load correctly with proper UI elements"
+  ]
+}

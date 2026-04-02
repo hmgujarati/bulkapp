@@ -85,7 +85,7 @@ async def set_user_limit(user_id: str, limit_data: UserLimitUpdate, current_user
 async def update_user_features(user_id: str, features: dict, current_user = Depends(require_admin)):
     """Update user's feature access (admin only)"""
     # Validate features dict
-    valid_features = ["bulk_messages", "reminders", "contacts", "templates", "campaigns", "indiamart"]
+    valid_features = ["bulk_messages", "reminders", "contacts", "templates", "campaigns", "indiamart", "chatbot"]
     for key in features.keys():
         if key not in valid_features:
             raise HTTPException(status_code=400, detail=f"Invalid feature: {key}")
@@ -101,7 +101,8 @@ async def update_user_features(user_id: str, features: dict, current_user = Depe
         "contacts": True,
         "templates": True,
         "campaigns": True,
-        "indiamart": False
+        "indiamart": False,
+        "chatbot": False
     })
     existing_features.update(features)
     
