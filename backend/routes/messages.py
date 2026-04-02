@@ -36,75 +36,89 @@ async def send_whatsapp_message(
     template_name: str,
     token: str,
     vendor_uid: str,
-    recipient_data: Dict[str, Any]
+    recipient_data: Dict[str, Any],
+    http_client: httpx.AsyncClient = None
 ) -> Dict[str, Any]:
     """Send a WhatsApp message via BizChat API"""
     try:
-        async with httpx.AsyncClient() as client:
-            url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
-            
-            # Build payload according to BizChat API documentation
-            payload = {
-                "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
-                "template_name": template_name,
-                "template_language": recipient_data.get("template_language", "en_US")
-            }
-            
-            # Add direct field_1 through field_5 parameters (only if they have values)
-            recipient_name = recipient_data.get('name', '')
-            
-            for i in range(1, 6):
-                field_key = f"field_{i}"
-                if field_key in recipient_data and recipient_data[field_key]:
-                    value = str(recipient_data[field_key]).strip()
-                    if value:
-                        # Replace {name} placeholder with actual name
-                        if '{name}' in value and recipient_name:
-                            value = value.replace('{name}', recipient_name)
-                        payload[field_key] = value
-            
-            # Add media headers if present
-            if recipient_data.get('header_image'):
-                payload['header_image'] = recipient_data['header_image']
-            if recipient_data.get('header_video'):
-                payload['header_video'] = recipient_data['header_video']
-            if recipient_data.get('header_document'):
-                payload['header_document'] = recipient_data['header_document']
-            if recipient_data.get('header_document_name'):
-                payload['header_document_name'] = recipient_data['header_document_name']
-            if recipient_data.get('header_field_1'):
-                payload['header_field_1'] = recipient_data['header_field_1']
-            
-            # Add location if present
-            if recipient_data.get('location_latitude'):
-                payload['location_latitude'] = recipient_data['location_latitude']
-            if recipient_data.get('location_longitude'):
-                payload['location_longitude'] = recipient_data['location_longitude']
-            if recipient_data.get('location_name'):
-                payload['location_name'] = recipient_data['location_name']
-            if recipient_data.get('location_address'):
-                payload['location_address'] = recipient_data['location_address']
-            
-            logger.info(f"Sending to BizChat - Phone: {phone}, Template: {template_name}")
-            logger.info(f"Full payload: {payload}")
-            
-            response = await client.post(url, json=payload, timeout=30.0)
-            
-            logger.info(f"BizChat Response: Status {response.status_code}")
-            logger.info(f"BizChat Response Body: {response.text[:500]}")
-            
-            if response.status_code in [200, 201]:
-                data = response.json()
-                # Check if response indicates actual success
-                if data.get('result') == 'failed':
-                    error_msg = data.get('message', 'Unknown error from BizChat')
-                    logger.error(f"BizChat returned failure: {error_msg}")
+        url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
+        
+        # Build payload according to BizChat API documentation
+        payload = {
+            "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
+            "template_name": template_name,
+            "template_language": recipient_data.get("template_language", "en_US")
+        }
+        
+        # Add direct field_1 through field_5 parameters (only if they have values)
+        recipient_name = recipient_data.get('name', '')
+        
+        for i in range(1, 6):
+            field_key = f"field_{i}"
+            if field_key in recipient_data and recipient_data[field_key]:
+                value = str(recipient_data[field_key]).strip()
+                if value:
+                    # Replace {name} placeholder with actual name
+                    if '{name}' in value and recipient_name:
+                        value = value.replace('{name}', recipient_name)
+                    payload[field_key] = value
+        
+        # Add media headers if present
+        if recipient_data.get('header_image'):
+            payload['header_image'] = recipient_data['header_image']
+        if recipient_data.get('header_video'):
+            payload['header_video'] = recipient_data['header_video']
+        if recipient_data.get('header_document'):
+            payload['header_document'] = recipient_data['header_document']
+        if recipient_data.get('header_document_name'):
+            payload['header_document_name'] = recipient_data['header_document_name']
+        if recipient_data.get('header_field_1'):
+            payload['header_field_1'] = recipient_data['header_field_1']
+        
+        # Add location if present
+        if recipient_data.get('location_latitude'):
+            payload['location_latitude'] = recipient_data['location_latitude']
+        if recipient_data.get('location_longitude'):
+            payload['location_longitude'] = recipient_data['location_longitude']
+        if recipient_data.get('location_name'):
+            payload['location_name'] = recipient_data['location_name']
+        if recipient_data.get('location_address'):
+            payload['location_address'] = recipient_data['location_address']
+        
+        logger.info(f"Sending to BizChat - Phone: {phone}, Template: {template_name}")
+        
+        # Use shared client if provided, otherwise create one
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                if http_client:
+                    response = await http_client.post(url, json=payload, timeout=30.0)
+                else:
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(url, json=payload, timeout=30.0)
+                
+                if response.status_code in [200, 201]:
+                    data = response.json()
+                    if data.get('result') == 'failed':
+                        error_msg = data.get('message', 'Unknown error from BizChat')
+                        logger.error(f"BizChat returned failure: {error_msg}")
+                        return {"success": False, "error": error_msg}
+                    return {"success": True, "data": data}
+                else:
+                    error_msg = f"HTTP {response.status_code}: {response.text[:500]}"
+                    logger.error(f"BizChat API Error: {error_msg}")
                     return {"success": False, "error": error_msg}
-                return {"success": True, "data": data}
-            else:
-                error_msg = f"HTTP {response.status_code}: {response.text[:500]}"
-                logger.error(f"BizChat API Error: {error_msg}")
-                return {"success": False, "error": error_msg}
+            except Exception as e:
+                error_str = str(e)
+                if 'SSL' in error_str or 'Connection' in error_str or 'timeout' in error_str.lower():
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 2
+                        logger.warning(f"Retrying message to {phone} after SSL/connection error (attempt {attempt + 1}): {error_str[:100]}")
+                        await asyncio.sleep(wait_time)
+                        continue
+                raise
+        
+        return {"success": False, "error": "Max retries exceeded"}
     except Exception as e:
         error_msg = f"Exception sending message: {str(e)}"
         logger.error(error_msg)
@@ -112,7 +126,7 @@ async def send_whatsapp_message(
 
 
 async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
-    """Process campaign with rate limiting (29 messages/second)"""
+    """Process campaign with rate limiting (29 messages/second) and connection pooling"""
     from utils.daily_limit import check_and_reset_daily_usage, update_last_activity
     
     campaign = await db.campaigns.find_one({"id": campaign_id})
@@ -165,52 +179,57 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     batch_size = 100
     pause_check_interval = 10
     
-    for i, recipient in enumerate(campaign['recipients']):
-        # Check if campaign is paused
-        if i % pause_check_interval == 0:
-            current_campaign = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
-            if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
-                logger.info(f"Campaign {campaign_id} paused at message {i}")
-                return
-        
-        if recipient['status'] != MessageStatus.PENDING.value:
-            continue
-        
-        # Send message
-        result = await send_whatsapp_message(
-            recipient['phone'],
-            campaign['templateName'],
-            user_token,
-            vendor_uid,
-            recipient
-        )
-        
-        if result['success']:
-            sent_count += 1
-            campaign['recipients'][i]['status'] = MessageStatus.SENT.value
-            campaign['recipients'][i]['sentAt'] = datetime.now(timezone.utc).isoformat()
-            campaign['recipients'][i]['messageId'] = result.get('data', {}).get('message_id')
-        else:
-            failed_count += 1
-            campaign['recipients'][i]['status'] = MessageStatus.FAILED.value
-            campaign['recipients'][i]['error'] = result['error']
-        
-        # Update campaign periodically
-        if (i + 1) % batch_size == 0 or (i + 1) == len(campaign['recipients']):
-            await db.campaigns.update_one(
-                {"id": campaign_id},
-                {
-                    "$set": {
-                        "recipients": campaign['recipients'],
-                        "sentCount": sent_count,
-                        "failedCount": failed_count,
-                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
-                        "updatedAt": datetime.now(timezone.utc).isoformat()
-                    }
-                }
+    # Use a SINGLE shared HTTP client for the entire campaign to reuse SSL connections
+    limits = httpx.Limits(max_connections=20, max_keepalive_connections=10, keepalive_expiry=30)
+    transport = httpx.AsyncHTTPTransport(retries=2)
+    async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
+        for i, recipient in enumerate(campaign['recipients']):
+            # Check if campaign is paused
+            if i % pause_check_interval == 0:
+                current_campaign = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
+                if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
+                    logger.info(f"Campaign {campaign_id} paused at message {i}")
+                    return
+            
+            if recipient['status'] != MessageStatus.PENDING.value:
+                continue
+            
+            # Send message with shared client
+            result = await send_whatsapp_message(
+                recipient['phone'],
+                campaign['templateName'],
+                user_token,
+                vendor_uid,
+                recipient,
+                http_client=http_client
             )
-        
-        await asyncio.sleep(delay_between_messages)
+            
+            if result['success']:
+                sent_count += 1
+                campaign['recipients'][i]['status'] = MessageStatus.SENT.value
+                campaign['recipients'][i]['sentAt'] = datetime.now(timezone.utc).isoformat()
+                campaign['recipients'][i]['messageId'] = result.get('data', {}).get('message_id')
+            else:
+                failed_count += 1
+                campaign['recipients'][i]['status'] = MessageStatus.FAILED.value
+                campaign['recipients'][i]['error'] = result['error']
+            
+            # Update campaign periodically
+            if (i + 1) % batch_size == 0 or (i + 1) == len(campaign['recipients']):
+                await db.campaigns.update_one(
+                    {"id": campaign_id},
+                    {
+                        "$set": {
+                            "recipients": campaign['recipients'],
+                            "sentCount": sent_count,
+                            "failedCount": failed_count,
+                            "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                            "updatedAt": datetime.now(timezone.utc).isoformat()
+                        }
+                    }
+                )
+            
+            await asyncio.sleep(delay_between_messages)
     
     # Final update
     await db.campaigns.update_one(
