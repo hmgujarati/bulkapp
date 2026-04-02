@@ -3,7 +3,7 @@ import Layout from '../components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { History, CheckCircle, XCircle, Clock, Eye, Trash2 } from 'lucide-react';
+import { History, CheckCircle, XCircle, Clock, Eye, Trash2, RotateCcw, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -13,6 +13,7 @@ const CampaignHistory = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(null);
 
   useEffect(() => {
     fetchCampaigns();
@@ -40,6 +41,20 @@ const CampaignHistory = ({ user, onLogout }) => {
       fetchCampaigns();
     } catch (error) {
       toast.error('Failed to delete campaign');
+    }
+  };
+
+  const handleRetryFailed = async (campaignId, failedCount) => {
+    if (!window.confirm(`Retry sending ${failedCount} failed messages?`)) return;
+    setRetrying(campaignId);
+    try {
+      const res = await api.post(`/campaigns/${campaignId}/retry-failed`);
+      toast.success(res.data.message);
+      fetchCampaigns();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to retry');
+    } finally {
+      setRetrying(null);
     }
   };
 
@@ -108,6 +123,22 @@ const CampaignHistory = ({ user, onLogout }) => {
                         <Eye className="h-4 w-4 mr-2" />
                         View Details
                       </Button>
+                      {campaign.failedCount > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                          onClick={() => handleRetryFailed(campaign.id, campaign.failedCount)}
+                          disabled={retrying === campaign.id}
+                          data-testid={`retry-failed-${campaign.id}`}
+                        >
+                          {retrying === campaign.id
+                            ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            : <RotateCcw className="h-4 w-4 mr-1" />
+                          }
+                          Retry {campaign.failedCount} Failed
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, UserPlus, Pause, Play, Trash2, Shield, Loader2 } from 'lucide-react';
+import { Users, UserPlus, Pause, Play, Trash2, Shield, Loader2, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -23,7 +23,7 @@ const FEATURE_DEFINITIONS = {
   chatbot: { label: 'Lead Chatbot', description: 'WhatsApp lead qualification chatbot' },
 };
 
-const AdminDashboard = ({ user, onLogout }) => {
+const AdminDashboard = ({ user, onLogout, onLoginAs }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -139,6 +139,22 @@ const AdminDashboard = ({ user, onLogout }) => {
       toast.error('Failed to update features');
     } finally {
       setFeaturesSaving(false);
+    }
+  };
+
+  const handleLoginAs = async (targetUser) => {
+    try {
+      const res = await api.post(`/auth/login-as/${targetUser.id}`);
+      if (onLoginAs) {
+        onLoginAs(res.data);
+      } else {
+        localStorage.setItem('token', res.data.token);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        window.location.href = '/';
+      }
+      toast.success(`Logged in as ${targetUser.firstName || targetUser.email}`);
+    } catch {
+      toast.error('Failed to login as user');
     }
   };
 
@@ -345,6 +361,16 @@ const AdminDashboard = ({ user, onLogout }) => {
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleLoginAs(u)}
+                              title="Login as this user"
+                              data-testid={`login-as-${u.id}`}
+                            >
+                              <LogIn className="h-4 w-4 text-blue-600" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"

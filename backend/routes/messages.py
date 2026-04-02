@@ -409,3 +409,57 @@ async def upload_recipients(file: UploadFile = File(...)):
         return {"recipients": recipients, "count": len(recipients)}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error processing file: {str(e)}")
+
+
+@router.post("/campaigns/{campaign_id}/retry-failed")
+async def retry_failed_messages(
+    campaign_id: str,
+    background_tasks: BackgroundTasks,
+    current_user=Depends(get_current_user)
+):
+    """Reset failed messages to pending and re-process the campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id, "userId": current_user.userId})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    user = await db.users.find_one({"id": current_user.userId})
+    if not user or not user.get('bizChatToken') or not user.get('bizChatVendorUID'):
+        raise HTTPException(status_code=400, detail="BizChat credentials not configured")
+
+    # Count and reset failed recipients
+    failed_count = 0
+    for i, r in enumerate(campaign['recipients']):
+        if r.get('status') == MessageStatus.FAILED.value:
+            campaign['recipients'][i]['status'] = MessageStatus.PENDING.value
+            campaign['recipients'][i].pop('error', None)
+            failed_count += 1
+
+    if failed_count == 0:
+        raise HTTPException(status_code=400, detail="No failed messages to retry")
+
+    # Update campaign in DB
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {
+            "$set": {
+                "recipients": campaign['recipients'],
+                "failedCount": 0,
+                "pendingCount": failed_count,
+                "status": CampaignStatus.PROCESSING.value,
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+
+    # Re-process
+    background_tasks.add_task(
+        process_campaign,
+        campaign_id,
+        user['bizChatToken'],
+        user['bizChatVendorUID']
+    )
+
+    return {
+        "message": f"Retrying {failed_count} failed messages",
+        "retryCount": failed_count
+    }

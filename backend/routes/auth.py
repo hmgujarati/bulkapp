@@ -76,6 +76,33 @@ async def login(credentials: UserLogin):
     }
 
 
+@router.post("/login-as/{user_id}")
+async def login_as_user(user_id: str, current_user=Depends(require_admin)):
+    """Admin: generate a token to log in as another user for support"""
+    target_user = await db.users.find_one({"id": user_id})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    token = create_access_token(target_user['id'], target_user['email'], target_user['role'])
+
+    default_features = {
+        "bulk_messages": True, "reminders": True, "contacts": True,
+        "templates": True, "campaigns": True, "indiamart": False, "chatbot": False
+    }
+
+    return {
+        "token": token,
+        "user": {
+            "id": target_user['id'],
+            "email": target_user['email'],
+            "firstName": target_user['firstName'],
+            "lastName": target_user['lastName'],
+            "role": target_user['role'],
+            "features": target_user.get('features', default_features)
+        }
+    }
+
+
 @router.get("/me")
 async def get_me(current_user = Depends(get_current_user)):
     """Get current user info with daily usage status"""

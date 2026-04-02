@@ -80,6 +80,12 @@ const App = () => {
     setUser(null);
   };
 
+  const handleLoginAs = (data) => {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    setUser(data.user);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -106,7 +112,7 @@ const App = () => {
             path="/admin"
             element={
               user && user.role === 'admin' ? (
-                <AdminDashboard user={user} onLogout={handleLogout} />
+                <AdminDashboard user={user} onLogout={handleLogout} onLoginAs={handleLoginAs} />
               ) : (
                 <Navigate to="/login" />
               )
