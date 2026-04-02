@@ -126,26 +126,28 @@ async def send_whatsapp_message(
 
 
 async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
-    """Process campaign with concurrent sending and connection pooling"""
+    """Process campaign with concurrent batch sending and connection pooling.
+    
+    Strategy: Send messages in small concurrent batches (10 at a time),
+    collect results, update DB, then proceed to next batch.
+    This avoids race conditions while being ~10x faster than sequential.
+    """
     from utils.daily_limit import check_and_reset_daily_usage, update_last_activity
     
     campaign = await db.campaigns.find_one({"id": campaign_id})
     if not campaign:
         return
     
-    # Get user and check daily limit with 24-hour reset
     user = await db.users.find_one({"id": campaign['userId']})
     if not user:
         logger.error(f"User not found for campaign {campaign_id}")
         return
     
-    # Check and reset daily usage if 24 hours have passed
     user = await check_and_reset_daily_usage(campaign['userId'], user)
     
     daily_usage = user.get('dailyUsage', 0)
     daily_limit = user.get('dailyLimit', 1000)
     
-    # Check if we have enough quota
     pending_recipients = [r for r in campaign['recipients'] if r['status'] == MessageStatus.PENDING.value]
     remaining = daily_limit - daily_usage
     
@@ -164,7 +166,6 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         )
         return
     
-    # Update status to processing
     await db.campaigns.update_one(
         {"id": campaign_id},
         {"$set": {"status": CampaignStatus.PROCESSING.value}}
@@ -173,71 +174,81 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
     
-    # Concurrent sending config
-    CONCURRENCY = 15  # Send 15 messages in parallel
-    DB_UPDATE_INTERVAL = 50  # Update DB every 50 messages
-    semaphore = asyncio.Semaphore(CONCURRENCY)
+    BATCH_SIZE = 10  # 10 concurrent requests per batch
+    DB_SAVE_EVERY = 50  # Save to DB every 50 messages
+    PAUSE_CHECK_EVERY = 100  # Check pause status every 100 messages
     
-    # Use a SINGLE shared HTTP client for the entire campaign
-    limits = httpx.Limits(max_connections=20, max_keepalive_connections=15, keepalive_expiry=30)
+    pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
+    
+    # One shared HTTP client for the entire campaign — reuses SSL connections
+    limits = httpx.Limits(max_connections=15, max_keepalive_connections=10, keepalive_expiry=30)
     transport = httpx.AsyncHTTPTransport(retries=2)
     
-    async def send_single(idx, recipient):
-        """Send one message with semaphore control"""
-        nonlocal sent_count, failed_count
-        async with semaphore:
-            result = await send_whatsapp_message(
-                recipient['phone'],
-                campaign['templateName'],
-                user_token,
-                vendor_uid,
-                recipient,
-                http_client=http_client
-            )
-            
-            if result['success']:
-                sent_count += 1
-                campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
-                campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
-                campaign['recipients'][idx]['messageId'] = result.get('data', {}).get('message_id')
-            else:
-                failed_count += 1
-                campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
-                campaign['recipients'][idx]['error'] = result['error']
-            
-            # Small delay per message to avoid API throttling
-            await asyncio.sleep(0.05)
+    messages_since_db_save = 0
     
     async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
-        # Process in batches for DB updates and pause checks
-        pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
-        
-        for batch_start in range(0, len(pending_indices), DB_UPDATE_INTERVAL):
-            # Check if campaign was paused
-            current_campaign = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
-            if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
-                logger.info(f"Campaign {campaign_id} paused at message {batch_start}")
-                return
+        for batch_start in range(0, len(pending_indices), BATCH_SIZE):
+            # Pause check
+            if batch_start > 0 and batch_start % PAUSE_CHECK_EVERY == 0:
+                current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
+                if current and current.get('status') == CampaignStatus.PAUSED.value:
+                    logger.info(f"Campaign {campaign_id} paused at {batch_start}/{len(pending_indices)}")
+                    return
             
-            batch_indices = pending_indices[batch_start:batch_start + DB_UPDATE_INTERVAL]
+            batch_indices = pending_indices[batch_start:batch_start + BATCH_SIZE]
             
-            # Send batch concurrently
-            tasks = [send_single(idx, campaign['recipients'][idx]) for idx in batch_indices]
-            await asyncio.gather(*tasks, return_exceptions=True)
+            # Fire all requests in this batch concurrently
+            tasks = []
+            for idx in batch_indices:
+                recipient = campaign['recipients'][idx]
+                tasks.append(send_whatsapp_message(
+                    recipient['phone'],
+                    campaign['templateName'],
+                    user_token,
+                    vendor_uid,
+                    recipient,
+                    http_client=http_client
+                ))
             
-            # Update DB after each batch
-            await db.campaigns.update_one(
-                {"id": campaign_id},
-                {
-                    "$set": {
-                        "recipients": campaign['recipients'],
-                        "sentCount": sent_count,
-                        "failedCount": failed_count,
-                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
-                        "updatedAt": datetime.now(timezone.utc).isoformat()
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Process results sequentially — no race conditions
+            for j, (idx, result) in enumerate(zip(batch_indices, results)):
+                if isinstance(result, Exception):
+                    failed_count += 1
+                    campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
+                    campaign['recipients'][idx]['error'] = str(result)[:200]
+                    logger.error(f"Message to {campaign['recipients'][idx]['phone']} raised exception: {result}")
+                elif result.get('success'):
+                    sent_count += 1
+                    campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
+                    campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
+                    campaign['recipients'][idx]['messageId'] = result.get('data', {}).get('message_id')
+                else:
+                    failed_count += 1
+                    campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
+                    campaign['recipients'][idx]['error'] = result.get('error', 'Unknown error')[:200]
+            
+            messages_since_db_save += len(batch_indices)
+            
+            # Save to DB periodically
+            if messages_since_db_save >= DB_SAVE_EVERY or (batch_start + BATCH_SIZE) >= len(pending_indices):
+                await db.campaigns.update_one(
+                    {"id": campaign_id},
+                    {
+                        "$set": {
+                            "recipients": campaign['recipients'],
+                            "sentCount": sent_count,
+                            "failedCount": failed_count,
+                            "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                            "updatedAt": datetime.now(timezone.utc).isoformat()
+                        }
                     }
-                }
-            )
+                )
+                messages_since_db_save = 0
+            
+            # Small pause between batches to avoid API throttling
+            await asyncio.sleep(0.3)
     
     # Final update
     await db.campaigns.update_one(
@@ -254,8 +265,8 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         }
     )
     
-    # Update user's daily usage and set last activity time
     await update_last_activity(campaign['userId'], sent_count)
+    logger.info(f"Campaign {campaign_id} completed: {sent_count} sent, {failed_count} failed")
 
 
 @router.post("/send")
