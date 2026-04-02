@@ -1,73 +1,56 @@
 <analysis>**original_problem_statement:**
-The user initially requested a full-stack website for sending bulk WhatsApp messages. The scope expanded to include an AI-powered Reminder Bot using natural language (via web UI and WhatsApp) to schedule reminders. Subsequent feature requests included recurring reminders, a comprehensive Contact Management system with automated birthday/anniversary messages, various UI/UX improvements, bug fixes, admin feature-gating, and an integration with Indiamart to automate messaging for incoming leads. The overall goal is a multi-featured WhatsApp automation platform.
+The user requested a new feature where users can deploy a WhatsApp Q&A Chatbot to qualify leads, gather data through sequential questions (using text, buttons, and lists), map responses to products/categories, and export leads to an Excel sheet. The bot needs to be trigger-based, configurable per category, and support multiple products. Additional requests evolved to include a single universal webhook for all incoming messages, resolving high-volume bulk messaging SSL/speed issues, and adding admin tools like Login As and Retry Failed Messages for campaigns.
 
 **PRODUCT REQUIREMENTS:**
-*   **Reminder Bot:** Create, view, and delete reminders using natural language via web UI and WhatsApp.
-*   **Recurring Reminders:** Support for daily, weekly, monthly, and custom recurring reminders.
-*   **Contact Manager:**
-    *   Store user contacts with fields like Name, Email, Phone, DOB, and Anniversary.
-    *   Organize contacts into groups.
-    *   Automatically send WhatsApp messages on a contact's birthday and/or anniversary.
-*   **Indiamart Integration:**
-    *   Receive new leads in real-time from Indiamart via a Push API (webhook).
-    *   Store incoming leads in the database.
-    *   Automatically send a configured WhatsApp template message to new leads.
-*   **Admin Controls:**
-    *   Admin panel to manage users.
-    *   Ability for an admin to enable/disable specific features (e.g., Reminders, Indiamart) for each user.
-*   **Messaging Limits:** A 24-hour rolling window for daily message sending limits, which resets 24 hours after the last message was sent.
-*   **Configuration:** Users must provide their own OpenAI API key and Meta Template ID for WhatsApp messages. The system should gracefully handle missing configurations.
-*   **System Reliability:** Ensure messages are sent reliably and the application is scalable and free of critical bugs.
+*   **Lead Qualification Chatbot:** Configurable sequential question flows triggered by specific keywords per category.
+*   **Product Management:** Support mapping products to categories with a search/list fallback.
+*   **Universal Webhook:** A single webhook endpoint () to handle all incoming WhatsApp messages, routing them logically between Chatbot and Reminder Bot.
+*   **High-Volume Reliability:** Ensure bulk messages are sent concurrently without exhausting SSL connections.
+*   **Admin Tools:** Login As feature to access any user account for support, and a Retry Failed Messages feature in the campaign history.
 
 **User's preferred language**: English
 
-**what currently exists?**
-A full-stack application with a React frontend and FastAPI backend. The application is in a stable, deployment-ready state and provides:
-*   User authentication with Admin and Regular user roles.
-*   An admin panel to manage users, including setting daily message limits and toggling access to specific features for each user.
-*   A Reminder Bot to create and manage reminders, including support for recurring reminders.
-*   A Contact Manager to store contacts and groups, with an automated scheduler that sends birthday and anniversary wishes.
-*   An Indiamart Integration that receives new leads via a webhook, stores them, and supports sending automated template messages (including media headers).
-*   A robust daily message limit system based on a 24-hour rolling window.
-*   A refactored, cleaner header UI with dropdowns for better navigation.
-*   Settings interfaces for users to configure API keys, templates, and automated messages.
-*   A modular backend architecture that has been optimized to fix N+1 query issues and hardcoded URLs.
+**what currently exists?** 
+A robust, deployment-ready full-stack application (FastAPI + React) offering:
+*   Bulk WhatsApp messaging (highly optimized for concurrent sending).
+*   AI-powered Reminder Bot via WhatsApp.
+*   Automated Contact Management with birthday/anniversary logic.
+*   Indiamart webhook integration.
+*   Lead Qualification Chatbot with trigger keywords, sequential questioning, and lead capturing.
+*   Single universal webhook for all incoming traffic.
+*   Comprehensive Admin panel with user feature gating and Login As impersonation.
 
 **Last working item**:
-- **Last item agent was working:** The agent ran the  to check for deployment readiness. The agent identified four critical issues: an N+1 query problem, unbounded queries, and two instances of hardcoded URLs. The agent successfully fixed all four issues and re-ran the deployment agent, which confirmed that all critical blockers for deployment were resolved.
+- **Last item agent was working:** Running a full-app test suite via  to ensure complete stability after multiple system-wide changes (universal webhook, chatbot addition, bulk messaging concurrent refactor).
 - **Status:** USER VERIFICATION PENDING
 - **Agent Testing Done:** Y
-- **Which testing method agent to use?** NA (Testing is complete)
+- **Which testing method agent to use?** NA (testing_agent_v3_fork was just run)
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- None. All known issues have been addressed.
+None.
 
 **In progress Task List**:
-- None.
+None.
 
 **Upcoming and Future Tasks**
-- **Future Tasks:**
-    - **(P1) Indiamart Pull API:** The user considered fetching existing/historical leads from Indiamart using their Pull API but decided against it for now (not needed for now!). This can be implemented in the future to allow users to import their lead history.
-    - **(P2) Add Voice Call Reminders:** The user previously expressed interest in adding voice call capabilities for reminders. The user decided to skip that for now, making it a candidate for future development.
+- (P1) Indiamart Pull API: Fetch existing/historical leads from Indiamart.
+- (P2) Voice Call Reminders: Add voice call capabilities for reminders.
+- (P3) Chatbot analytics dashboard: Show conversion rates, drop-off points, and popular products.
 
 **Completed work in this session**
-- **Critical Bug Fix:** Resolved the  error for WhatsApp template messages by implementing dynamic payload generation based on the template's variable count.
-- **Admin Feature Gating:** Implemented a system allowing admins to enable/disable features (Bulk Messages, Reminders, Contacts, Indiamart, etc.) for individual users from the admin dashboard.
-- **UI Refactoring:** Cleaned up the main header navigation, organizing links into a More dropdown to reduce clutter.
-- **Indiamart Integration (Push API):**
-    - Created backend endpoints () to handle webhook configuration and lead data.
-    - Implemented a service to process and store new leads from Indiamart.
-    - Built a new frontend page () for users to view incoming leads and configure automated WhatsApp responses.
-    - Enhanced the configuration to support up to 5 template variables and media headers (Image, Video, Document) with file upload capability.
-- **Daily Limit Logic Enhancement:**
-    - Fixed a bug preventing the daily message limit from updating correctly in the admin UI.
-    - Overhauled the daily limit reset mechanism from a fixed daily reset to a 24-hour rolling window that starts after the last message activity.
-    - Fixed a bug that prevented users from scheduling campaigns for future dates if their current day's limit was exhausted.
-- **Comprehensive Testing & Bug Fixes:**
-    - Ran a full-suite testing agent that discovered and fixed a critical  serialization bug in the Contacts API, which was causing 500 errors.
-- **Deployment Readiness:**
-    - Used the deployment agent to identify and fix 4 critical production issues: an N+1 query, an unbounded query, and two hardcoded URLs, making the application ready for deployment.
+- Built Lead Qualification Chatbot feature (, , ).
+- Implemented trigger keywords for Chatbot Categories.
+- Refactored webhooks into a **Universal Webhook** () to seamlessly handle both Chatbot and Reminder bots.
+- Fixed 422 error on BizChat interactive buttons by dynamically removing empty header/footer text and adding text fallbacks.
+- Added message deduplication to webhook processing to prevent premature conversation advancement.
+- Resolved  in bulk messaging by implementing a shared  pool.
+- Increased bulk sending speed (from ~25 msg/min to ~150-200 msg/min) using  for concurrent processing.
+- Added Admin Login As feature to impersonate users.
+- Added Retry Failed Messages button to Campaign History.
+- Removed  to pass the Deployment Health Check.
+- Placed Webhook URL setup instructions in the main User Settings page.
+- Password reset for  to .
 
 **Earlier issues found/mentioned but not fixed**
 - None.
@@ -79,80 +62,83 @@ A full-stack application with a React frontend and FastAPI backend. The applicat
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, MongoDB (), Pydantic, JWT, , , APScheduler.
-- **Frontend:** React, , , Shadcn UI, , .
-- **Architecture:** Modular service-oriented backend. Asynchronous background jobs. Component-based React frontend. The codebase has been hardened for production (e.g., fixed N+1 queries, removed hardcoded URLs).
+- FastAPI, MongoDB (Motor), React, Shadcn UI.
+-  and semaphores for high-throughput concurrent API requests.
+-  connection pooling to prevent SSL exhaustion during bulk processing.
+- Single universal Webhook routing logic (Chatbot priority -> Reminder Bot fallback).
+- JWT token swapping for Admin Login As functionality.
 
 **key DB schema**
-- **users**:  (schema updated)
-- **reminders**: 
-- **contacts**: 
-- **indiamart_settings**:  (new)
-- **indiamart_leads**:  (new)
+- **users**:  (now includes )
+- **chatbot_settings**: 
+- **chatbot_categories**: 
+- **chatbot_products**: 
+- **chatbot_flows**: 
+- **chatbot_leads**: 
+- **campaigns**: 
+
+**changes in tech stack**
+- Transitioned bulk messaging from sequential processing to concurrent  batching using a shared  connection pool.
 
 **All files of reference**
-- : New route for admin-specific actions like managing user features.
-- : New routes for the Indiamart integration (webhook, settings, leads).
-- : New service containing the business logic for Indiamart integration.
-- : Updated with a utility function for the 24-hour rolling daily limit reset.
-- : New frontend page for the Indiamart feature.
-- : Updated to include UI for managing user features and daily limits.
-- : Updated with the refactored, cleaner header navigation.
-- : Updated to display the new 24-hour rolling reset time.
+- : Schema definitions for Chatbot.
+- : Core logic for Chatbot sequential message flows.
+- : CRUD endpoints for the Chatbot UI.
+- : Refactored to handle universal routing ().
+- : Updated for concurrent bulk message processing and retrying failed messages.
+- : Added endpoint for Admin Login As.
+- : Complete UI for Chatbot management (5 tabs).
+- : Updated to display Webhook URL configuration instructions.
+- : Updated with Login As button.
+- : Updated with Retry Failed Messages button.
 
-**Areas that need refactoring**:
-- None.
+**Areas that need refactoring**
+- None immediately identified.
 
 **key api endpoints**
-- : (NEW) PUT endpoint for updating a user's feature access.
-- : (NEW) POST endpoint for Indiamart to push new leads.
-- : (NEW) GET/POST for managing Indiamart integration settings.
-- : (NEW) GET endpoint to fetch stored Indiamart leads.
-- : (UPDATED) Now handles the 24-hour rolling reset of the daily message limit.
-- : (FIXED) Resolved  serialization error.
+- : Universal webhook receiving all incoming WhatsApp messages.
+- : Generates a JWT for the specified user (Admin only).
+- : Requeues failed messages for a specific campaign.
 
 **Critical Info for New Agent**
-- The application has been thoroughly tested and prepared for deployment. All critical bugs and performance issues identified by the testing and deployment agents have been fixed.
-- The immediate next step is likely deployment, as requested by the user. Await user confirmation to proceed with the .
-- The user has de-prioritized fetching historical Indiamart leads (Pull API) and voice call reminders. These should be treated as future backlog items unless the user brings them up again.
-- The daily message limit now operates on a 24-hour rolling window, resetting 24 hours after the last message activity. This logic is centralized in .
+- **Webhook Architecture:** The app now relies on a *Universal Webhook* per user (). The old  endpoint is mapped to legacy behavior for backward compatibility. All new webhook flows must integrate into the universal endpoint logic (Chatbot -> Reminders).
+- **Bulk Messaging:** Messages are now sent concurrently (batch of 10) using . Be extremely careful when editing  to preserve the  pool, otherwise SSL connections will crash on large campaigns.
+- **Environment Variables:**  was explicitly removed from  to prevent overriding Kubernetes injected variables during live deployment. Do not re-add it.
 
 **documents and test reports created in this job**
 - 
 - 
 - 
-- 
--  (Continuously updated)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks if the Indiamart integration gets existing inquiries or only new ones. (Status: ANSWERED - Push API gets new leads only).
-2.  **User:** Decides against implementing the Indiamart Pull API for now. (Status: ACKNOWLEDGED).
-3.  **User:** Requests a comprehensive, full-app test to find and fix all bugs. (Status: IMPLEMENTED - Testing agent was run).
-4.  **User:**  (after agent fixed bug found by testing agent). (Status: ACKNOWLEDGED).
-5.  **User:** Asks to call the deployer agent and run a health check for deployment readiness. (Status: IMPLEMENTED).
-6.  **User:** Asks about Indiamart variable count fields and adding media header options. (Status: IMPLEMENTED).
-7.  **User:** Reports the daily user limit is not updating on the admin page. (Status: IMPLEMENTED - Bug was fixed).
-8.  **User:** Clarifies that the available today count should reset after 24 hours. (Status: IMPLEMENTED - Logic was fixed).
-9.  **User:** Asks about scheduling with an exhausted daily limit and requests a time-based reset. (Status: IMPLEMENTED - Scheduling fixed, 24-hour rolling reset implemented).
-10. **User:** Confirms they want the 24-hour rolling window reset (option 2 is good). (Status: IMPLEMENTED).
+1. User asked why Chatbot doesn't trigger on keyword rapid express technologies -> Agent debugged and found missing user feature flag and webhook context issues.
+2. User requested a single webhook to manage all features (not separate webhooks) -> Agent created the universal webhook logic.
+3. User reported webhook issue: answering question 2 (interactive button) was failing and requiring message resend -> Agent fixed BizChat 422 payload error and duplicate webhook processing.
+4. User requested password for test user -> Agent reset password to .
+5. User requested webhook URL setup instructions on the Settings page -> Agent added a dedicated section in .
+6. User asked if the Webhook URL will dynamically change on live hosting -> Agent confirmed it uses .
+7. User reported  when sending 1k+ messages -> Agent debugged SSL exhaustion and implemented connection pooling.
+8. User reported bulk message sending was too slow (~20-25 per min) -> Agent refactored the sender to use concurrent processing, drastically improving speed.
+9. User requested Admin Login As feature and a Retry Failed Messages option for campaigns -> Agent implemented both and updated UI.
+10. User requested to Call Deployer Agent and Run Health Check -> Agent ran it, fixed one blocker (), and passed.
+11. (Latest) User asked to test the whole app once -> Agent ran  (iteration 7).
 
 **Project Health Check:**
-- **Healthy:** The application is stable. All known critical bugs, performance bottlenecks, and deployment blockers have been resolved.
+Healthy. The app is fully deployment-ready.
 
 **3rd Party Integrations**
-- **bizchatapi.in**: Used for sending all WhatsApp messages.
-- **OpenAI GPT-3.5-Turbo**: Used for parsing natural language for creating reminders.
-- **Indiamart Push API**: (NEW) For receiving new leads in real-time via webhooks.
+- BizChat API (WhatsApp) — requires User API Key / Vendor UID.
+- OpenAI GPT — requires User API Key.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES. The agent ran a comprehensive test suite which found and fixed a critical bug.
-- **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** 
-- **Known regressions:** None.
+- Testing agent used after significant changes: YES ( generated at the end).
+- Troubleshoot agent used after agent stuck in loop: NO
+- Test files created: 
+- Known regressions: None
 
 **Credentials to test flow:**
-- **Admin User:**  / 
-- **Regular User:**  / 
+- Admin:  / 
+- Regular User:  /  (Password was reset to  in this session).
 
 **What agent forgot to execute**
-- Nothing. The agent was thorough and addressed all user requests and issues from the previous session, in addition to successfully implementing new features and preparing the app for deployment.</analysis>
+- The agent executed all user requests completely, including edge case optimizations (SSL fixes, concurrent processing speed-ups) and full test runs. No missed items.</analysis>

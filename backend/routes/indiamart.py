@@ -146,7 +146,7 @@ async def get_indiamart_settings(current_user = Depends(get_current_user)):
         settings = default_settings.model_dump()
     
     # Build webhook URL - use environment variable for base URL
-    base_url = os.environ.get('APP_BASE_URL', 'https://whatsapp-automation-22.preview.emergentagent.com')
+    base_url = os.environ.get('APP_BASE_URL', 'https://whatsapp-lead-flow.preview.emergentagent.com')
     webhook_url = f"{base_url}/api/indiamart/webhook/{current_user.userId}?secret={settings['webhookSecret']}"
     
     return {
