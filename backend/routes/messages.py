@@ -126,7 +126,7 @@ async def send_whatsapp_message(
 
 
 async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
-    """Process campaign with rate limiting (29 messages/second) and connection pooling"""
+    """Process campaign with concurrent sending and connection pooling"""
     from utils.daily_limit import check_and_reset_daily_usage, update_last_activity
     
     campaign = await db.campaigns.find_one({"id": campaign_id})
@@ -150,7 +150,6 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     remaining = daily_limit - daily_usage
     
     if len(pending_recipients) > remaining:
-        # Not enough quota - mark campaign as paused, will retry after limit resets
         next_reset = user.get('nextResetAt', 'in 24 hours')
         logger.warning(f"Campaign {campaign_id}: Need {len(pending_recipients)} but only {remaining} available")
         await db.campaigns.update_one(
@@ -174,27 +173,19 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
     
-    # Rate limiting: 29 messages per second
-    delay_between_messages = 1.0 / 29
-    batch_size = 100
-    pause_check_interval = 10
+    # Concurrent sending config
+    CONCURRENCY = 15  # Send 15 messages in parallel
+    DB_UPDATE_INTERVAL = 50  # Update DB every 50 messages
+    semaphore = asyncio.Semaphore(CONCURRENCY)
     
-    # Use a SINGLE shared HTTP client for the entire campaign to reuse SSL connections
-    limits = httpx.Limits(max_connections=20, max_keepalive_connections=10, keepalive_expiry=30)
+    # Use a SINGLE shared HTTP client for the entire campaign
+    limits = httpx.Limits(max_connections=20, max_keepalive_connections=15, keepalive_expiry=30)
     transport = httpx.AsyncHTTPTransport(retries=2)
-    async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
-        for i, recipient in enumerate(campaign['recipients']):
-            # Check if campaign is paused
-            if i % pause_check_interval == 0:
-                current_campaign = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
-                if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
-                    logger.info(f"Campaign {campaign_id} paused at message {i}")
-                    return
-            
-            if recipient['status'] != MessageStatus.PENDING.value:
-                continue
-            
-            # Send message with shared client
+    
+    async def send_single(idx, recipient):
+        """Send one message with semaphore control"""
+        nonlocal sent_count, failed_count
+        async with semaphore:
             result = await send_whatsapp_message(
                 recipient['phone'],
                 campaign['templateName'],
@@ -206,30 +197,47 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
             
             if result['success']:
                 sent_count += 1
-                campaign['recipients'][i]['status'] = MessageStatus.SENT.value
-                campaign['recipients'][i]['sentAt'] = datetime.now(timezone.utc).isoformat()
-                campaign['recipients'][i]['messageId'] = result.get('data', {}).get('message_id')
+                campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
+                campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
+                campaign['recipients'][idx]['messageId'] = result.get('data', {}).get('message_id')
             else:
                 failed_count += 1
-                campaign['recipients'][i]['status'] = MessageStatus.FAILED.value
-                campaign['recipients'][i]['error'] = result['error']
+                campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
+                campaign['recipients'][idx]['error'] = result['error']
             
-            # Update campaign periodically
-            if (i + 1) % batch_size == 0 or (i + 1) == len(campaign['recipients']):
-                await db.campaigns.update_one(
-                    {"id": campaign_id},
-                    {
-                        "$set": {
-                            "recipients": campaign['recipients'],
-                            "sentCount": sent_count,
-                            "failedCount": failed_count,
-                            "pendingCount": campaign['totalCount'] - sent_count - failed_count,
-                            "updatedAt": datetime.now(timezone.utc).isoformat()
-                        }
+            # Small delay per message to avoid API throttling
+            await asyncio.sleep(0.05)
+    
+    async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
+        # Process in batches for DB updates and pause checks
+        pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
+        
+        for batch_start in range(0, len(pending_indices), DB_UPDATE_INTERVAL):
+            # Check if campaign was paused
+            current_campaign = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
+            if current_campaign and current_campaign.get('status') == CampaignStatus.PAUSED.value:
+                logger.info(f"Campaign {campaign_id} paused at message {batch_start}")
+                return
+            
+            batch_indices = pending_indices[batch_start:batch_start + DB_UPDATE_INTERVAL]
+            
+            # Send batch concurrently
+            tasks = [send_single(idx, campaign['recipients'][idx]) for idx in batch_indices]
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Update DB after each batch
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {
+                    "$set": {
+                        "recipients": campaign['recipients'],
+                        "sentCount": sent_count,
+                        "failedCount": failed_count,
+                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                        "updatedAt": datetime.now(timezone.utc).isoformat()
                     }
-                )
-            
-            await asyncio.sleep(delay_between_messages)
+                }
+            )
     
     # Final update
     await db.campaigns.update_one(
@@ -246,7 +254,7 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         }
     )
     
-    # Update user's daily usage and set last activity time (for 24-hour reset window)
+    # Update user's daily usage and set last activity time
     await update_last_activity(campaign['userId'], sent_count)
 
 
