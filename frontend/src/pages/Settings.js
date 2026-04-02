@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Settings as SettingsIcon, Key, User } from 'lucide-react';
+import { Settings as SettingsIcon, Key, User, Copy, Link } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -250,6 +250,58 @@ const Settings = ({ user, onLogout }) => {
                 {saving ? 'Saving...' : 'Save API Token'}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* Webhook URL */}
+        <Card className="shadow-lg border-0">
+          <CardHeader>
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-indigo-100">
+                <Link className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div>
+                <CardTitle>Webhook URL</CardTitle>
+                <CardDescription>Set this URL in your BizChat API provider dashboard to receive messages</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Your Webhook URL</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  data-testid="webhook-url-settings"
+                  readOnly
+                  value={`${window.location.origin}/api/webhook/${user?.id || ''}`}
+                  className="font-mono text-xs bg-slate-50"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/api/webhook/${user?.id || ''}`);
+                    toast.success('Webhook URL copied!');
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-1" /> Copy
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+              <p className="text-sm text-indigo-900 font-medium mb-2">How to set up your webhook:</p>
+              <ol className="text-sm text-indigo-800 space-y-1.5 list-decimal list-inside">
+                <li>Log in to your <strong>BizChat API dashboard</strong></li>
+                <li>Go to <strong>Webhook Settings</strong> or <strong>API Configuration</strong></li>
+                <li>Paste the URL above as your <strong>Incoming Message Webhook URL</strong></li>
+                <li>Save the settings</li>
+              </ol>
+              <p className="text-xs text-indigo-700 mt-3">
+                This single URL handles all features — chatbot, reminders, and future integrations. All incoming WhatsApp messages will be forwarded here.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
