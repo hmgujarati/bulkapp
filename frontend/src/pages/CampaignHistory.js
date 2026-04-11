@@ -48,7 +48,7 @@ const CampaignHistory = ({ user, onLogout }) => {
     if (!window.confirm(`Retry sending ${failedCount} failed messages?`)) return;
     setRetrying(campaignId);
     try {
-      const res = await api.post(`/campaigns/${campaignId}/retry-failed`);
+      const res = await api.post(`/messages/campaigns/${campaignId}/retry-failed`);
       toast.success(res.data.message);
       fetchCampaigns();
     } catch (error) {
