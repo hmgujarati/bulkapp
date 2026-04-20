@@ -44,10 +44,23 @@ const SettingsTab = () => {
   if (!settings) return <div className="text-center py-8 text-slate-500">Loading...</div>;
 
   const copyWebhookUrl = () => {
-    if (settings.webhookUrl) {
-      navigator.clipboard.writeText(settings.webhookUrl);
-      toast.success('Webhook URL copied!');
-    }
+    try {
+      const url = settings.webhookUrl;
+      if (!url) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          toast.success('Webhook URL copied!');
+        }).catch(() => {
+          const input = document.querySelector('[data-testid="webhook-url"]');
+          if (input) { input.select(); document.execCommand('copy'); }
+          toast.success('Webhook URL copied!');
+        });
+      } else {
+        const input = document.querySelector('[data-testid="webhook-url"]');
+        if (input) { input.select(); document.execCommand('copy'); }
+        toast.success('Webhook URL copied!');
+      }
+    } catch { toast.error('Failed to copy - please select and copy manually'); }
   };
 
   return (

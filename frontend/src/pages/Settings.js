@@ -281,8 +281,22 @@ const Settings = ({ user, onLogout }) => {
                   size="sm"
                   className="shrink-0"
                   onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/api/webhook/${user?.id || ''}`);
-                    toast.success('Webhook URL copied!');
+                    try {
+                      const url = `${window.location.origin}/api/webhook/${user?.id || ''}`;
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(url).then(() => {
+                          toast.success('Webhook URL copied!');
+                        }).catch(() => {
+                          const input = document.querySelector('[data-testid="webhook-url-settings"]');
+                          if (input) { input.select(); document.execCommand('copy'); }
+                          toast.success('Webhook URL copied!');
+                        });
+                      } else {
+                        const input = document.querySelector('[data-testid="webhook-url-settings"]');
+                        if (input) { input.select(); document.execCommand('copy'); }
+                        toast.success('Webhook URL copied!');
+                      }
+                    } catch { toast.error('Failed to copy - please select and copy manually'); }
                   }}
                 >
                   <Copy className="h-4 w-4 mr-1" /> Copy
