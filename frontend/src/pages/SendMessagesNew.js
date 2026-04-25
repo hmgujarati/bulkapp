@@ -470,6 +470,14 @@ const SendMessagesNew = ({ user, onLogout }) => {
                             <SelectItem value="en_US">English US (en_US)</SelectItem>
                             <SelectItem value="en_GB">English UK (en_GB)</SelectItem>
                             <SelectItem value="hi">Hindi (hi)</SelectItem>
+                            <SelectItem value="gu">Gujarati (gu)</SelectItem>
+                            <SelectItem value="mr">Marathi (mr)</SelectItem>
+                            <SelectItem value="ta">Tamil (ta)</SelectItem>
+                            <SelectItem value="te">Telugu (te)</SelectItem>
+                            <SelectItem value="kn">Kannada (kn)</SelectItem>
+                            <SelectItem value="bn">Bengali (bn)</SelectItem>
+                            <SelectItem value="pa">Punjabi (pa)</SelectItem>
+                            <SelectItem value="ur">Urdu (ur)</SelectItem>
                             <SelectItem value="es">Spanish (es)</SelectItem>
                             <SelectItem value="fr">French (fr)</SelectItem>
                             <SelectItem value="de">German (de)</SelectItem>
