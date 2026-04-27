@@ -187,18 +187,19 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
     
-    BATCH_SIZE = 5  # 5 concurrent requests per batch (conservative to avoid 429s)
-    DB_SAVE_EVERY = 50  # Save to DB every 50 messages
-    PAUSE_CHECK_EVERY = 100  # Check pause status every 100 messages
+    BATCH_SIZE = 20  # 20 concurrent requests per batch
+    DB_SAVE_EVERY = 100  # Save to DB every 100 messages
+    PAUSE_CHECK_EVERY = 200  # Check pause status every 200 messages
     
     pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
     
-    # One shared HTTP client for the entire campaign — reuses SSL connections
-    limits = httpx.Limits(max_connections=10, max_keepalive_connections=5, keepalive_expiry=30)
-    transport = httpx.AsyncHTTPTransport(retries=2)
+    # Aggressive connection pooling — own API server, no external rate limits
+    limits = httpx.Limits(max_connections=30, max_keepalive_connections=20, keepalive_expiry=60)
+    transport = httpx.AsyncHTTPTransport(retries=3)
     
     messages_since_db_save = 0
-    batch_delay = 1.5  # Adaptive delay between batches (increases on rate limits)
+    batch_delay = 0.1  # Minimal delay — own server
+    consecutive_errors = 0  # Track consecutive batch errors to back off if server is struggling
     
     async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
         for batch_start in range(0, len(pending_indices), BATCH_SIZE):
@@ -226,11 +227,12 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            # Process results and detect rate limiting
-            batch_had_rate_limit = False
+            # Process results
+            batch_errors = 0
             for j, (idx, result) in enumerate(zip(batch_indices, results)):
                 if isinstance(result, Exception):
                     failed_count += 1
+                    batch_errors += 1
                     campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
                     campaign['recipients'][idx]['error'] = str(result)[:200]
                     logger.error(f"Message to {campaign['recipients'][idx]['phone']} raised exception: {result}")
@@ -241,18 +243,18 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                     campaign['recipients'][idx]['messageId'] = result.get('data', {}).get('message_id')
                 else:
                     failed_count += 1
+                    batch_errors += 1
                     campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
-                    error_msg = result.get('error', 'Unknown error')[:200]
-                    campaign['recipients'][idx]['error'] = error_msg
-                    if 'Rate limited' in error_msg or '429' in error_msg:
-                        batch_had_rate_limit = True
+                    campaign['recipients'][idx]['error'] = result.get('error', 'Unknown error')[:200]
             
-            # Adaptive rate control: slow down if we hit rate limits
-            if batch_had_rate_limit:
-                batch_delay = min(batch_delay * 2, 15)
-                logger.warning(f"Campaign {campaign_id}: Rate limit detected, increasing batch delay to {batch_delay}s")
-            elif batch_delay > 1.5:
-                batch_delay = max(batch_delay * 0.8, 1.5)
+            # Smart back-off: if server is struggling (many errors), slow down temporarily
+            if batch_errors > len(batch_indices) * 0.5:
+                consecutive_errors += 1
+                batch_delay = min(0.5 * consecutive_errors, 5)
+                logger.warning(f"Campaign {campaign_id}: High error rate ({batch_errors}/{len(batch_indices)}), delay={batch_delay}s")
+            else:
+                consecutive_errors = 0
+                batch_delay = 0.1
             
             messages_since_db_save += len(batch_indices)
             
@@ -272,7 +274,7 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                 )
                 messages_since_db_save = 0
             
-            # Adaptive delay between batches
+            # Minimal delay between batches
             await asyncio.sleep(batch_delay)
     
     # Final update
