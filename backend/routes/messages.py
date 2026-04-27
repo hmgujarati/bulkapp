@@ -43,6 +43,8 @@ async def send_whatsapp_message(
     try:
         url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
         
+        logger.info(f"BizChat API URL: {BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message")
+        
         # Build payload according to BizChat API documentation
         payload = {
             "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
@@ -116,8 +118,8 @@ async def send_whatsapp_message(
                     logger.error(f"BizChat 429 exhausted retries for {phone}")
                     return {"success": False, "error": error_msg}
                 else:
-                    error_msg = f"HTTP {response.status_code}: {response.text[:500]}"
-                    logger.error(f"BizChat API Error: {error_msg}")
+                    error_msg = f"HTTP {response.status_code}"
+                    logger.error(f"BizChat API Error [{response.status_code}] URL: {BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message | Response: {response.text[:300]}")
                     return {"success": False, "error": error_msg}
             except Exception as e:
                 error_str = str(e)
