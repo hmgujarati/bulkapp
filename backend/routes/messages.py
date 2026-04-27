@@ -187,18 +187,18 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
     
-    BATCH_SIZE = 20  # 20 concurrent requests per batch
+    BATCH_SIZE = 15  # 15 concurrent requests per batch
     DB_SAVE_EVERY = 100  # Save to DB every 100 messages
     PAUSE_CHECK_EVERY = 200  # Check pause status every 200 messages
     
     pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
     
-    # Aggressive connection pooling — own API server, no external rate limits
-    limits = httpx.Limits(max_connections=30, max_keepalive_connections=20, keepalive_expiry=60)
+    # Aggressive connection pooling — own API server
+    limits = httpx.Limits(max_connections=25, max_keepalive_connections=15, keepalive_expiry=60)
     transport = httpx.AsyncHTTPTransport(retries=3)
     
     messages_since_db_save = 0
-    batch_delay = 0.1  # Minimal delay — own server
+    batch_delay = 0.3  # Base delay between batches
     consecutive_errors = 0  # Track consecutive batch errors to back off if server is struggling
     
     async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
@@ -247,14 +247,16 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                     campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
                     campaign['recipients'][idx]['error'] = result.get('error', 'Unknown error')[:200]
             
-            # Smart back-off: if server is struggling (many errors), slow down temporarily
+            # Smart back-off: if server/hosting is struggling, slow down temporarily
             if batch_errors > len(batch_indices) * 0.5:
                 consecutive_errors += 1
-                batch_delay = min(0.5 * consecutive_errors, 5)
+                batch_delay = min(1.0 * consecutive_errors, 10)
                 logger.warning(f"Campaign {campaign_id}: High error rate ({batch_errors}/{len(batch_indices)}), delay={batch_delay}s")
+            elif consecutive_errors > 0:
+                consecutive_errors = max(consecutive_errors - 1, 0)
+                batch_delay = max(0.3, batch_delay * 0.7)
             else:
-                consecutive_errors = 0
-                batch_delay = 0.1
+                batch_delay = 0.3
             
             messages_since_db_save += len(batch_indices)
             
