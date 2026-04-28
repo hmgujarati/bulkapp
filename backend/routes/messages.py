@@ -111,6 +111,10 @@ async def send_whatsapp_message(
                     logger.warning(f"429 for {phone}, waiting {wait_time}s (attempt {attempt + 1}/{max_429_retries})")
                     await asyncio.sleep(wait_time)
                     continue
+                elif response.status_code == 403:
+                    # Hosting firewall/rate limit — mark as retryable, don't waste time retrying now
+                    logger.warning(f"403 Forbidden for {phone} — server blocking")
+                    return {"success": False, "error": "TIMEOUT_RETRY", "retryable": True}
                 else:
                     error_msg = f"HTTP {response.status_code}"
                     logger.error(f"BizChat API Error [{response.status_code}] | Response: {response.text[:300]}")
@@ -250,6 +254,14 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                 consecutive_errors += 1
                 batch_delay = min(1.0 * consecutive_errors, 10)
                 logger.warning(f"Campaign {campaign_id}: High error rate ({batch_errors}/{len(batch_indices)}), delay={batch_delay}s")
+                
+                # Circuit breaker: if 3+ consecutive full-fail batches, server likely blocked us
+                # Wait 60s then try again
+                if consecutive_errors >= 3:
+                    logger.warning(f"Campaign {campaign_id}: Circuit breaker triggered — server blocking. Waiting 60s...")
+                    await asyncio.sleep(60)
+                    consecutive_errors = 1  # Reset but keep cautious delay
+                    batch_delay = 2.0
             elif consecutive_errors > 0:
                 consecutive_errors = max(consecutive_errors - 1, 0)
                 batch_delay = max(0.2, batch_delay * 0.7)
