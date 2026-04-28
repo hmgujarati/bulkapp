@@ -94,10 +94,10 @@ async def send_whatsapp_message(
         for attempt in range(max_retries):
             try:
                 if http_client:
-                    response = await http_client.post(url, json=payload, timeout=30.0)
+                    response = await http_client.post(url, json=payload, timeout=10.0)
                 else:
                     async with httpx.AsyncClient() as client:
-                        response = await client.post(url, json=payload, timeout=30.0)
+                        response = await client.post(url, json=payload, timeout=10.0)
                 
                 if response.status_code in [200, 201]:
                     data = response.json()
@@ -185,21 +185,21 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
     
-    BATCH_SIZE = 10  # 10 concurrent — safe for 2-core shared hosting
+    BATCH_SIZE = 15  # 15 concurrent requests per batch
     DB_SAVE_EVERY = 100  # Save to DB every 100 messages
     PAUSE_CHECK_EVERY = 200  # Check pause status every 200 messages
     
     pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
     
     # Connection pooling tuned for shared hosting (2 core, 3GB)
-    limits = httpx.Limits(max_connections=15, max_keepalive_connections=10, keepalive_expiry=60)
+    limits = httpx.Limits(max_connections=20, max_keepalive_connections=15, keepalive_expiry=60)
     transport = httpx.AsyncHTTPTransport(retries=3)
     
     messages_since_db_save = 0
-    batch_delay = 0.3  # Base delay between batches
+    batch_delay = 0.2  # Minimal delay between batches
     consecutive_errors = 0  # Track consecutive batch errors to back off if server is struggling
     
-    async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
+    async with httpx.AsyncClient(limits=limits, transport=transport, timeout=10.0) as http_client:
         for batch_start in range(0, len(pending_indices), BATCH_SIZE):
             # Pause check
             if batch_start > 0 and batch_start % PAUSE_CHECK_EVERY == 0:
