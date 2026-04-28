@@ -177,8 +177,7 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     failed_count = campaign.get('failedCount', 0)
     
     BATCH_SIZE = 8  # Sweet spot for 2-core shared hosting
-    DB_SAVE_EVERY = 100
-    PAUSE_CHECK_EVERY = 200
+    PAUSE_CHECK_EVERY = 50
     
     pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
     
@@ -192,12 +191,22 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     
     async with httpx.AsyncClient(limits=limits, transport=transport, timeout=10.0) as http_client:
         for batch_start in range(0, len(pending_indices), BATCH_SIZE):
-            # Pause check
-            if batch_start > 0 and batch_start % PAUSE_CHECK_EVERY == 0:
-                current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
-                if current and current.get('status') == CampaignStatus.PAUSED.value:
-                    logger.info(f"Campaign {campaign_id} paused at {batch_start}/{len(pending_indices)}")
-                    return
+            # Check pause status before every batch
+            current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
+            if current and current.get('status') == CampaignStatus.PAUSED.value:
+                logger.info(f"Campaign {campaign_id} paused at {batch_start}/{len(pending_indices)}")
+                # Save current progress before exiting
+                await db.campaigns.update_one(
+                    {"id": campaign_id},
+                    {"$set": {
+                        "recipients": campaign['recipients'],
+                        "sentCount": sent_count,
+                        "failedCount": failed_count,
+                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                        "updatedAt": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                return
             
             batch_indices = pending_indices[batch_start:batch_start + BATCH_SIZE]
             
@@ -243,27 +252,23 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                 logger.warning(f"Campaign {campaign_id}: High error rate ({batch_errors}/{len(batch_indices)}), delay={batch_delay}s")
             elif consecutive_errors > 0:
                 consecutive_errors = max(consecutive_errors - 1, 0)
-                batch_delay = max(0.3, batch_delay * 0.7)
+                batch_delay = max(0.2, batch_delay * 0.7)
             else:
-                batch_delay = 0.3
+                batch_delay = 0.2
             
-            messages_since_db_save += len(batch_indices)
-            
-            # Save to DB periodically
-            if messages_since_db_save >= DB_SAVE_EVERY or (batch_start + BATCH_SIZE) >= len(pending_indices):
-                await db.campaigns.update_one(
-                    {"id": campaign_id},
-                    {
-                        "$set": {
-                            "recipients": campaign['recipients'],
-                            "sentCount": sent_count,
-                            "failedCount": failed_count,
-                            "pendingCount": campaign['totalCount'] - sent_count - failed_count,
-                            "updatedAt": datetime.now(timezone.utc).isoformat()
-                        }
+            # Save to DB after EVERY batch — real-time progress
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {
+                    "$set": {
+                        "recipients": campaign['recipients'],
+                        "sentCount": sent_count,
+                        "failedCount": failed_count,
+                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                        "updatedAt": datetime.now(timezone.utc).isoformat()
                     }
-                )
-                messages_since_db_save = 0
+                }
+            )
             
             # Minimal delay between batches
             await asyncio.sleep(batch_delay)
