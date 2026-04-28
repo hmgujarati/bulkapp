@@ -118,18 +118,20 @@ async def send_whatsapp_message(
                     return {"success": False, "error": error_msg}
             except Exception as e:
                 error_str = str(e)
-                if 'SSL' in error_str or 'Connection' in error_str or 'timeout' in error_str.lower():
-                    if attempt < max_retries - 1:
-                        wait_time = (attempt + 1) * 2
-                        logger.warning(f"Retrying message to {phone} after SSL/connection error (attempt {attempt + 1}): {error_str[:100]}")
-                        await asyncio.sleep(wait_time)
-                        continue
-                raise
+                error_type = type(e).__name__
+                # Retry on any connection/network related exception
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2
+                    logger.warning(f"Retrying message to {phone} after {error_type}: {error_str[:150]} (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(wait_time)
+                    continue
+                logger.error(f"Failed to send to {phone} after {max_retries} attempts. Last error: {error_type}: {error_str[:200]}")
+                return {"success": False, "error": f"{error_type}: {error_str[:150]}" if error_str else error_type}
         
         # If we exhausted all retries (only happens for persistent 429s)
         return {"success": False, "error": "429_RETRY", "retryable": True}
     except Exception as e:
-        error_msg = f"Exception sending message: {str(e)}"
+        error_msg = f"Exception sending message: {type(e).__name__}: {str(e)}"
         logger.error(error_msg)
         return {"success": False, "error": error_msg}
 
@@ -183,14 +185,14 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
     
-    BATCH_SIZE = 15  # 15 concurrent requests per batch
+    BATCH_SIZE = 10  # 10 concurrent — safe for 2-core shared hosting
     DB_SAVE_EVERY = 100  # Save to DB every 100 messages
     PAUSE_CHECK_EVERY = 200  # Check pause status every 200 messages
     
     pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
     
-    # Aggressive connection pooling — own API server
-    limits = httpx.Limits(max_connections=25, max_keepalive_connections=15, keepalive_expiry=60)
+    # Connection pooling tuned for shared hosting (2 core, 3GB)
+    limits = httpx.Limits(max_connections=15, max_keepalive_connections=10, keepalive_expiry=60)
     transport = httpx.AsyncHTTPTransport(retries=3)
     
     messages_since_db_save = 0
