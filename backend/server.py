@@ -10,7 +10,7 @@ from pathlib import Path
 import os
 import logging
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
@@ -118,7 +118,10 @@ async def resume_campaign(
     
     await db.campaigns.update_one(
         {"id": campaign_id},
-        {"$set": {"status": CampaignStatus.PROCESSING.value}}
+        {"$set": {
+            "status": CampaignStatus.PROCESSING.value,
+            "lastHeartbeatAt": datetime.now(timezone.utc).isoformat()
+        }}
     )
     
     background_tasks.add_task(
@@ -158,7 +161,10 @@ async def check_scheduled_campaigns():
                 
                 await db.campaigns.update_one(
                     {"id": campaign['id']},
-                    {"$set": {"status": CampaignStatus.PROCESSING.value}}
+                    {"$set": {
+                        "status": CampaignStatus.PROCESSING.value,
+                        "lastHeartbeatAt": now.isoformat()
+                    }}
                 )
                 
                 asyncio.create_task(
@@ -173,6 +179,116 @@ async def check_scheduled_campaigns():
             logger.error(f"Error in check_scheduled_campaigns: {str(e)}")
         
         await asyncio.sleep(60)
+
+
+# Watchdog config
+STUCK_CAMPAIGN_THRESHOLD_SECONDS = 90   # heartbeat older than this = worker dead
+WATCHDOG_INTERVAL_SECONDS = 30          # how often the watchdog scans
+
+
+async def _resume_stuck_campaign(campaign: dict, reason: str) -> bool:
+    """Safely re-spawn a process_campaign worker for a stuck campaign.
+    
+    Skips if a worker is already active for this campaign in this process.
+    Returns True if a new worker was spawned.
+    """
+    # Import here to avoid circular import at module load time
+    from routes.messages import ACTIVE_CAMPAIGNS
+    
+    campaign_id = campaign['id']
+    
+    if campaign_id in ACTIVE_CAMPAIGNS:
+        # A worker is actively running in this process — heartbeat will catch up shortly
+        return False
+    
+    user = await db.users.find_one({"id": campaign['userId']})
+    if not user or not user.get('bizChatToken') or not user.get('bizChatVendorUID'):
+        logger.error(f"Watchdog: campaign {campaign_id} user missing BizChat credentials, pausing")
+        await db.campaigns.update_one(
+            {"id": campaign_id},
+            {"$set": {
+                "status": CampaignStatus.PAUSED.value,
+                "error": "BizChat credentials missing - please configure and resume",
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        return False
+    
+    logger.warning(f"Watchdog: resuming stuck campaign {campaign_id} ({reason})")
+    # Refresh heartbeat immediately so other ticks don't also try to claim it
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"lastHeartbeatAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    asyncio.create_task(
+        process_campaign(
+            campaign_id,
+            user['bizChatToken'],
+            user['bizChatVendorUID']
+        )
+    )
+    return True
+
+
+async def watchdog_stuck_campaigns():
+    """Self-healing watchdog.
+    
+    Scans for campaigns that are stuck in PROCESSING status but whose worker
+    has died (heartbeat stale or missing). Re-spawns the worker. The worker
+    resumes from sentCount / already-sent recipients, so no duplicates are sent.
+    """
+    # Small grace period after boot so app has time to fully initialize
+    await asyncio.sleep(5)
+    
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            stale_threshold_iso = (now - timedelta(seconds=STUCK_CAMPAIGN_THRESHOLD_SECONDS)).isoformat()
+            
+            # Find campaigns stuck in PROCESSING with stale or missing heartbeat
+            stuck = await db.campaigns.find({
+                "status": CampaignStatus.PROCESSING.value,
+                "$or": [
+                    {"lastHeartbeatAt": {"$lt": stale_threshold_iso}},
+                    {"lastHeartbeatAt": {"$exists": False}},
+                    {"lastHeartbeatAt": None},
+                ]
+            }).to_list(100)
+            
+            for campaign in stuck:
+                hb = campaign.get('lastHeartbeatAt', 'never')
+                await _resume_stuck_campaign(campaign, reason=f"stale heartbeat ({hb})")
+            
+        except Exception as e:
+            logger.error(f"Error in watchdog_stuck_campaigns: {str(e)}")
+        
+        await asyncio.sleep(WATCHDOG_INTERVAL_SECONDS)
+
+
+async def startup_resume_processing_campaigns():
+    """One-shot startup routine.
+    
+    Immediately after boot, find every campaign left in PROCESSING status
+    (from a crashed/restarted previous process) and re-spawn its worker.
+    The worker is idempotent — it skips already-sent recipients.
+    """
+    try:
+        # Give the app a couple of seconds to finish starting
+        await asyncio.sleep(2)
+        
+        processing = await db.campaigns.find({
+            "status": CampaignStatus.PROCESSING.value
+        }).to_list(500)
+        
+        if not processing:
+            logger.info("Startup recovery: no PROCESSING campaigns to resume")
+            return
+        
+        logger.info(f"Startup recovery: found {len(processing)} campaign(s) in PROCESSING, resuming...")
+        for campaign in processing:
+            await _resume_stuck_campaign(campaign, reason="server restart recovery")
+    except Exception as e:
+        logger.error(f"Error in startup_resume_processing_campaigns: {str(e)}")
 
 
 async def check_due_reminders():
@@ -221,6 +337,14 @@ async def startup_event():
     # Start scheduled campaigns checker
     asyncio.create_task(check_scheduled_campaigns())
     logger.info("Scheduled campaigns checker started")
+    
+    # Start self-healing watchdog for stuck PROCESSING campaigns
+    asyncio.create_task(watchdog_stuck_campaigns())
+    logger.info("Stuck-campaign watchdog started")
+    
+    # One-shot: resume campaigns that were left in PROCESSING by a previous process
+    asyncio.create_task(startup_resume_processing_campaigns())
+    logger.info("Startup campaign recovery scheduled")
     
     # Start reminders checker
     asyncio.create_task(check_due_reminders())

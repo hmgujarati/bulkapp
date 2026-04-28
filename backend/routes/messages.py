@@ -26,6 +26,12 @@ router = APIRouter(prefix="/messages", tags=["Messages"])
 # BizChat API configuration
 BIZCHAT_API_BASE = os.environ.get('BIZCHAT_API_BASE', 'https://bizchatapi.in/api')
 
+# === Self-healing campaign worker registry ===
+# In-process set of campaign IDs currently being worked on by this python process.
+# Prevents the watchdog / startup-recovery from spawning duplicate workers
+# for a campaign that is already actively being processed.
+ACTIVE_CAMPAIGNS: set = set()
+
 # Upload directory
 ROOT_DIR = Path(__file__).parent.parent
 UPLOAD_DIR = ROOT_DIR / "uploads"
@@ -137,7 +143,30 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     Strategy: Send messages in small concurrent batches (10 at a time),
     collect results, update DB, then proceed to next batch.
     This avoids race conditions while being ~10x faster than sequential.
+    
+    Self-healing: writes a `lastHeartbeatAt` timestamp to the DB on every
+    batch save. A watchdog in server.py detects campaigns whose heartbeat
+    is stale (worker died/crashed/server restarted) and re-spawns this
+    coroutine. Duplicate spawns in the same python process are prevented
+    by the ACTIVE_CAMPAIGNS set.
     """
+    # Guard: refuse to spawn a duplicate worker for the same campaign
+    if campaign_id in ACTIVE_CAMPAIGNS:
+        logger.info(f"Campaign {campaign_id}: worker already active in this process, skipping duplicate spawn")
+        return
+    ACTIVE_CAMPAIGNS.add(campaign_id)
+    
+    try:
+        await _process_campaign_impl(campaign_id, user_token, vendor_uid)
+    except Exception as e:
+        logger.exception(f"Campaign {campaign_id} worker crashed: {e}")
+        # Do NOT mark as failed — leave in PROCESSING so watchdog can resume.
+        # Heartbeat will go stale and watchdog will pick it up.
+    finally:
+        ACTIVE_CAMPAIGNS.discard(campaign_id)
+
+
+async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: str):
     from utils.daily_limit import check_and_reset_daily_usage, update_last_activity
     
     campaign = await db.campaigns.find_one({"id": campaign_id})
@@ -174,7 +203,10 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     
     await db.campaigns.update_one(
         {"id": campaign_id},
-        {"$set": {"status": CampaignStatus.PROCESSING.value}}
+        {"$set": {
+            "status": CampaignStatus.PROCESSING.value,
+            "lastHeartbeatAt": datetime.now(timezone.utc).isoformat()
+        }}
     )
     
     sent_count = campaign.get('sentCount', 0)
@@ -207,6 +239,7 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                         "sentCount": sent_count,
                         "failedCount": failed_count,
                         "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                        "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
                         "updatedAt": datetime.now(timezone.utc).isoformat()
                     }}
                 )
@@ -268,7 +301,7 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
             else:
                 batch_delay = 0.2
             
-            # Save to DB after EVERY batch — real-time progress
+            # Save to DB after EVERY batch — real-time progress + heartbeat
             await db.campaigns.update_one(
                 {"id": campaign_id},
                 {
@@ -277,6 +310,7 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                         "sentCount": sent_count,
                         "failedCount": failed_count,
                         "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                        "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
                         "updatedAt": datetime.now(timezone.utc).isoformat()
                     }
                 }
@@ -338,6 +372,7 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                 "sentCount": sent_count,
                 "failedCount": failed_count,
                 "pendingCount": campaign['totalCount'] - sent_count - failed_count,
+                "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )

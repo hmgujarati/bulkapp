@@ -36,6 +36,13 @@ Build a WhatsApp platform for bulk messaging, AI reminders, lead qualification c
 - **Chatbot Simplification**: Replaced 5-tab (Settings/Categories/Products/Flows/Leads) with 3-tab (Flows/Leads/Settings). Flow model now contains all config inline.
 - **429 Rate Limiting**: Added retry with exponential backoff, reduced batch size, adaptive delay
 - **Retry Failed Fix**: Frontend path corrected from `/campaigns/` to `/messages/campaigns/`
+- **Self-healing Campaign Workers (Apr 28, 2026)**: Permanent fix for campaigns getting stuck in PROCESSING status after server restarts. Added:
+  - `lastHeartbeatAt` written on every batch by `process_campaign` (`/app/backend/routes/messages.py`)
+  - `ACTIVE_CAMPAIGNS` in-process set to prevent duplicate workers for the same campaign
+  - `watchdog_stuck_campaigns` task (runs every 30s) — finds PROCESSING campaigns with stale/missing heartbeat (>90s) and re-spawns the worker
+  - `startup_resume_processing_campaigns` task — runs once at boot, immediately resumes all PROCESSING campaigns left over from a crashed process
+  - `_resume_stuck_campaign` helper with safety checks (missing BizChat creds → PAUSED with actionable error)
+  - Idempotent by design: `process_campaign` already skips non-PENDING recipients, so re-spawning never duplicates messages
 
 ## Backlog
 - P1: Indiamart Pull API (deferred by user)
