@@ -519,6 +519,10 @@ async def retry_failed_messages(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    # Don't allow retry while campaign is actively running
+    if campaign.get('status') in [CampaignStatus.PROCESSING.value, CampaignStatus.PENDING.value]:
+        raise HTTPException(status_code=400, detail="Campaign is still running. Pause it first before retrying failed messages.")
+
     user = await db.users.find_one({"id": current_user.userId})
     if not user or not user.get('bizChatToken') or not user.get('bizChatVendorUID'):
         raise HTTPException(status_code=400, detail="BizChat credentials not configured")
