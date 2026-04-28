@@ -1,144 +1,149 @@
 <analysis>**original_problem_statement:**
-The user requested a new feature where users can deploy a WhatsApp Q&A Chatbot to qualify leads, gather data through sequential questions (using text, buttons, and lists), map responses to products/categories, and export leads to an Excel sheet. The bot needs to be trigger-based, configurable per category, and support multiple products. Additional requests evolved to include a single universal webhook for all incoming messages, resolving high-volume bulk messaging SSL/speed issues, and adding admin tools like Login As and Retry Failed Messages for campaigns.
+The user requested a new feature where users can deploy a WhatsApp Q&A Chatbot to qualify leads via sequential questions triggered by keywords. Additional requests include a single universal webhook for all incoming messages, resolving high-volume bulk messaging SSL/speed issues, and adding admin tools like Login As and Retry Failed Messages. 
 
 **PRODUCT REQUIREMENTS:**
-*   **Lead Qualification Chatbot:** Configurable sequential question flows triggered by specific keywords per category.
-*   **Product Management:** Support mapping products to categories with a search/list fallback.
-*   **Universal Webhook:** A single webhook endpoint () to handle all incoming WhatsApp messages, routing them logically between Chatbot and Reminder Bot.
-*   **High-Volume Reliability:** Ensure bulk messages are sent concurrently without exhausting SSL connections.
-*   **Admin Tools:** Login As feature to access any user account for support, and a Retry Failed Messages feature in the campaign history.
+*   **Lead Qualification Chatbot:** Simplified configuration of sequential question flows triggered by specific keywords.
+*   **Universal Webhook:** A single endpoint () for all WhatsApp traffic, routing intelligently between Chatbot and Reminders.
+*   **High-Volume Reliability:** Ensure bulk messages are sent concurrently without exhausting SSL connections or triggering hosting rate limits (429/403).
+*   **Admin Tools:** Login As to impersonate users, and Retry Failed Messages for campaigns.
+*   **Regional Languages:** Support Indian regional languages for templates.
 
 **User's preferred language**: English
+*(INSTRUCT next agent to respond in English only)*
 
 **what currently exists?** 
-A robust, deployment-ready full-stack application (FastAPI + React) offering:
-*   Bulk WhatsApp messaging (highly optimized for concurrent sending).
+A robust full-stack application (FastAPI + React) offering:
+*   Bulk WhatsApp messaging heavily optimized with adaptive rate-limiting, connection pooling, circuit breakers for 403s, and batch DB-saving to suit a 2-core shared hosting environment.
 *   AI-powered Reminder Bot via WhatsApp.
 *   Automated Contact Management with birthday/anniversary logic.
-*   Indiamart webhook integration.
-*   Lead Qualification Chatbot with trigger keywords, sequential questioning, and lead capturing.
+*   Simplified Lead Qualification Chatbot (Flows, Leads, Settings) with trigger keywords.
 *   Single universal webhook for all incoming traffic.
-*   Comprehensive Admin panel with user feature gating and Login As impersonation.
+*   Comprehensive Admin panel with user impersonation.
+*   Support for 9 Indian regional languages in templates.
 
 **Last working item**:
-- **Last item agent was working:** Running a full-app test suite via  to ensure complete stability after multiple system-wide changes (universal webhook, chatbot addition, bulk messaging concurrent refactor).
-- **Status:** USER VERIFICATION PENDING
-- **Agent Testing Done:** Y
-- **Which testing method agent to use?** NA (testing_agent_v3_fork was just run)
+- **Last item agent was working:** Fixing a bug where campaigns get stuck in a Processing state permanently if the backend server restarts mid-campaign.
+- **Status:** IN PROGRESS
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** backend testing via manual python script or curl, and monitor supervisor logs to verify stuck campaigns auto-resume on startup or via background task.
 - **User Testing Done:** N
 
-**All Pending/In progress Issue list**:
-None.
+**All Pending/In progress Issue list**:  
+  Issue 1: Campaign stuck in Processing after a server restart (P0)
+  
+  Issues Detail:
+  - Issue 1: 
+     - Attempted fixes: The agent just identified the root cause using  to inspect . The  background task currently only looks for scheduled campaigns, but doesn't handle campaigns that were left in  status when the server died.
+     - Next debug checklist: Modify  or  to identify campaigns stuck in  upon server startup (or periodically via the background task) and auto-resume them without duplicate sending.
+     - Why fix this issue and what will be achieved with the fix? If the server auto-restarts (e.g. due to memory or deploy), active campaigns completely halt and lock up. Fixing this ensures campaign resiliency.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? backend
+     - Blocked on other issue: None
 
-**In progress Task List**:
-None.
+**In progress Task List**: 
+None
 
 **Upcoming and Future Tasks**
 - (P1) Indiamart Pull API: Fetch existing/historical leads from Indiamart.
 - (P2) Voice Call Reminders: Add voice call capabilities for reminders.
 - (P3) Chatbot analytics dashboard: Show conversion rates, drop-off points, and popular products.
+- (P3) Test Flow Enhancement: Add a button to simulate chatbot conversations in the dashboard UI for previewing.
 
 **Completed work in this session**
-- Built Lead Qualification Chatbot feature (, , ).
-- Implemented trigger keywords for Chatbot Categories.
-- Refactored webhooks into a **Universal Webhook** () to seamlessly handle both Chatbot and Reminder bots.
-- Fixed 422 error on BizChat interactive buttons by dynamically removing empty header/footer text and adding text fallbacks.
-- Added message deduplication to webhook processing to prevent premature conversation advancement.
-- Resolved  in bulk messaging by implementing a shared  pool.
-- Increased bulk sending speed (from ~25 msg/min to ~150-200 msg/min) using  for concurrent processing.
-- Added Admin Login As feature to impersonate users.
-- Added Retry Failed Messages button to Campaign History.
-- Removed  to pass the Deployment Health Check.
-- Placed Webhook URL setup instructions in the main User Settings page.
-- Password reset for  to .
+- Simplified Lead Chatbot (DONE) - Replaced complex Category/Product model with a simple Flows model.
+- HTTP 429/403/Timeout bulk messaging retries (DONE) - Adapted concurrency, added circuit breakers, and post-campaign auto-retries for timeout failures.
+- Save Campaign state per batch (DONE) - Ensures pausing campaigns works instantly and correctly tracks sent messages.
+- Added 9 Indian regional languages to template selection (DONE).
+- Fixed red screen crash on Settings Copy Webhook URL using clipboard API fallback (DONE).
+- Fixed Retry Failed Messages returning 404 routing error (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-- None.
+None.
 
 **Known issue recurrence from previous fork**
-- None.
+- Recurrence count: 0
+- Status: RESOLVED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- FastAPI, MongoDB (Motor), React, Shadcn UI.
--  and semaphores for high-throughput concurrent API requests.
--  connection pooling to prevent SSL exhaustion during bulk processing.
-- Single universal Webhook routing logic (Chatbot priority -> Reminder Bot fallback).
-- JWT token swapping for Admin Login As functionality.
+-  and  pooling for bulk sending.
+- **Circuit Breaker Pattern**: Handling 403 Forbidden by temporarily halting batches when the host's WAF triggers.
+- **Batch DB Commits**: Saving campaign progress every *N* messages to prevent data loss on crashes or pauses.
 
 **key DB schema**
-- **users**:  (now includes )
-- **chatbot_settings**: 
-- **chatbot_categories**: 
-- **chatbot_products**: 
-- **chatbot_flows**: 
+- **chatbot_flows**:  (Replaced categories & products)
 - **chatbot_leads**: 
 - **campaigns**: 
 
 **changes in tech stack**
-- Transitioned bulk messaging from sequential processing to concurrent  batching using a shared  connection pool.
+- Refactored Chatbot Collections (Removed  and , unified into ).
 
-**All files of reference**
-- : Schema definitions for Chatbot.
-- : Core logic for Chatbot sequential message flows.
-- : CRUD endpoints for the Chatbot UI.
-- : Refactored to handle universal routing ().
-- : Updated for concurrent bulk message processing and retrying failed messages.
-- : Added endpoint for Admin Login As.
-- : Complete UI for Chatbot management (5 tabs).
-- : Updated to display Webhook URL configuration instructions.
-- : Updated with Login As button.
-- : Updated with Retry Failed Messages button.
+**All files of reference** 
+- : Contains the hyper-tuned concurrency and circuit-breaker logic for bulk messaging.
+- : Contains background tasks like  which needs to be updated.
+- 
+- 
 
 **Areas that need refactoring**
-- None immediately identified.
+- None immediately required.
 
 **key api endpoints**
-- : Universal webhook receiving all incoming WhatsApp messages.
-- : Generates a JWT for the specified user (Admin only).
-- : Requeues failed messages for a specific campaign.
+- : Universal webhook logic.
+- : Resumes paused or stuck campaigns.
 
 **Critical Info for New Agent**
-- **Webhook Architecture:** The app now relies on a *Universal Webhook* per user (). The old  endpoint is mapped to legacy behavior for backward compatibility. All new webhook flows must integrate into the universal endpoint logic (Chatbot -> Reminders).
-- **Bulk Messaging:** Messages are now sent concurrently (batch of 10) using . Be extremely careful when editing  to preserve the  pool, otherwise SSL connections will crash on large campaigns.
-- **Environment Variables:**  was explicitly removed from  to prevent overriding Kubernetes injected variables during live deployment. Do not re-add it.
+- **BizChat Hosting Environment:** The user is hosting the BizChat API on their *own* 2-core, 3GB RAM shared server. Extensive tuning was done to  to prevent crashing their server or triggering their host's ModSecurity/WAF (403 errors). Current safe limits are: **Batch size 5, 30s timeout, 1s delay, 10 concurrent connections**. Do NOT blindly increase concurrency to make it faster without user consent, as it will trigger 403 firewalls.
+- **Save on Batch:** The system now saves campaign states to the DB after *every batch* (not every 100 messages) to ensure pause functionality works instantaneously without re-sending duplicates.
+- **Timeouts/403s:** Handled via post-campaign retry rounds. Inline timeouts do not block the pipeline anymore.
 
 **documents and test reports created in this job**
 - 
 - 
 - 
 
-**Last 10 User Messages and any pending HUMAN messages**
-1. User asked why Chatbot doesn't trigger on keyword rapid express technologies -> Agent debugged and found missing user feature flag and webhook context issues.
-2. User requested a single webhook to manage all features (not separate webhooks) -> Agent created the universal webhook logic.
-3. User reported webhook issue: answering question 2 (interactive button) was failing and requiring message resend -> Agent fixed BizChat 422 payload error and duplicate webhook processing.
-4. User requested password for test user -> Agent reset password to .
-5. User requested webhook URL setup instructions on the Settings page -> Agent added a dedicated section in .
-6. User asked if the Webhook URL will dynamically change on live hosting -> Agent confirmed it uses .
-7. User reported  when sending 1k+ messages -> Agent debugged SSL exhaustion and implemented connection pooling.
-8. User reported bulk message sending was too slow (~20-25 per min) -> Agent refactored the sender to use concurrent processing, drastically improving speed.
-9. User requested Admin Login As feature and a Retry Failed Messages option for campaigns -> Agent implemented both and updated UI.
-10. User requested to Call Deployer Agent and Run Health Check -> Agent ran it, fixed one blocker (), and passed.
-11. (Latest) User asked to test the whole app once -> Agent ran  (iteration 7).
+**Last 10 User Messages and any pending HUMAN messages** 
+1. User: bizchatapi is my platform... shared hosting 2 core, 3 gb ram.
+2. Agent: Tuned up speed to 20 batch size.
+3. User: hitting 429 and timeouts, dropping connections.
+4. Agent: Lowered batch size to 10, added retry-all exceptions.
+5. User: Now getting 403 Forbidden HTML pages.
+6. Agent: Identified as Hostinger WAF IP block. Lowered concurrency to 5, added 403 circuit breaker.
+7. User: what will happen if i click on retry failed while a campaign is running?
+8. Agent: Fixed it so retry-failed rejects if campaign is currently running to prevent parallel duplicate execution.
+9. User: the campaign is getting stuck, i have to click pause and resume to start it again (Provided logs showing server restarting)
+10. Agent: Realized campaigns get stuck in  if the server process restarts. Identified that background tasks need to auto-resume them. (Agent was interrupted before applying code fix).
 
 **Project Health Check:**
-Healthy. The app is fully deployment-ready.
+Healthy, but the background task  needs a critical update to recover dead/stuck active campaigns on startup.
 
 **3rd Party Integrations**
-- BizChat API (WhatsApp) — requires User API Key / Vendor UID.
+- BizChat API (WhatsApp) — requires User API Key / Vendor UID (User's own hosted server).
 - OpenAI GPT — requires User API Key.
 
 **Testing status**
-- Testing agent used after significant changes: YES ( generated at the end).
+- Testing agent used after significant changes: YES ( for Chatbot rewrite).
 - Troubleshoot agent used after agent stuck in loop: NO
 - Test files created: 
 - Known regressions: None
 
 **Credentials to test flow:**
-- Admin:  / 
-- Regular User:  /  (Password was reset to  in this session).
+(Check  for latest)
+-  / 
 
 **What agent forgot to execute**
-- The agent executed all user requests completely, including edge case optimizations (SSL fixes, concurrent processing speed-ups) and full test runs. No missed items.</analysis>
+- The agent was about to modify  or create a startup routine to automatically resume campaigns stuck in the  state due to a server restart, but the context ended before the code was written. This must be the immediate next step.
+
+**Debugging checklist for current issue**
+    Issue: Campaign stuck in  status upon server restart.
+    
+    Backend files to check: 
+    -  (Line ~136: )
+    -  (Look at  function)
+    
+    Database to check:
+    - Check  for .
+    
+    Action: On server startup or in the scheduled loop, find campaigns where  and  (or similar logic) and trigger  asynchronously so they continue. Include a safety check so you don't boot duplicate tasks if it's already running.</analysis>

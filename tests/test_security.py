@@ -10,7 +10,7 @@ import base64
 from datetime import datetime, timedelta
 import jwt
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://whatsapp-lead-flow.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://whatsapp-qa-flow.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 ADMIN_EMAIL = "bizchatapi@gmail.com"
