@@ -89,9 +89,9 @@ async def send_whatsapp_message(
         
         logger.info(f"Sending to BizChat - Phone: {phone}, Template: {template_name}")
         
-        # Use shared client if provided, otherwise create one
-        max_retries = 8  # More retries for 429
-        for attempt in range(max_retries):
+        # Only retry 429s inline. Timeouts/errors fail fast — retried after campaign ends.
+        max_429_retries = 5
+        for attempt in range(max_429_retries):
             try:
                 if http_client:
                     response = await http_client.post(url, json=payload, timeout=10.0)
@@ -107,28 +107,19 @@ async def send_whatsapp_message(
                         return {"success": False, "error": error_msg}
                     return {"success": True, "data": data}
                 elif response.status_code == 429:
-                    # Rate limited — always retry with increasing backoff
-                    wait_time = min((attempt + 1) * 3, 30)
-                    logger.warning(f"429 for {phone}, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    wait_time = min((attempt + 1) * 3, 15)
+                    logger.warning(f"429 for {phone}, waiting {wait_time}s (attempt {attempt + 1}/{max_429_retries})")
                     await asyncio.sleep(wait_time)
                     continue
                 else:
                     error_msg = f"HTTP {response.status_code}"
-                    logger.error(f"BizChat API Error [{response.status_code}] URL: {BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message | Response: {response.text[:300]}")
+                    logger.error(f"BizChat API Error [{response.status_code}] | Response: {response.text[:300]}")
                     return {"success": False, "error": error_msg}
             except Exception as e:
-                error_str = str(e)
                 error_type = type(e).__name__
-                # Retry on any connection/network related exception
-                if attempt < max_retries - 1:
-                    wait_time = (attempt + 1) * 2
-                    logger.warning(f"Retrying message to {phone} after {error_type}: {error_str[:150]} (attempt {attempt + 1}/{max_retries})")
-                    await asyncio.sleep(wait_time)
-                    continue
-                logger.error(f"Failed to send to {phone} after {max_retries} attempts. Last error: {error_type}: {error_str[:200]}")
-                return {"success": False, "error": f"{error_type}: {error_str[:150]}" if error_str else error_type}
+                logger.warning(f"Message to {phone} failed: {error_type}")
+                return {"success": False, "error": "TIMEOUT_RETRY", "retryable": True}
         
-        # If we exhausted all retries (only happens for persistent 429s)
         return {"success": False, "error": "429_RETRY", "retryable": True}
     except Exception as e:
         error_msg = f"Exception sending message: {type(e).__name__}: {str(e)}"
@@ -185,9 +176,9 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
     
-    BATCH_SIZE = 15  # 15 concurrent requests per batch
-    DB_SAVE_EVERY = 100  # Save to DB every 100 messages
-    PAUSE_CHECK_EVERY = 200  # Check pause status every 200 messages
+    BATCH_SIZE = 8  # Sweet spot for 2-core shared hosting
+    DB_SAVE_EVERY = 100
+    PAUSE_CHECK_EVERY = 200
     
     pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
     
@@ -277,25 +268,25 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
             # Minimal delay between batches
             await asyncio.sleep(batch_delay)
     
-    # === Auto-retry 429 failures ===
-    # Check for any recipients that failed with 429_RETRY and re-attempt them
-    MAX_429_ROUNDS = 3
-    for retry_round in range(MAX_429_ROUNDS):
+    # === Auto-retry failed messages (timeouts + 429s) ===
+    RETRY_BATCH = 5  # Smaller batches for retries
+    MAX_RETRY_ROUNDS = 3
+    for retry_round in range(MAX_RETRY_ROUNDS):
         retryable_indices = [
             i for i, r in enumerate(campaign['recipients'])
-            if r.get('status') == MessageStatus.FAILED.value and r.get('error') == '429_RETRY'
+            if r.get('status') == MessageStatus.FAILED.value and r.get('error') in ['429_RETRY', 'TIMEOUT_RETRY']
         ]
         if not retryable_indices:
             break
         
-        logger.info(f"Campaign {campaign_id}: Auto-retrying {len(retryable_indices)} rate-limited messages (round {retry_round + 1})")
+        logger.info(f"Campaign {campaign_id}: Auto-retrying {len(retryable_indices)} failed messages (round {retry_round + 1}/{MAX_RETRY_ROUNDS})")
         
         # Wait before retry round — give the server time to recover
         await asyncio.sleep(10 * (retry_round + 1))
         
-        async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
-            for batch_start in range(0, len(retryable_indices), BATCH_SIZE):
-                batch_indices = retryable_indices[batch_start:batch_start + BATCH_SIZE]
+        async with httpx.AsyncClient(limits=limits, transport=transport, timeout=15.0) as http_client:
+            for batch_start in range(0, len(retryable_indices), RETRY_BATCH):
+                batch_indices = retryable_indices[batch_start:batch_start + RETRY_BATCH]
                 tasks = []
                 for idx in batch_indices:
                     recipient = campaign['recipients'][idx]
@@ -316,11 +307,11 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
                         sent_count += 1
                         failed_count -= 1
                     elif result.get('retryable'):
-                        pass  # Still 429, will retry next round
+                        pass  # Still failing, will retry next round
                     else:
                         campaign['recipients'][idx]['error'] = result.get('error', 'Unknown')[:200]
                 
-                await asyncio.sleep(1.0)  # Slower pace for retries
+                await asyncio.sleep(2.0)  # Slower pace for retries
         
         # Save progress after each retry round
         await db.campaigns.update_one(
@@ -334,9 +325,9 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
             }}
         )
     
-    # Mark any remaining 429_RETRY as permanent failure with clean message
+    # Mark any remaining retryable as clean failure message
     for r in campaign['recipients']:
-        if r.get('error') == '429_RETRY':
+        if r.get('error') in ['429_RETRY', 'TIMEOUT_RETRY']:
             r['error'] = 'Server busy - retry manually'
 
     # Final update
