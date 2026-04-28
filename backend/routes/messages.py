@@ -94,10 +94,10 @@ async def send_whatsapp_message(
         for attempt in range(max_429_retries):
             try:
                 if http_client:
-                    response = await http_client.post(url, json=payload, timeout=10.0)
+                    response = await http_client.post(url, json=payload, timeout=30.0)
                 else:
                     async with httpx.AsyncClient() as client:
-                        response = await client.post(url, json=payload, timeout=10.0)
+                        response = await client.post(url, json=payload, timeout=30.0)
                 
                 if response.status_code in [200, 201]:
                     data = response.json()
@@ -180,20 +180,20 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
     
-    BATCH_SIZE = 8  # Sweet spot for 2-core shared hosting
+    BATCH_SIZE = 5  # Conservative to avoid hosting firewall blocks
     PAUSE_CHECK_EVERY = 50
     
     pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
     
-    # Connection pooling tuned for shared hosting (2 core, 3GB)
-    limits = httpx.Limits(max_connections=20, max_keepalive_connections=15, keepalive_expiry=60)
+    # Connection pooling
+    limits = httpx.Limits(max_connections=10, max_keepalive_connections=5, keepalive_expiry=60)
     transport = httpx.AsyncHTTPTransport(retries=3)
     
     messages_since_db_save = 0
-    batch_delay = 0.2  # Minimal delay between batches
-    consecutive_errors = 0  # Track consecutive batch errors to back off if server is struggling
+    batch_delay = 1.0  # 1 second between batches to avoid firewall triggers
+    consecutive_errors = 0
     
-    async with httpx.AsyncClient(limits=limits, transport=transport, timeout=10.0) as http_client:
+    async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
         for batch_start in range(0, len(pending_indices), BATCH_SIZE):
             # Check pause status before every batch
             current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
