@@ -43,6 +43,11 @@ Build a WhatsApp platform for bulk messaging, AI reminders, lead qualification c
   - `startup_resume_processing_campaigns` task — runs once at boot, immediately resumes all PROCESSING campaigns left over from a crashed process
   - `_resume_stuck_campaign` helper with safety checks (missing BizChat creds → PAUSED with actionable error)
   - Idempotent by design: `process_campaign` already skips non-PENDING recipients, so re-spawning never duplicates messages
+- **BizChat Template Auto-fetch + Language Auto-fill (Apr 30, 2026)**: Eliminates the #1 cause of HTTP 422 errors.
+  - New `GET /api/templates` endpoint proxies BizChat's `/{vendorUid}/contact/template-list` (`/app/backend/routes/bizchat_templates.py`)
+  - Defensive parser handles BizChat's deeply-nested `{data: {templateList: {data: [...]}}}` shape and extracts `name`, `language`, `status`, `category`, `components` per template
+  - Frontend `SendMessagesNew.js`: template picker in "Fetch from BizChat" tab now auto-fills `templateLanguage` from the selected template's metadata; shows "Language auto-filled: xx" hint below
+  - Frontend `SendMessagesSimple.js`: added BizChat template picker dropdown + refresh button above the Template Name input; selecting a template auto-fills both name AND language
 
 ## Backlog
 - P1: Indiamart Pull API (deferred by user)

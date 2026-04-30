@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Clock, Save, AlertCircle } from 'lucide-react';
+import { Send, Clock, Save, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -105,6 +105,11 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [savedTemplates, setSavedTemplates] = useState([]);
   const [selectedSavedTemplate, setSelectedSavedTemplate] = useState('');
   
+  // BizChat live templates (for auto-language detection)
+  const [bizchatTemplates, setBizchatTemplates] = useState([]);
+  const [loadingBizchatTemplates, setLoadingBizchatTemplates] = useState(false);
+  const [selectedBizchatTemplate, setSelectedBizchatTemplate] = useState('');
+  
   // UI state
   const [sending, setSending] = useState(false);
 
@@ -120,6 +125,35 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       setSavedTemplates(Array.isArray(data) ? data : data.templates || []);
     } catch (error) {
       console.error('Failed to load saved templates');
+    }
+  };
+
+  const fetchBizchatTemplates = async () => {
+    setLoadingBizchatTemplates(true);
+    try {
+      const response = await api.get('/templates');
+      setBizchatTemplates(response.data.templates || []);
+      if ((response.data.templates || []).length === 0) {
+        toast.info('No templates found in your BizChat account');
+      } else {
+        toast.success(`Loaded ${response.data.templates.length} templates`);
+      }
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Failed to fetch templates';
+      toast.error(msg);
+    } finally {
+      setLoadingBizchatTemplates(false);
+    }
+  };
+
+  const handlePickBizchatTemplate = (templateName) => {
+    setSelectedBizchatTemplate(templateName);
+    const chosen = bizchatTemplates.find(t => t.name === templateName);
+    if (chosen) {
+      setTemplateName(chosen.name);
+      if (chosen.language) {
+        setTemplateLanguage(chosen.language);
+      }
     }
   };
 
@@ -324,15 +358,62 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
                 <div className="space-y-2">
                   <Label htmlFor="templateName">Template Name *</Label>
+                  <div className="flex gap-2">
+                    <Select 
+                      value={selectedBizchatTemplate}
+                      onValueChange={handlePickBizchatTemplate}
+                    >
+                      <SelectTrigger 
+                        className="flex-1" 
+                        data-testid="bizchat-template-picker"
+                      >
+                        <SelectValue placeholder={
+                          bizchatTemplates.length === 0 
+                            ? "Load your BizChat templates →" 
+                            : "Pick from BizChat (auto-fills language)"
+                        } />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingBizchatTemplates ? (
+                          <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        ) : bizchatTemplates.length === 0 ? (
+                          <SelectItem value="none" disabled>Click Refresh to load</SelectItem>
+                        ) : (
+                          bizchatTemplates.map((t) => (
+                            <SelectItem key={`${t.name}-${t.language}`} value={t.name}>
+                              {t.name}
+                              {t.language && (
+                                <span className="text-xs text-slate-500 ml-2">({t.language})</span>
+                              )}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={fetchBizchatTemplates}
+                      disabled={loadingBizchatTemplates}
+                      data-testid="refresh-bizchat-templates-btn"
+                      title="Refresh BizChat templates"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${loadingBizchatTemplates ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
                   <Input
                     id="templateName"
                     placeholder="e.g., order_confirmation"
                     value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
+                    onChange={(e) => {
+                      setTemplateName(e.target.value);
+                      setSelectedBizchatTemplate('');
+                    }}
                     data-testid="template-name-input"
                   />
                   <p className="text-xs text-slate-500">
-                    Enter the exact template name approved in your BizChat account
+                    Pick from BizChat above (recommended — auto-fills language and avoids typos) or type manually.
                   </p>
                 </div>
 

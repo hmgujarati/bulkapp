@@ -29,6 +29,7 @@ from routes.webhook import router as webhook_router
 from routes.contacts import router as contacts_router
 from routes.indiamart import router as indiamart_router
 from routes.chatbot import router as chatbot_router
+from routes.bizchat_templates import router as bizchat_templates_router
 
 # Import utilities
 from utils.database import db, close_db_connection
@@ -82,6 +83,7 @@ app.include_router(webhook_router, prefix="/api")
 app.include_router(contacts_router, prefix="/api")
 app.include_router(indiamart_router, prefix="/api")
 app.include_router(chatbot_router, prefix="/api")
+app.include_router(bizchat_templates_router, prefix="/api")
 
 # Mount static files for uploads
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")

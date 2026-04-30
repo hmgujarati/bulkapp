@@ -490,7 +490,16 @@ const SendMessagesNew = ({ user, onLogout }) => {
                     
                     <TabsContent value="fetch" className="space-y-2">
                       <Label htmlFor="template">Select Template</Label>
-                      <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                      <Select 
+                        value={selectedTemplate} 
+                        onValueChange={(value) => {
+                          setSelectedTemplate(value);
+                          const chosen = templates.find(t => t.name === value);
+                          if (chosen && chosen.language) {
+                            setTemplateLanguage(chosen.language);
+                          }
+                        }}
+                      >
                         <SelectTrigger data-testid="template-select">
                           <SelectValue placeholder="Select a template" />
                         </SelectTrigger>
@@ -501,13 +510,21 @@ const SendMessagesNew = ({ user, onLogout }) => {
                             <SelectItem value="none" disabled>No templates available</SelectItem>
                           ) : (
                             templates.map((template) => (
-                              <SelectItem key={template.name} value={template.name}>
+                              <SelectItem key={`${template.name}-${template.language}`} value={template.name}>
                                 {template.name}
+                                {template.language && (
+                                  <span className="text-xs text-slate-500 ml-2">({template.language})</span>
+                                )}
                               </SelectItem>
                             ))
                           )}
                         </SelectContent>
                       </Select>
+                      {selectedTemplate && templateMode === 'fetch' && (
+                        <p className="text-xs text-emerald-600" data-testid="auto-language-hint">
+                          Language auto-filled: <span className="font-semibold">{templateLanguage}</span>
+                        </p>
+                      )}
                       <Button 
                         type="button" 
                         variant="outline" 
