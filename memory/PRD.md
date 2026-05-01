@@ -56,6 +56,13 @@ Build a WhatsApp platform for bulk messaging, AI reminders, lead qualification c
   - `CampaignDetails.js`: 6-card stat grid now shows Total / Sent / **Delivered (✓✓)** / **Read (👁)** / Failed / Pending with conversion-rate %
   - Tier-based admin limits in `AdminDashboard.js`: dropdown limited to **Tier 1 (250) → Tier 2 (2,000) → Tier 3 (10,000) → Tier 4 (100,000) → Unlimited**. Legacy values (e.g., 1,000) display gracefully until admin upgrades.
   - `dailyLimit == -1` is the **truly unlimited** sentinel: the `daily_limit.py` reset logic and `messages.py` send/process gates skip the cap entirely; `UserDashboard.js` shows `∞` instead of a number.
+- **BizChat-specific webhook shape support (May 1, 2026)**: Added BizChat's actual production payload shape `{contact:{}, message:{whatsapp_message_id, status, body:null, is_new_message:false}}` to `extract_status_data` parser. Previously only Cloud-API style `statuses[]` was recognized.
+- **wamid extraction fix on send (May 1, 2026)**: BizChat's `send-template-message` response is double-nested as `{result, message, data:{wamid, log_uid, ...}}`. The original code read top-level `data.message_id` which was always None, so no campaign recipients had `messageId` populated → status webhooks couldn't match → no Delivered/Read counts updated. Now reads `data.data.wamid` (with fallbacks) in both the main send loop and the auto-retry loop in `routes/messages.py`.
+- **Button-click tracking (May 1, 2026)**: New service `/app/backend/services/button_click_service.py` detects WhatsApp template button taps via 3 webhook shapes (BizChat `replied_to_whatsapp_message_id`+body, Cloud-API `interactive.button_reply`, Cloud-API `button.text`). Records per recipient: `clickedButton` + `clickedAt`. First-click-wins (subsequent clicks ignored). UI on `CampaignDetails.js` adds: 
+  - "Clicked" column in recipients table with the button text
+  - Summary badges showing click breakdown (e.g. "Yes!: 12 · Call Us: 7 · No click: 81")
+  - Filter dropdown: All / Clicked any / Did NOT click / specific button
+  - CSV export expanded with `Clicked Button`, `Clicked At`, `Delivered At`, `Read At` columns; respects active filter so admin can download only "people who clicked Yes" for follow-up calls.
 
 ## Backlog
 - P1: Indiamart Pull API (deferred by user)
