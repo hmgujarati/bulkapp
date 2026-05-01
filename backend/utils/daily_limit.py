@@ -62,7 +62,11 @@ async def check_and_reset_daily_usage(user_id: str, user_data: dict = None) -> d
         user_data['lastResetDateTime'] = now.isoformat()
     
     # Calculate remaining and next reset time
-    remaining = daily_limit - user_data.get('dailyUsage', 0)
+    # dailyLimit = -1 means UNLIMITED
+    if daily_limit == -1:
+        remaining = -1  # Sentinel for "unlimited"
+    else:
+        remaining = daily_limit - user_data.get('dailyUsage', 0)
     
     # Calculate when the limit will reset
     next_reset = None

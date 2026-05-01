@@ -11,6 +11,7 @@ import re
 from models.reminder_schemas import Reminder, ReminderStatus, RecurrenceConfig, RecurrenceType
 from utils.database import db
 from services.chatbot_service import handle_chatbot_message
+from services.message_status_service import process_status_payload, extract_status_data
 
 logger = logging.getLogger(__name__)
 
@@ -463,6 +464,23 @@ async def handle_bizchat_webhook(request: Request):
         body = await request.json()
         logger.info(f"Received legacy webhook: {json.dumps(body)[:500]}")
 
+        # === STATUS UPDATE (delivery / read receipts) ===
+        # If the payload is a status update, route to status processor.
+        # Legacy webhook doesn't carry a user_id, so we resolve it from the wamid.
+        statuses = extract_status_data(body)
+        if statuses:
+            updated_total = 0
+            for s in statuses:
+                # Find which user owns this wamid
+                campaign = await db.campaigns.find_one(
+                    {"recipients.messageId": s['wamid']},
+                    {"userId": 1, "_id": 0}
+                )
+                if campaign:
+                    n = await process_status_payload(campaign['userId'], {"statuses": [s]})
+                    updated_total += n
+            return {"status": "success", "type": "status_update", "updated": updated_total}
+
         phone, message_text, is_new_message, client_name, message_id = extract_message_data(body)
 
         if not phone or not message_text:
@@ -513,6 +531,11 @@ async def handle_universal_webhook(user_id: str, request: Request):
 
         body = await request.json()
         logger.info(f"Universal webhook for user {user_id}: {json.dumps(body)[:500]}")
+
+        # === STATUS UPDATE (delivery / read receipts) ===
+        statuses_updated = await process_status_payload(user_id, body)
+        if statuses_updated > 0:
+            return {"status": "success", "type": "status_update", "updated": statuses_updated}
 
         phone, message_text, is_new_message, client_name, message_id = extract_message_data(body)
 

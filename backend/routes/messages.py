@@ -184,9 +184,14 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     daily_limit = user.get('dailyLimit', 1000)
     
     pending_recipients = [r for r in campaign['recipients'] if r['status'] == MessageStatus.PENDING.value]
-    remaining = daily_limit - daily_usage
     
-    if len(pending_recipients) > remaining:
+    # dailyLimit = -1 means UNLIMITED — skip the cap check entirely
+    if daily_limit == -1:
+        remaining = len(pending_recipients) + 1  # any positive value bigger than needed
+    else:
+        remaining = daily_limit - daily_usage
+    
+    if daily_limit != -1 and len(pending_recipients) > remaining:
         next_reset = user.get('nextResetAt', 'in 24 hours')
         logger.warning(f"Campaign {campaign_id}: Need {len(pending_recipients)} but only {remaining} available")
         await db.campaigns.update_one(
@@ -429,7 +434,8 @@ async def send_messages(
         daily_limit = user.get('dailyLimit', 1000)
         remaining = user.get('remaining', daily_limit - daily_usage)
         
-        if len(request.recipients) > remaining:
+        # dailyLimit = -1 means UNLIMITED — skip cap check
+        if daily_limit != -1 and len(request.recipients) > remaining:
             next_reset = user.get('nextResetAt', 'in 24 hours')
             raise HTTPException(
                 status_code=400,

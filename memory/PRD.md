@@ -48,6 +48,14 @@ Build a WhatsApp platform for bulk messaging, AI reminders, lead qualification c
   - Defensive parser handles BizChat's deeply-nested `{data: {templateList: {data: [...]}}}` shape and extracts `name`, `language`, `status`, `category`, `components` per template
   - Frontend `SendMessagesNew.js`: template picker in "Fetch from BizChat" tab now auto-fills `templateLanguage` from the selected template's metadata; shows "Language auto-filled: xx" hint below
   - Frontend `SendMessagesSimple.js`: added BizChat template picker dropdown + refresh button above the Template Name input; selecting a template auto-fills both name AND language
+- **Read/Delivery Receipts + Tiered Daily Limits (May 1, 2026)**:
+  - Backend service `/app/backend/services/message_status_service.py` defensively parses status webhooks (Cloud-API `statuses[]`, BizChat `data.status`, flat `wamid+status`) and updates campaign recipient status with strict precedence: `pending → sent → delivered → read` (never downgrade; `failed` is terminal)
+  - `extract_status_data` aliases handle BSP variations: `success/accepted/queued/submitted → sent`, `received → delivered`, `seen/viewed → read`, `failure/error/rejected/undeliverable → failed`
+  - Webhook (`/app/backend/routes/webhook.py`) checks for status payloads first; if found, processes them and short-circuits before message extraction
+  - Schema additions: `MessageStatus.READ`, `RecipientInfo.deliveredAt/readAt`, `Campaign.deliveredCount/readCount`
+  - `CampaignDetails.js`: 6-card stat grid now shows Total / Sent / **Delivered (✓✓)** / **Read (👁)** / Failed / Pending with conversion-rate %
+  - Tier-based admin limits in `AdminDashboard.js`: dropdown limited to **Tier 1 (250) → Tier 2 (2,000) → Tier 3 (10,000) → Tier 4 (100,000) → Unlimited**. Legacy values (e.g., 1,000) display gracefully until admin upgrades.
+  - `dailyLimit == -1` is the **truly unlimited** sentinel: the `daily_limit.py` reset logic and `messages.py` send/process gates skip the cap entirely; `UserDashboard.js` shows `∞` instead of a number.
 
 ## Backlog
 - P1: Indiamart Pull API (deferred by user)

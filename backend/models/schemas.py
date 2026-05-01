@@ -25,6 +25,7 @@ class MessageStatus(str, Enum):
     SENT = "sent"
     FAILED = "failed"
     DELIVERED = "delivered"
+    READ = "read"
 
 
 # User Models
@@ -102,6 +103,8 @@ class RecipientInfo(BaseModel):
     messageId: Optional[str] = None
     error: Optional[str] = None
     sentAt: Optional[datetime] = None
+    deliveredAt: Optional[datetime] = None
+    readAt: Optional[datetime] = None
 
 
 class Campaign(BaseModel):
@@ -114,6 +117,8 @@ class Campaign(BaseModel):
     totalCount: int
     sentCount: int = 0
     failedCount: int = 0
+    deliveredCount: int = 0
+    readCount: int = 0
     pendingCount: int
     scheduledAt: Optional[datetime] = None
     status: CampaignStatus = CampaignStatus.PENDING

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, CheckCircle, XCircle, Clock, Download, Pause, Play, X as CancelIcon, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Clock, Download, Pause, Play, X as CancelIcon, RefreshCw, CheckCheck, Eye } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -128,6 +128,8 @@ const CampaignDetails = ({ user, onLogout }) => {
   const getStatusColor = (status) => {
     const colors = {
       sent: 'text-green-600 bg-green-50',
+      delivered: 'text-blue-600 bg-blue-50',
+      read: 'text-violet-600 bg-violet-50',
       failed: 'text-red-600 bg-red-50',
       pending: 'text-amber-600 bg-amber-50',
     };
@@ -236,10 +238,10 @@ const CampaignDetails = ({ user, onLogout }) => {
         )}
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
           <Card className="shadow-lg border-0 bg-gradient-to-br from-slate-50 to-slate-100">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-700">Total Recipients</CardTitle>
+              <CardTitle className="text-sm font-medium text-slate-700">Total</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-slate-900">{campaign.totalCount}</div>
@@ -248,35 +250,69 @@ const CampaignDetails = ({ user, onLogout }) => {
 
           <Card className="shadow-lg border-0 bg-gradient-to-br from-green-50 to-green-100">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-green-900">Successfully Sent</CardTitle>
+              <CardTitle className="text-sm font-medium text-green-900 flex items-center gap-1">
+                <CheckCircle className="h-4 w-4" /> Sent
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-900">{campaign.sentCount}</div>
               <p className="text-sm text-green-700 mt-1">
-                {((campaign.sentCount / campaign.totalCount) * 100).toFixed(1)}% success rate
+                {((campaign.sentCount / campaign.totalCount) * 100).toFixed(1)}%
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border-0 bg-gradient-to-br from-blue-50 to-blue-100" data-testid="delivered-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-blue-900 flex items-center gap-1">
+                <CheckCheck className="h-4 w-4" /> Delivered
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-900">{campaign.deliveredCount || 0}</div>
+              <p className="text-sm text-blue-700 mt-1">
+                {campaign.sentCount > 0 ? `${(((campaign.deliveredCount || 0) / campaign.sentCount) * 100).toFixed(0)}% of sent` : '—'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border-0 bg-gradient-to-br from-violet-50 to-violet-100" data-testid="read-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-violet-900 flex items-center gap-1">
+                <Eye className="h-4 w-4" /> Read
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-violet-900">{campaign.readCount || 0}</div>
+              <p className="text-sm text-violet-700 mt-1">
+                {campaign.sentCount > 0 ? `${(((campaign.readCount || 0) / campaign.sentCount) * 100).toFixed(0)}% of sent` : '—'}
               </p>
             </CardContent>
           </Card>
 
           <Card className="shadow-lg border-0 bg-gradient-to-br from-red-50 to-red-100">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-red-900">Failed</CardTitle>
+              <CardTitle className="text-sm font-medium text-red-900 flex items-center gap-1">
+                <XCircle className="h-4 w-4" /> Failed
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-red-900">{campaign.failedCount}</div>
               <p className="text-sm text-red-700 mt-1">
-                {((campaign.failedCount / campaign.totalCount) * 100).toFixed(1)}% failed
+                {((campaign.failedCount / campaign.totalCount) * 100).toFixed(1)}%
               </p>
             </CardContent>
           </Card>
 
           <Card className="shadow-lg border-0 bg-gradient-to-br from-amber-50 to-amber-100">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-amber-900">Pending</CardTitle>
+              <CardTitle className="text-sm font-medium text-amber-900 flex items-center gap-1">
+                <Clock className="h-4 w-4" /> Pending
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-amber-900">{campaign.pendingCount}</div>
-              <p className="text-sm text-amber-700 mt-1">Awaiting processing</p>
+              <p className="text-sm text-amber-700 mt-1">Awaiting</p>
             </CardContent>
           </Card>
         </div>
@@ -349,6 +385,8 @@ const CampaignDetails = ({ user, onLogout }) => {
                       <td className="py-3 px-4 text-sm">
                         <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg ${getStatusColor(recipient.status)}`}>
                           {recipient.status === 'sent' && <CheckCircle className="h-3 w-3" />}
+                          {recipient.status === 'delivered' && <CheckCheck className="h-3 w-3" />}
+                          {recipient.status === 'read' && <Eye className="h-3 w-3" />}
                           {recipient.status === 'failed' && <XCircle className="h-3 w-3" />}
                           {recipient.status === 'pending' && <Clock className="h-3 w-3" />}
                           <span className="font-medium">{recipient.status}</span>

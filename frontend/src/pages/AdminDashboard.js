@@ -340,22 +340,26 @@ const AdminDashboard = ({ user, onLogout, onLoginAs }) => {
                         </td>
                         <td className="py-3 px-3 hidden lg:table-cell">
                           <Select
-                            value={u.dailyLimit?.toString() || '1000'}
+                            value={u.dailyLimit?.toString() || '250'}
                             onValueChange={(value) => handleUpdateLimit(u.id, value)}
                           >
-                            <SelectTrigger className="w-28 h-8 text-xs">
-                              <SelectValue />
+                            <SelectTrigger className="w-32 h-8 text-xs" data-testid={`tier-select-${u.id}`}>
+                              <SelectValue>
+                                {u.dailyLimit === -1 
+                                  ? 'Unlimited' 
+                                  : u.dailyLimit === 250 ? 'Tier 1 — 250'
+                                  : u.dailyLimit === 2000 ? 'Tier 2 — 2,000'
+                                  : u.dailyLimit === 10000 ? 'Tier 3 — 10,000'
+                                  : u.dailyLimit === 100000 ? 'Tier 4 — 100,000'
+                                  : u.dailyLimit?.toLocaleString?.() || u.dailyLimit}
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="250">250</SelectItem>
-                              <SelectItem value="500">500</SelectItem>
-                              <SelectItem value="1000">1,000</SelectItem>
-                              <SelectItem value="2500">2,500</SelectItem>
-                              <SelectItem value="5000">5,000</SelectItem>
-                              <SelectItem value="10000">10,000</SelectItem>
-                              <SelectItem value="25000">25,000</SelectItem>
-                              <SelectItem value="50000">50,000</SelectItem>
-                              <SelectItem value="100000">100,000</SelectItem>
+                              <SelectItem value="250">Tier 1 — 250</SelectItem>
+                              <SelectItem value="2000">Tier 2 — 2,000</SelectItem>
+                              <SelectItem value="10000">Tier 3 — 10,000</SelectItem>
+                              <SelectItem value="100000">Tier 4 — 100,000</SelectItem>
+                              <SelectItem value="-1">Unlimited</SelectItem>
                             </SelectContent>
                           </Select>
                         </td>
