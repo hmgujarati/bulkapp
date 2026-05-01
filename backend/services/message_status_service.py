@@ -214,15 +214,29 @@ async def update_message_status(user_id: str, wamid: str, new_status: str, times
         if r.get('status') in (MessageStatus.DELIVERED.value, MessageStatus.READ.value)
     )
     read_count = sum(1 for r in updated_recipients if r.get('status') == MessageStatus.READ.value)
-    failed_count = sum(1 for r in updated_recipients if r.get('status') == MessageStatus.FAILED.value)
     
     set_ops["deliveredCount"] = delivered_count
     set_ops["readCount"] = read_count
-    set_ops["failedCount"] = failed_count
+    # NOTE: We deliberately do NOT recompute/write failedCount here.
+    # The campaign worker is the canonical writer for sent/failed counts (uses $inc).
+    # Recomputing failedCount from the array here would race with concurrent worker
+    # updates and clobber them. Webhooks that report a "failed" status should $inc
+    # failedCount instead — handled below if needed.
+    if new_status == MessageStatus.FAILED.value and current_status != MessageStatus.FAILED.value:
+        # Rare path — webhook reporting a failure for a previously-sent message.
+        # Use $inc so we don't race with the worker's failedCount tracking.
+        pass  # Implemented as $inc below
+    
+    update_doc = {"$set": set_ops}
+    if new_status == MessageStatus.FAILED.value and current_status != MessageStatus.FAILED.value:
+        update_doc["$inc"] = {"failedCount": 1}
+        # Decrement sent if we're flipping a sent message to failed
+        if current_status in (MessageStatus.SENT.value, MessageStatus.DELIVERED.value, MessageStatus.READ.value):
+            update_doc["$inc"]["sentCount"] = -1
     
     await db.campaigns.update_one(
         {"id": campaign['id']},
-        {"$set": set_ops}
+        update_doc
     )
     
     logger.info(

@@ -236,14 +236,11 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
             current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
             if current and current.get('status') == CampaignStatus.PAUSED.value:
                 logger.info(f"Campaign {campaign_id} paused at {batch_start}/{len(pending_indices)}")
-                # Save current progress before exiting
+                # Just update heartbeat — counts/recipients were already saved by the previous batch
+                # (don't overwrite them now or we'll clobber any concurrent webhook updates)
                 await db.campaigns.update_one(
                     {"id": campaign_id},
                     {"$set": {
-                        "recipients": campaign['recipients'],
-                        "sentCount": sent_count,
-                        "failedCount": failed_count,
-                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
                         "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
                         "updatedAt": datetime.now(timezone.utc).isoformat()
                     }}
@@ -267,25 +264,34 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            # Process results
+            # Process results — track per-index changes so we can write targeted updates
+            # instead of overwriting the whole recipients array (which would clobber any
+            # delivered/read/click webhook updates that arrived during this batch).
             batch_errors = 0
+            batch_set_ops = {}  # {f"recipients.{idx}.field": value}
+            batch_sent_delta = 0
+            batch_failed_delta = 0
             for j, (idx, result) in enumerate(zip(batch_indices, results)):
                 if isinstance(result, Exception):
                     failed_count += 1
+                    batch_failed_delta += 1
                     batch_errors += 1
+                    err_text = str(result)[:200]
                     campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
-                    campaign['recipients'][idx]['error'] = str(result)[:200]
+                    campaign['recipients'][idx]['error'] = err_text
+                    batch_set_ops[f"recipients.{idx}.status"] = MessageStatus.FAILED.value
+                    batch_set_ops[f"recipients.{idx}.error"] = err_text
                     logger.error(f"Message to {campaign['recipients'][idx]['phone']} raised exception: {result}")
                 elif result.get('success'):
                     sent_count += 1
-                    campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
-                    campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
+                    batch_sent_delta += 1
+                    sent_at = datetime.now(timezone.utc).isoformat()
                     # BizChat returns the WhatsApp message ID under data.data.wamid
                     # Shape: {"result": "success", "data": {"wamid": "...", "log_uid": "...", ...}}
                     # Be defensive: try the nested location first, then top-level fallbacks.
                     full_resp = result.get('data', {}) or {}
                     inner = full_resp.get('data') if isinstance(full_resp.get('data'), dict) else {}
-                    campaign['recipients'][idx]['messageId'] = (
+                    msg_id = (
                         inner.get('wamid')
                         or inner.get('whatsapp_message_id')
                         or inner.get('message_id')
@@ -294,11 +300,22 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                         or full_resp.get('whatsapp_message_id')
                         or full_resp.get('message_id')
                     )
+                    campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
+                    campaign['recipients'][idx]['sentAt'] = sent_at
+                    campaign['recipients'][idx]['messageId'] = msg_id
+                    batch_set_ops[f"recipients.{idx}.status"] = MessageStatus.SENT.value
+                    batch_set_ops[f"recipients.{idx}.sentAt"] = sent_at
+                    if msg_id:
+                        batch_set_ops[f"recipients.{idx}.messageId"] = msg_id
                 else:
                     failed_count += 1
+                    batch_failed_delta += 1
                     batch_errors += 1
+                    err_text = result.get('error', 'Unknown error')[:200]
                     campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
-                    campaign['recipients'][idx]['error'] = result.get('error', 'Unknown error')[:200]
+                    campaign['recipients'][idx]['error'] = err_text
+                    batch_set_ops[f"recipients.{idx}.status"] = MessageStatus.FAILED.value
+                    batch_set_ops[f"recipients.{idx}.error"] = err_text
             
             # Smart back-off: if server/hosting is struggling, slow down temporarily
             if batch_errors > len(batch_indices) * 0.5:
@@ -319,20 +336,26 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
             else:
                 batch_delay = 0.2
             
-            # Save to DB after EVERY batch — real-time progress + heartbeat
-            await db.campaigns.update_one(
-                {"id": campaign_id},
-                {
-                    "$set": {
-                        "recipients": campaign['recipients'],
-                        "sentCount": sent_count,
-                        "failedCount": failed_count,
-                        "pendingCount": campaign['totalCount'] - sent_count - failed_count,
-                        "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
-                        "updatedAt": datetime.now(timezone.utc).isoformat()
-                    }
+            # Save to DB after EVERY batch — real-time progress + heartbeat.
+            # IMPORTANT: We use TARGETED per-index $set ops + $inc for counters
+            # instead of overwriting the entire `recipients` array. This is critical
+            # because webhook handlers (delivered/read/clicks) write to specific
+            # recipient indices concurrently — overwriting the whole array would
+            # clobber those updates.
+            now_iso = datetime.now(timezone.utc).isoformat()
+            update_set_ops = {
+                **batch_set_ops,
+                "lastHeartbeatAt": now_iso,
+                "updatedAt": now_iso,
+            }
+            update_doc = {"$set": update_set_ops}
+            if batch_sent_delta or batch_failed_delta:
+                update_doc["$inc"] = {
+                    "sentCount": batch_sent_delta,
+                    "failedCount": batch_failed_delta,
+                    "pendingCount": -(batch_sent_delta + batch_failed_delta),
                 }
-            )
+            await db.campaigns.update_one({"id": campaign_id}, update_doc)
             
             # Minimal delay between batches
             await asyncio.sleep(batch_delay)
@@ -365,58 +388,93 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                     ))
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 
+                # Track per-index ops for THIS retry batch
+                retry_set_ops = {}
+                retry_sent_delta = 0
+                
                 for idx, result in zip(batch_indices, results):
                     if isinstance(result, Exception):
-                        campaign['recipients'][idx]['error'] = str(result)[:200]
+                        err_text = str(result)[:200]
+                        campaign['recipients'][idx]['error'] = err_text
+                        retry_set_ops[f"recipients.{idx}.error"] = err_text
                     elif result.get('success'):
-                        campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
-                        campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
+                        sent_at = datetime.now(timezone.utc).isoformat()
                         full_resp = result.get('data', {}) or {}
                         inner = full_resp.get('data') if isinstance(full_resp.get('data'), dict) else {}
-                        campaign['recipients'][idx]['messageId'] = (
+                        msg_id = (
                             inner.get('wamid')
                             or inner.get('whatsapp_message_id')
                             or inner.get('message_id')
                             or full_resp.get('wamid')
                             or full_resp.get('whatsapp_message_id')
                         )
+                        campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
+                        campaign['recipients'][idx]['sentAt'] = sent_at
+                        campaign['recipients'][idx]['messageId'] = msg_id
                         campaign['recipients'][idx].pop('error', None)
+                        retry_set_ops[f"recipients.{idx}.status"] = MessageStatus.SENT.value
+                        retry_set_ops[f"recipients.{idx}.sentAt"] = sent_at
+                        if msg_id:
+                            retry_set_ops[f"recipients.{idx}.messageId"] = msg_id
+                        # Use $unset for the error field
+                        retry_set_ops[f"recipients.{idx}.error"] = ""  # blank it; cleaner than $unset for our use
                         sent_count += 1
                         failed_count -= 1
+                        retry_sent_delta += 1
                     elif result.get('retryable'):
                         pass  # Still failing, will retry next round
                     else:
-                        campaign['recipients'][idx]['error'] = result.get('error', 'Unknown')[:200]
+                        err_text = result.get('error', 'Unknown')[:200]
+                        campaign['recipients'][idx]['error'] = err_text
+                        retry_set_ops[f"recipients.{idx}.error"] = err_text
+                
+                # Apply this retry-batch's targeted updates
+                if retry_set_ops or retry_sent_delta:
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    update_doc = {"$set": {
+                        **retry_set_ops,
+                        "lastHeartbeatAt": now_iso,
+                        "updatedAt": now_iso,
+                    }}
+                    if retry_sent_delta:
+                        update_doc["$inc"] = {
+                            "sentCount": retry_sent_delta,
+                            "failedCount": -retry_sent_delta,
+                        }
+                    await db.campaigns.update_one({"id": campaign_id}, update_doc)
                 
                 await asyncio.sleep(2.0)  # Slower pace for retries
         
-        # Save progress after each retry round
+        # Heartbeat after the retry round (no need to rewrite counts/recipients)
         await db.campaigns.update_one(
             {"id": campaign_id},
             {"$set": {
-                "recipients": campaign['recipients'],
-                "sentCount": sent_count,
-                "failedCount": failed_count,
-                "pendingCount": campaign['totalCount'] - sent_count - failed_count,
                 "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )
     
-    # Mark any remaining retryable as clean failure message
-    for r in campaign['recipients']:
+    # Mark any remaining retryable as clean failure message — using targeted $set ops
+    cleanup_set_ops = {}
+    for idx, r in enumerate(campaign['recipients']):
         if r.get('error') in ['429_RETRY', 'TIMEOUT_RETRY']:
-            r['error'] = 'Server busy - retry manually'
+            new_err = 'Server busy - retry manually'
+            r['error'] = new_err
+            cleanup_set_ops[f"recipients.{idx}.error"] = new_err
+    
+    if cleanup_set_ops:
+        await db.campaigns.update_one(
+            {"id": campaign_id},
+            {"$set": cleanup_set_ops}
+        )
 
-    # Final update
+    # Final update — only mark completion. Don't overwrite recipients/counts:
+    # those have been maintained via per-index $set + $inc throughout, and
+    # webhooks may have applied delivered/read/click updates we must preserve.
     await db.campaigns.update_one(
         {"id": campaign_id},
         {
             "$set": {
-                "recipients": campaign['recipients'],
-                "sentCount": sent_count,
-                "failedCount": failed_count,
-                "pendingCount": campaign['totalCount'] - sent_count - failed_count,
                 "status": CampaignStatus.COMPLETED.value,
                 "completedAt": datetime.now(timezone.utc).isoformat()
             }
