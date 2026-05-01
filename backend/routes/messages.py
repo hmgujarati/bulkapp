@@ -280,7 +280,15 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                     sent_count += 1
                     campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
                     campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
-                    campaign['recipients'][idx]['messageId'] = result.get('data', {}).get('message_id')
+                    # BizChat returns the WhatsApp message ID under data.wamid (preferred)
+                    # but fall back to other possible keys for safety
+                    rdata = result.get('data', {}) or {}
+                    campaign['recipients'][idx]['messageId'] = (
+                        rdata.get('wamid')
+                        or rdata.get('whatsapp_message_id')
+                        or rdata.get('message_id')
+                        or rdata.get('id')
+                    )
                 else:
                     failed_count += 1
                     batch_errors += 1
@@ -358,7 +366,13 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                     elif result.get('success'):
                         campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
                         campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
-                        campaign['recipients'][idx]['messageId'] = result.get('data', {}).get('message_id')
+                        rdata = result.get('data', {}) or {}
+                        campaign['recipients'][idx]['messageId'] = (
+                            rdata.get('wamid')
+                            or rdata.get('whatsapp_message_id')
+                            or rdata.get('message_id')
+                            or rdata.get('id')
+                        )
                         campaign['recipients'][idx].pop('error', None)
                         sent_count += 1
                         failed_count -= 1

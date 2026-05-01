@@ -58,8 +58,10 @@ def extract_status_data(body: dict):
     Common shapes handled:
       1. WhatsApp Cloud API: {"statuses": [{"id": "wamid.xxx", "status": "delivered", "timestamp": "..."}]}
       2. Single status:      {"event_type": "message_status", "wamid": "...", "status": "..."}
-      3. BizChat-style:      {"data": {"status": "delivered", "wamid": "..."}}
-      4. Flat:               {"message_status": "delivered", "wamid": "..."} or {"message_id": ..., "status": ...}
+      3. BizChat-style (REAL, observed): 
+         {"contact": {...}, "message": {"whatsapp_message_id": "wamid.xxx", "status": "delivered", "body": null, "is_new_message": false, ...}}
+      4. BizChat-nested data: {"data": {"status": "delivered", "wamid": "..."}}
+      5. Flat:               {"message_status": "delivered", "wamid": "..."} or {"message_id": ..., "status": ...}
     """
     if not isinstance(body, dict):
         return []
@@ -82,7 +84,26 @@ def extract_status_data(body: dict):
                     'error': (s.get('errors') or [{}])[0].get('title') if s.get('errors') else None,
                 })
     
-    # 2 / 4. Flat or event-type style
+    # 3. BizChat actual shape: message.{whatsapp_message_id, status} with body=null
+    # This is the OBSERVED shape from bizchatapi.in production webhooks.
+    if not results:
+        msg = body.get('message')
+        if isinstance(msg, dict):
+            wamid = msg.get('whatsapp_message_id') or msg.get('id') or msg.get('message_id')
+            raw_status = msg.get('status')
+            status = _normalize_status(raw_status)
+            # Only treat as status update if there's NO message text body
+            # (true incoming messages have body or text populated)
+            has_body = bool(msg.get('body') or msg.get('text'))
+            if wamid and status and not has_body:
+                results.append({
+                    'wamid': wamid,
+                    'status': status,
+                    'timestamp': msg.get('timestamp'),
+                    'error': msg.get('error') or msg.get('error_message'),
+                })
+    
+    # 2 / 5. Flat or event-type style
     if not results:
         wamid = (
             body.get('wamid')
@@ -104,7 +125,7 @@ def extract_status_data(body: dict):
                 'error': body.get('error'),
             })
     
-    # 3. BizChat-nested
+    # 4. BizChat-nested "data" key
     if not results:
         data = body.get('data')
         if isinstance(data, dict):
