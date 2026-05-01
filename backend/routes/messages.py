@@ -280,14 +280,19 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                     sent_count += 1
                     campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
                     campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
-                    # BizChat returns the WhatsApp message ID under data.wamid (preferred)
-                    # but fall back to other possible keys for safety
-                    rdata = result.get('data', {}) or {}
+                    # BizChat returns the WhatsApp message ID under data.data.wamid
+                    # Shape: {"result": "success", "data": {"wamid": "...", "log_uid": "...", ...}}
+                    # Be defensive: try the nested location first, then top-level fallbacks.
+                    full_resp = result.get('data', {}) or {}
+                    inner = full_resp.get('data') if isinstance(full_resp.get('data'), dict) else {}
                     campaign['recipients'][idx]['messageId'] = (
-                        rdata.get('wamid')
-                        or rdata.get('whatsapp_message_id')
-                        or rdata.get('message_id')
-                        or rdata.get('id')
+                        inner.get('wamid')
+                        or inner.get('whatsapp_message_id')
+                        or inner.get('message_id')
+                        or inner.get('id')
+                        or full_resp.get('wamid')
+                        or full_resp.get('whatsapp_message_id')
+                        or full_resp.get('message_id')
                     )
                 else:
                     failed_count += 1
@@ -366,12 +371,14 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                     elif result.get('success'):
                         campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
                         campaign['recipients'][idx]['sentAt'] = datetime.now(timezone.utc).isoformat()
-                        rdata = result.get('data', {}) or {}
+                        full_resp = result.get('data', {}) or {}
+                        inner = full_resp.get('data') if isinstance(full_resp.get('data'), dict) else {}
                         campaign['recipients'][idx]['messageId'] = (
-                            rdata.get('wamid')
-                            or rdata.get('whatsapp_message_id')
-                            or rdata.get('message_id')
-                            or rdata.get('id')
+                            inner.get('wamid')
+                            or inner.get('whatsapp_message_id')
+                            or inner.get('message_id')
+                            or full_resp.get('wamid')
+                            or full_resp.get('whatsapp_message_id')
                         )
                         campaign['recipients'][idx].pop('error', None)
                         sent_count += 1
