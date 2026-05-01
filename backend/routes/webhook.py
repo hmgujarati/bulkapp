@@ -12,6 +12,7 @@ from models.reminder_schemas import Reminder, ReminderStatus, RecurrenceConfig, 
 from utils.database import db
 from services.chatbot_service import handle_chatbot_message
 from services.message_status_service import process_status_payload, extract_status_data
+from services.button_click_service import extract_button_click, record_button_click
 
 logger = logging.getLogger(__name__)
 
@@ -481,6 +482,18 @@ async def handle_bizchat_webhook(request: Request):
                     updated_total += n
             return {"status": "success", "type": "status_update", "updated": updated_total}
 
+        # === BUTTON CLICK on a campaign message ===
+        click = extract_button_click(body)
+        if click:
+            campaign = await db.campaigns.find_one(
+                {"recipients.messageId": click['wamid']},
+                {"userId": 1, "_id": 0}
+            )
+            if campaign:
+                recorded = await record_button_click(campaign['userId'], click['wamid'], click['button_text'])
+                if recorded:
+                    return {"status": "success", "type": "button_click", "button": click['button_text']}
+
         phone, message_text, is_new_message, client_name, message_id = extract_message_data(body)
 
         if not phone or not message_text:
@@ -536,6 +549,15 @@ async def handle_universal_webhook(user_id: str, request: Request):
         statuses_updated = await process_status_payload(user_id, body)
         if statuses_updated > 0:
             return {"status": "success", "type": "status_update", "updated": statuses_updated}
+
+        # === BUTTON CLICK on a campaign message ===
+        click = extract_button_click(body)
+        if click:
+            recorded = await record_button_click(user_id, click['wamid'], click['button_text'])
+            if recorded:
+                return {"status": "success", "type": "button_click", "button": click['button_text']}
+            # If wamid didn't belong to a campaign, fall through — could be a reply
+            # to a chatbot/reminder message. Continue normal routing.
 
         phone, message_text, is_new_message, client_name, message_id = extract_message_data(body)
 

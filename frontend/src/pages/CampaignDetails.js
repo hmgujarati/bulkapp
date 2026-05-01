@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, CheckCircle, XCircle, Clock, Download, Pause, Play, X as CancelIcon, RefreshCw, CheckCheck, Eye } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, CheckCircle, XCircle, Clock, Download, Pause, Play, X as CancelIcon, RefreshCw, CheckCheck, Eye, MousePointerClick } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -17,6 +18,7 @@ const CampaignDetails = ({ user, onLogout }) => {
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [clickFilter, setClickFilter] = useState('all'); // 'all' | 'clicked' | 'not_clicked' | <button text>
 
   const fetchCampaign = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -89,22 +91,27 @@ const CampaignDetails = ({ user, onLogout }) => {
   const downloadCSV = () => {
     if (!campaign) return;
 
-    const headers = ['Phone', 'Name', 'Status', 'Message ID', 'Error', 'Sent At'];
-    const rows = campaign.recipients.map(r => [
+    const headers = ['Phone', 'Name', 'Status', 'Message ID', 'Error', 'Sent At', 'Delivered At', 'Read At', 'Clicked Button', 'Clicked At'];
+    const rows = filteredRecipients.map(r => [
       r.phone,
       r.name,
       r.status,
       r.messageId || '',
       r.error || '',
-      r.sentAt ? format(new Date(r.sentAt), 'yyyy-MM-dd HH:mm:ss') : ''
+      r.sentAt ? format(new Date(r.sentAt), 'yyyy-MM-dd HH:mm:ss') : '',
+      r.deliveredAt ? format(new Date(r.deliveredAt), 'yyyy-MM-dd HH:mm:ss') : '',
+      r.readAt ? format(new Date(r.readAt), 'yyyy-MM-dd HH:mm:ss') : '',
+      r.clickedButton || '',
+      r.clickedAt ? format(new Date(r.clickedAt), 'yyyy-MM-dd HH:mm:ss') : ''
     ]);
 
-    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `campaign-${campaign.name}-${Date.now()}.csv`;
+    const filterSuffix = clickFilter !== 'all' ? `-${clickFilter.replace(/\s+/g, '_')}` : '';
+    a.download = `campaign-${campaign.name}${filterSuffix}-${Date.now()}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -135,6 +142,26 @@ const CampaignDetails = ({ user, onLogout }) => {
     };
     return colors[status] || 'text-slate-600 bg-slate-50';
   };
+
+  // Click breakdown: aggregate clicked buttons across recipients
+  const clickedRecipients = (campaign.recipients || []).filter(r => r.clickedButton);
+  const clickedCount = clickedRecipients.length;
+  const clickBreakdown = Object.entries(
+    clickedRecipients.reduce((acc, r) => {
+      acc[r.clickedButton] = (acc[r.clickedButton] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .map(([text, count]) => ({ text, count }))
+    .sort((a, b) => b.count - a.count);
+
+  // Filtered recipients based on click filter
+  const filteredRecipients = (campaign.recipients || []).filter(r => {
+    if (clickFilter === 'all') return true;
+    if (clickFilter === 'clicked') return !!r.clickedButton;
+    if (clickFilter === 'not_clicked') return !r.clickedButton;
+    return r.clickedButton === clickFilter;
+  });
 
   return (
     <Layout user={user} onLogout={onLogout}>
@@ -361,8 +388,44 @@ const CampaignDetails = ({ user, onLogout }) => {
         {/* Recipients List */}
         <Card className="shadow-lg border-0">
           <CardHeader>
-            <CardTitle>Recipients</CardTitle>
-            <CardDescription>Detailed status for each recipient</CardDescription>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <CardTitle>Recipients</CardTitle>
+                <CardDescription>Detailed status for each recipient</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={clickFilter} onValueChange={setClickFilter}>
+                  <SelectTrigger className="w-56" data-testid="click-filter-select">
+                    <SelectValue placeholder="Filter by button click" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({campaign.recipients.length})</SelectItem>
+                    <SelectItem value="clicked">Clicked any button ({clickedCount})</SelectItem>
+                    <SelectItem value="not_clicked">Did NOT click ({campaign.recipients.length - clickedCount})</SelectItem>
+                    {clickBreakdown.map(b => (
+                      <SelectItem key={b.text} value={b.text}>{b.text} ({b.count})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {clickBreakdown.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2" data-testid="click-summary">
+                {clickBreakdown.map(b => (
+                  <Badge 
+                    key={b.text} 
+                    variant="secondary" 
+                    className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1"
+                  >
+                    <MousePointerClick className="h-3 w-3 mr-1" />
+                    {b.text}: <span className="font-bold ml-1">{b.count}</span>
+                  </Badge>
+                ))}
+                <Badge variant="outline" className="px-3 py-1">
+                  No click: <span className="font-bold ml-1">{campaign.recipients.length - clickedCount}</span>
+                </Badge>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -372,13 +435,14 @@ const CampaignDetails = ({ user, onLogout }) => {
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Phone</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Name</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Status</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Clicked</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Message ID</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Sent At</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Error</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {campaign.recipients.map((recipient, index) => (
+                  {filteredRecipients.map((recipient, index) => (
                     <tr key={index} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="py-3 px-4 text-sm font-mono text-slate-900">{recipient.phone}</td>
                       <td className="py-3 px-4 text-sm text-slate-900">{recipient.name || '-'}</td>
@@ -391,6 +455,19 @@ const CampaignDetails = ({ user, onLogout }) => {
                           {recipient.status === 'pending' && <Clock className="h-3 w-3" />}
                           <span className="font-medium">{recipient.status}</span>
                         </div>
+                      </td>
+                      <td className="py-3 px-4 text-sm">
+                        {recipient.clickedButton ? (
+                          <div 
+                            className="inline-flex items-center space-x-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700"
+                            title={recipient.clickedAt ? `Clicked at ${format(new Date(recipient.clickedAt), 'MMM d, HH:mm')}` : ''}
+                          >
+                            <MousePointerClick className="h-3 w-3" />
+                            <span className="font-medium">{recipient.clickedButton}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-sm text-slate-600 font-mono">
                         {recipient.messageId ? recipient.messageId.slice(0, 20) + '...' : '-'}

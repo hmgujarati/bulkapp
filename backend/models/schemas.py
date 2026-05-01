@@ -105,6 +105,8 @@ class RecipientInfo(BaseModel):
     sentAt: Optional[datetime] = None
     deliveredAt: Optional[datetime] = None
     readAt: Optional[datetime] = None
+    clickedButton: Optional[str] = None
+    clickedAt: Optional[datetime] = None
 
 
 class Campaign(BaseModel):
