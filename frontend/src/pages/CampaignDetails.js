@@ -19,11 +19,18 @@ const CampaignDetails = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [clickFilter, setClickFilter] = useState('all'); // 'all' | 'clicked' | 'not_clicked' | <button text>
+  const [recipients, setRecipients] = useState([]);
+  const [recipientsLoading, setRecipientsLoading] = useState(false);
+  const [recipientsTotal, setRecipientsTotal] = useState(0);
+  const [recipientsOffset, setRecipientsOffset] = useState(0);
+  const RECIPIENTS_PAGE_SIZE = 200;
 
   const fetchCampaign = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const response = await api.get(`/campaigns/${id}`);
+      // Use the lite endpoint — campaign metadata + click breakdown WITHOUT recipients.
+      // Recipients are paginated separately for performance on large campaigns.
+      const response = await api.get(`/campaigns/${id}/lite`);
       setCampaign(response.data);
     } catch (error) {
       if (!silent) {
@@ -36,9 +43,40 @@ const CampaignDetails = ({ user, onLogout }) => {
     }
   }, [id, navigate]);
 
+  // Map UI clickFilter -> backend query param
+  const buildRecipientsParams = useCallback((offset) => {
+    const params = { offset, limit: RECIPIENTS_PAGE_SIZE };
+    if (clickFilter === 'clicked') params.click = 'any';
+    else if (clickFilter === 'not_clicked') params.click = 'none';
+    else if (clickFilter !== 'all') params.click = clickFilter;
+    return params;
+  }, [clickFilter]);
+
+  const fetchRecipients = useCallback(async (offset = 0, append = false) => {
+    setRecipientsLoading(true);
+    try {
+      const response = await api.get(`/campaigns/${id}/recipients`, { params: buildRecipientsParams(offset) });
+      const newRecipients = response.data.recipients || [];
+      setRecipients(prev => append ? [...prev, ...newRecipients] : newRecipients);
+      setRecipientsTotal(response.data.total || 0);
+      setRecipientsOffset(offset);
+    } catch (error) {
+      toast.error('Failed to load recipients');
+    } finally {
+      setRecipientsLoading(false);
+    }
+  }, [id, buildRecipientsParams]);
+
   useEffect(() => {
     fetchCampaign();
   }, [fetchCampaign]);
+
+  // Re-fetch recipients whenever the filter changes (or campaign loads first time)
+  useEffect(() => {
+    if (campaign) {
+      fetchRecipients(0, false);
+    }
+  }, [campaign?.id, clickFilter, fetchRecipients]);
 
   useEffect(() => {
     // Auto-refresh for processing campaigns
@@ -88,11 +126,36 @@ const CampaignDetails = ({ user, onLogout }) => {
     fetchCampaign(true);
   };
 
-  const downloadCSV = () => {
+  const downloadCSV = async () => {
     if (!campaign) return;
+    
+    // Fetch ALL filtered recipients in one big call (limit=10000 max per request)
+    // This avoids the bug where downloading after only 200 are loaded gave incomplete CSVs.
+    let allRecipients = [];
+    let offset = 0;
+    const PAGE = 1000;
+    
+    try {
+      toast.info('Preparing CSV…');
+      while (true) {
+        const params = { offset, limit: PAGE };
+        if (clickFilter === 'clicked') params.click = 'any';
+        else if (clickFilter === 'not_clicked') params.click = 'none';
+        else if (clickFilter !== 'all') params.click = clickFilter;
+        
+        const response = await api.get(`/campaigns/${id}/recipients`, { params });
+        const batch = response.data.recipients || [];
+        allRecipients = allRecipients.concat(batch);
+        if (!response.data.hasMore || batch.length === 0) break;
+        offset += PAGE;
+      }
+    } catch (error) {
+      toast.error('Failed to fetch recipients for CSV');
+      return;
+    }
 
     const headers = ['Phone', 'Name', 'Status', 'Message ID', 'Error', 'Sent At', 'Delivered At', 'Read At', 'Clicked Button', 'Clicked At'];
-    const rows = filteredRecipients.map(r => [
+    const rows = allRecipients.map(r => [
       r.phone,
       r.name,
       r.status,
@@ -114,6 +177,7 @@ const CampaignDetails = ({ user, onLogout }) => {
     a.download = `campaign-${campaign.name}${filterSuffix}-${Date.now()}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${allRecipients.length} recipients`);
   };
 
   if (loading) {
@@ -143,25 +207,12 @@ const CampaignDetails = ({ user, onLogout }) => {
     return colors[status] || 'text-slate-600 bg-slate-50';
   };
 
-  // Click breakdown: aggregate clicked buttons across recipients
-  const clickedRecipients = (campaign.recipients || []).filter(r => r.clickedButton);
-  const clickedCount = clickedRecipients.length;
-  const clickBreakdown = Object.entries(
-    clickedRecipients.reduce((acc, r) => {
-      acc[r.clickedButton] = (acc[r.clickedButton] || 0) + 1;
-      return acc;
-    }, {})
-  )
-    .map(([text, count]) => ({ text, count }))
-    .sort((a, b) => b.count - a.count);
-
-  // Filtered recipients based on click filter
-  const filteredRecipients = (campaign.recipients || []).filter(r => {
-    if (clickFilter === 'all') return true;
-    if (clickFilter === 'clicked') return !!r.clickedButton;
-    if (clickFilter === 'not_clicked') return !r.clickedButton;
-    return r.clickedButton === clickFilter;
-  });
+  // Server provides these in the lite endpoint — no need to compute client-side anymore
+  const clickedCount = campaign.clickedCount || 0;
+  const clickBreakdown = campaign.clickBreakdown || [];
+  const totalRecipients = campaign.totalCount || 0;
+  // For filtered table, just use the paginated `recipients` state (server-filtered)
+  const filteredRecipients = recipients;
 
   return (
     <Layout user={user} onLogout={onLogout}>
@@ -399,9 +450,9 @@ const CampaignDetails = ({ user, onLogout }) => {
                     <SelectValue placeholder="Filter by button click" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All ({campaign.recipients.length})</SelectItem>
+                    <SelectItem value="all">All ({totalRecipients})</SelectItem>
                     <SelectItem value="clicked">Clicked any button ({clickedCount})</SelectItem>
-                    <SelectItem value="not_clicked">Did NOT click ({campaign.recipients.length - clickedCount})</SelectItem>
+                    <SelectItem value="not_clicked">Did NOT click ({totalRecipients - clickedCount})</SelectItem>
                     {clickBreakdown.map(b => (
                       <SelectItem key={b.text} value={b.text}>{b.text} ({b.count})</SelectItem>
                     ))}
@@ -422,7 +473,7 @@ const CampaignDetails = ({ user, onLogout }) => {
                   </Badge>
                 ))}
                 <Badge variant="outline" className="px-3 py-1">
-                  No click: <span className="font-bold ml-1">{campaign.recipients.length - clickedCount}</span>
+                  No click: <span className="font-bold ml-1">{totalRecipients - clickedCount}</span>
                 </Badge>
               </div>
             )}
@@ -482,6 +533,25 @@ const CampaignDetails = ({ user, onLogout }) => {
                   ))}
                 </tbody>
               </table>
+              {/* Pagination footer */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
+                <p className="text-sm text-slate-600" data-testid="recipients-pagination-info">
+                  Showing <span className="font-semibold">{filteredRecipients.length}</span> of{' '}
+                  <span className="font-semibold">{recipientsTotal.toLocaleString()}</span> recipients
+                  {recipientsLoading && <span className="ml-2 text-slate-400">loading…</span>}
+                </p>
+                {(recipientsOffset + RECIPIENTS_PAGE_SIZE) < recipientsTotal && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fetchRecipients(recipientsOffset + RECIPIENTS_PAGE_SIZE, true)}
+                    disabled={recipientsLoading}
+                    data-testid="load-more-recipients-btn"
+                  >
+                    Load next {Math.min(RECIPIENTS_PAGE_SIZE, recipientsTotal - filteredRecipients.length)} →
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

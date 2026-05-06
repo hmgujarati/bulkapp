@@ -1,6 +1,7 @@
 """Campaign management routes"""
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from datetime import datetime, timezone
+from typing import Optional
 
 from models.schemas import Role, CampaignStatus
 from utils.auth import get_current_user
@@ -90,7 +91,12 @@ async def get_dashboard_summary(current_user = Depends(get_current_user)):
 
 @router.get("/{campaign_id}")
 async def get_campaign(campaign_id: str, current_user = Depends(get_current_user)):
-    """Get a specific campaign"""
+    """Get a specific campaign (full document including recipients).
+    
+    NOTE: For campaigns with many recipients (1000+), prefer /lite + /recipients
+    endpoints which paginate the recipients array. This endpoint kept for
+    compatibility but can return 10+ MB on large campaigns.
+    """
     campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -100,6 +106,111 @@ async def get_campaign(campaign_id: str, current_user = Depends(get_current_user
         raise HTTPException(status_code=403, detail="Access denied")
     
     return campaign
+
+
+@router.get("/{campaign_id}/lite")
+async def get_campaign_lite(campaign_id: str, current_user = Depends(get_current_user)):
+    """Compact campaign view for the Details page initial render.
+    
+    Returns metadata + click breakdown WITHOUT the recipients array.
+    Recipients are fetched separately via /campaigns/{id}/recipients with
+    pagination — keeps the initial load <10 KB even for 10K-recipient campaigns.
+    """
+    # First fetch with full recipients to compute breakdown (single DB hit)
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if current_user.role != Role.ADMIN and campaign['userId'] != current_user.userId:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    recipients = campaign.get('recipients') or []
+    
+    # Compute click breakdown server-side (was previously done in browser)
+    click_counts = {}
+    clicked_total = 0
+    for r in recipients:
+        btn = r.get('clickedButton')
+        if btn:
+            click_counts[btn] = click_counts.get(btn, 0) + 1
+            clicked_total += 1
+    click_breakdown = sorted(
+        [{"text": text, "count": cnt} for text, cnt in click_counts.items()],
+        key=lambda x: x['count'], reverse=True
+    )
+    
+    # Strip recipients from the returned doc
+    campaign.pop('recipients', None)
+    campaign['clickBreakdown'] = click_breakdown
+    campaign['clickedCount'] = clicked_total
+    return campaign
+
+
+@router.get("/{campaign_id}/recipients")
+async def get_campaign_recipients(
+    campaign_id: str,
+    offset: int = 0,
+    limit: int = 200,
+    status: Optional[str] = None,
+    click: Optional[str] = None,
+    q: Optional[str] = None,
+    current_user = Depends(get_current_user)
+):
+    """Paginated recipients for a campaign with optional filters.
+    
+    Filters:
+      status:   one of pending/sent/delivered/read/failed (omit for all)
+      click:    'any' / 'none' / specific button text
+      q:        substring match on phone or name
+      limit:    max 1000 per page (use multiple calls for CSV export)
+    """
+    if limit < 1:
+        limit = 1
+    if limit > 1000:
+        limit = 1000
+    if offset < 0:
+        offset = 0
+    
+    # Fetch campaign — single DB hit. We must filter in Python because the
+    # array is embedded; doing $unwind+$match server-side would be slower
+    # than filtering an in-memory list of dicts.
+    campaign = await db.campaigns.find_one(
+        {"id": campaign_id},
+        {"_id": 0, "userId": 1, "recipients": 1}
+    )
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if current_user.role != Role.ADMIN and campaign['userId'] != current_user.userId:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    recipients = campaign.get('recipients') or []
+    
+    # Apply filters
+    def matches(r):
+        if status and r.get('status') != status:
+            return False
+        if click == 'any' and not r.get('clickedButton'):
+            return False
+        if click == 'none' and r.get('clickedButton'):
+            return False
+        if click and click not in ('any', 'none') and r.get('clickedButton') != click:
+            return False
+        if q:
+            q_lower = q.lower()
+            if q_lower not in (r.get('phone') or '').lower() and q_lower not in (r.get('name') or '').lower():
+                return False
+        return True
+    
+    filtered = [r for r in recipients if matches(r)]
+    total = len(filtered)
+    page = filtered[offset:offset + limit]
+    
+    return {
+        "recipients": page,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "hasMore": (offset + limit) < total,
+    }
 
 
 @router.get("/{campaign_id}/stats")
