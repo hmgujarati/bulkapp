@@ -10,11 +10,12 @@ import { toast } from 'sonner';
 const UserDashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
+  const [stats, setStats] = useState({ totalCampaigns: 0, totalSent: 0, totalFailed: 0, totalDelivered: 0, totalRead: 0, totalRecipients: 0 });
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState(null);
 
   useEffect(() => {
-    fetchRecentCampaigns();
+    fetchDashboardSummary();
     fetchUserInfo();
   }, []);
 
@@ -27,21 +28,16 @@ const UserDashboard = ({ user, onLogout }) => {
     }
   };
 
-  const fetchRecentCampaigns = async () => {
+  const fetchDashboardSummary = async () => {
     try {
-      const response = await api.get('/campaigns');
-      setCampaigns(response.data.campaigns.slice(0, 5));
+      const response = await api.get('/campaigns/summary');
+      setCampaigns(response.data.recentCampaigns || []);
+      setStats(response.data.stats || { totalCampaigns: 0, totalSent: 0, totalFailed: 0 });
     } catch (error) {
-      toast.error('Failed to fetch campaigns');
+      toast.error('Failed to fetch dashboard');
     } finally {
       setLoading(false);
     }
-  };
-
-  const stats = {
-    totalCampaigns: campaigns.length,
-    totalSent: campaigns.reduce((sum, c) => sum + c.sentCount, 0),
-    totalFailed: campaigns.reduce((sum, c) => sum + c.failedCount, 0),
   };
 
   return (

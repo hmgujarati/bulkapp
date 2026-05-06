@@ -47,6 +47,47 @@ async def get_campaigns(current_user = Depends(get_current_user)):
     return {"campaigns": campaigns}
 
 
+@router.get("/summary")
+async def get_dashboard_summary(current_user = Depends(get_current_user)):
+    """Compact dashboard summary: 5 most recent campaigns + lifetime aggregate stats.
+    
+    Returns ~1 KB. Optimized for the User Dashboard which previously fetched
+    up to 100 full campaigns just to display 5.
+    """
+    user_filter = {} if current_user.role == Role.ADMIN else {"userId": current_user.userId}
+    
+    # Lifetime aggregate stats (across ALL campaigns of this user)
+    pipeline = [
+        {"$match": user_filter},
+        {"$group": {
+            "_id": None,
+            "totalCampaigns": {"$sum": 1},
+            "totalSent": {"$sum": "$sentCount"},
+            "totalFailed": {"$sum": "$failedCount"},
+            "totalDelivered": {"$sum": "$deliveredCount"},
+            "totalRead": {"$sum": "$readCount"},
+            "totalRecipients": {"$sum": "$totalCount"},
+        }},
+        {"$project": {"_id": 0}},
+    ]
+    stats_cursor = db.campaigns.aggregate(pipeline)
+    stats = await stats_cursor.to_list(1)
+    stats = stats[0] if stats else {
+        "totalCampaigns": 0, "totalSent": 0, "totalFailed": 0,
+        "totalDelivered": 0, "totalRead": 0, "totalRecipients": 0,
+    }
+    
+    # 5 most recent campaigns (lightweight projection)
+    recent_projection = {
+        "_id": 0, "id": 1, "name": 1, "status": 1, "templateName": 1,
+        "totalCount": 1, "sentCount": 1, "failedCount": 1, "deliveredCount": 1,
+        "readCount": 1, "pendingCount": 1, "createdAt": 1, "completedAt": 1,
+    }
+    recent = await db.campaigns.find(user_filter, recent_projection).sort("createdAt", -1).to_list(5)
+    
+    return {"stats": stats, "recentCampaigns": recent}
+
+
 @router.get("/{campaign_id}")
 async def get_campaign(campaign_id: str, current_user = Depends(get_current_user)):
     """Get a specific campaign"""
