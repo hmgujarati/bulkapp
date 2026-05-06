@@ -11,12 +11,39 @@ router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 
 @router.get("")
 async def get_campaigns(current_user = Depends(get_current_user)):
-    """Get all campaigns for the current user (or all if admin)"""
+    """Get all campaigns for the current user (or all if admin).
+    
+    PERFORMANCE: This endpoint MUST NOT return the `recipients` array — it can be
+    huge (8000+ entries per campaign) and the list view doesn't display them.
+    For full recipient details, use GET /campaigns/{campaign_id}.
+    """
     query = {}
     if current_user.role != Role.ADMIN:
         query['userId'] = current_user.userId
     
-    campaigns = await db.campaigns.find(query, {"_id": 0}).sort("createdAt", -1).to_list(100)
+    # Lightweight projection: only fields the list/history page actually displays
+    projection = {
+        "_id": 0,
+        "id": 1,
+        "userId": 1,
+        "name": 1,
+        "status": 1,
+        "templateName": 1,
+        "templateLanguage": 1,
+        "totalCount": 1,
+        "sentCount": 1,
+        "failedCount": 1,
+        "deliveredCount": 1,
+        "readCount": 1,
+        "pendingCount": 1,
+        "createdAt": 1,
+        "completedAt": 1,
+        "scheduledAt": 1,
+        "lastHeartbeatAt": 1,
+        "error": 1,
+    }
+    
+    campaigns = await db.campaigns.find(query, projection).sort("createdAt", -1).to_list(100)
     return {"campaigns": campaigns}
 
 

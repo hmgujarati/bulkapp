@@ -320,6 +320,32 @@ async def check_auto_messages():
 @app.on_event("startup")
 async def startup_event():
     """Initialize app on startup"""
+    # === Ensure performance indexes exist ===
+    # `create_index` is idempotent — safe to run on every startup.
+    # Without these, queries do full collection scans (slow as data grows).
+    try:
+        await db.campaigns.create_index([("userId", 1), ("createdAt", -1)], background=True)
+        await db.campaigns.create_index("id", unique=True, background=True)
+        await db.campaigns.create_index("recipients.messageId", background=True, sparse=True)
+        await db.campaigns.create_index([("status", 1), ("scheduledAt", 1)], background=True)
+        await db.campaigns.create_index([("status", 1), ("lastHeartbeatAt", 1)], background=True)
+        await db.users.create_index("id", unique=True, background=True)
+        await db.users.create_index("email", unique=True, background=True)
+        await db.reminders.create_index([("userId", 1), ("createdAt", -1)], background=True)
+        await db.reminders.create_index([("status", 1), ("nextScheduledAt", 1)], background=True)
+        await db.reminder_numbers.create_index("phoneNumber", background=True)
+        await db.reminder_numbers.create_index("userId", background=True)
+        await db.contacts.create_index([("userId", 1), ("phone", 1)], background=True)
+        await db.contacts.create_index([("userId", 1), ("createdAt", -1)], background=True)
+        await db.chatbot_conversations.create_index([("userId", 1), ("phone", 1)], background=True)
+        await db.chatbot_leads.create_index([("userId", 1), ("createdAt", -1)], background=True)
+        await db.saved_templates.create_index("userId", background=True)
+        logger.info("Performance indexes ensured on all collections")
+    except Exception as e:
+        # Index creation failures shouldn't crash startup — they may already exist
+        # with different specs, or the DB user lacks createIndex permission.
+        logger.warning(f"Index creation warning (non-fatal): {e}")
+    
     # Create default admin user if not exists
     admin = await db.users.find_one({"email": SUPER_ADMIN_EMAIL})
     if not admin:
