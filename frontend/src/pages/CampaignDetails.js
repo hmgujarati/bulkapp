@@ -79,15 +79,34 @@ const CampaignDetails = ({ user, onLogout }) => {
   }, [campaign?.id, clickFilter, fetchRecipients]);
 
   useEffect(() => {
-    // Auto-refresh for processing campaigns
-    if (campaign && campaign.status === 'processing') {
-      const interval = setInterval(() => {
-        fetchCampaign(true);
-      }, 3000); // Refresh every 3 seconds
-      
-      return () => clearInterval(interval);
+    // Auto-refresh logic:
+    // - PROCESSING campaigns: refresh every 3s (live counters)
+    // - COMPLETED campaigns within last 48h: refresh every 30s
+    //   (WhatsApp delivered/read receipts can arrive minutes-to-hours after sending,
+    //    and button clicks can come anytime)
+    // - Older completed campaigns: no auto-refresh (user can pull-refresh manually)
+    if (!campaign) return;
+    
+    let intervalMs = null;
+    if (campaign.status === 'processing') {
+      intervalMs = 3000;
+    } else if (campaign.status === 'completed' && campaign.completedAt) {
+      const ageMs = Date.now() - new Date(campaign.completedAt).getTime();
+      const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+      if (ageMs < FORTY_EIGHT_HOURS) {
+        intervalMs = 30000; // 30s
+      }
     }
-  }, [campaign?.status, fetchCampaign]);
+    
+    if (!intervalMs) return;
+    
+    const interval = setInterval(() => {
+      fetchCampaign(true);
+      fetchRecipients(0, false);  // also refresh recipients to pick up status/click changes
+    }, intervalMs);
+    
+    return () => clearInterval(interval);
+  }, [campaign?.status, campaign?.completedAt, fetchCampaign, fetchRecipients]);
 
   const handlePause = async () => {
     try {
@@ -124,6 +143,7 @@ const CampaignDetails = ({ user, onLogout }) => {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchCampaign(true);
+    fetchRecipients(0, false);  // also refresh recipients (delivered/read/clicks)
   };
 
   const downloadCSV = async () => {
