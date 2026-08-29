@@ -1,8 +1,12 @@
 """Emergent managed object storage helpers for user-uploaded media."""
 import os
 import logging
+from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +21,12 @@ def init_storage(force: bool = False):
     global storage_key
     if storage_key and not force:
         return storage_key
+    emergent_key = (os.environ.get("EMERGENT_LLM_KEY") or "").strip()
+    if not emergent_key:
+        raise RuntimeError("EMERGENT_LLM_KEY is not configured — file storage unavailable")
     resp = requests.post(
         f"{STORAGE_URL}/init",
-        json={"emergent_key": os.environ.get("EMERGENT_LLM_KEY")},
+        json={"emergent_key": emergent_key},
         timeout=30
     )
     resp.raise_for_status()
