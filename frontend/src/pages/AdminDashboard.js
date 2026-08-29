@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, UserPlus, Pause, Play, Trash2, Shield, Loader2, LogIn } from 'lucide-react';
+import { Users, UserPlus, Pause, Play, Trash2, Shield, Loader2, LogIn, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -30,6 +30,7 @@ const AdminDashboard = ({ user, onLogout, onLoginAs }) => {
   const [featuresDialogOpen, setFeaturesDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [featuresSaving, setFeaturesSaving] = useState(false);
+  const [refreshingUsage, setRefreshingUsage] = useState(null);
   const [newUser, setNewUser] = useState({
     email: '',
     password: '',
@@ -83,6 +84,20 @@ const AdminDashboard = ({ user, onLogout, onLoginAs }) => {
       fetchUsers();
     } catch (error) {
       toast.error('Failed to update daily limit');
+    }
+  };
+
+  const handleRefreshUsage = async (userId = null) => {
+    setRefreshingUsage(userId || 'all');
+    try {
+      const url = userId ? `/users/${userId}/refresh-daily-usage` : '/users/refresh-daily-usage';
+      const response = await api.post(url);
+      toast.success(response.data.message || 'Daily usage refreshed');
+      await fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to refresh daily usage');
+    } finally {
+      setRefreshingUsage(null);
     }
   };
 
@@ -179,6 +194,18 @@ const AdminDashboard = ({ user, onLogout, onLoginAs }) => {
             <p className="text-slate-600 mt-1 text-sm">Manage users and feature access</p>
           </div>
 
+          <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => handleRefreshUsage()}
+            disabled={refreshingUsage !== null}
+            title="Recount today's sent messages for every user"
+            data-testid="refresh-all-daily-usage-button"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshingUsage === 'all' ? 'animate-spin' : ''}`} />
+            Refresh Daily Usage
+          </Button>
+
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700" data-testid="create-user-button">
@@ -248,6 +275,7 @@ const AdminDashboard = ({ user, onLogout, onLoginAs }) => {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -302,6 +330,7 @@ const AdminDashboard = ({ user, onLogout, onLoginAs }) => {
                       <th className="text-left py-3 px-3 text-xs font-medium text-slate-600 uppercase">Status</th>
                       <th className="text-left py-3 px-3 text-xs font-medium text-slate-600 uppercase hidden md:table-cell">Features</th>
                       <th className="text-left py-3 px-3 text-xs font-medium text-slate-600 uppercase hidden lg:table-cell">Limit</th>
+                      <th className="text-left py-3 px-3 text-xs font-medium text-slate-600 uppercase hidden md:table-cell">Used Today</th>
                       <th className="text-left py-3 px-3 text-xs font-medium text-slate-600 uppercase">Actions</th>
                     </tr>
                   </thead>
@@ -362,6 +391,26 @@ const AdminDashboard = ({ user, onLogout, onLoginAs }) => {
                               <SelectItem value="-1">Unlimited</SelectItem>
                             </SelectContent>
                           </Select>
+                        </td>
+                        <td className="py-3 px-3 hidden md:table-cell">
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm text-slate-700" data-testid={`daily-usage-${u.id}`}>
+                              {(u.dailyUsage || 0).toLocaleString()}
+                              <span className="text-slate-500"> / {u.dailyLimit === -1 ? '∞' : (u.dailyLimit || 0).toLocaleString()}</span>
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleRefreshUsage(u.id)}
+                              disabled={refreshingUsage !== null}
+                              title="Recount today's sent messages for this user"
+                              aria-label="Refresh daily usage for this user"
+                              data-testid={`refresh-daily-usage-${u.id}`}
+                            >
+                              <RefreshCw className={`h-3 w-3 text-slate-500 ${refreshingUsage === u.id ? 'animate-spin' : ''}`} />
+                            </Button>
+                          </div>
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center space-x-1">

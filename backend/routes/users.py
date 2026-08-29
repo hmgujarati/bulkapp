@@ -16,6 +16,41 @@ async def get_users(current_user = Depends(require_admin)):
     return {"users": users}
 
 
+@router.post("/refresh-daily-usage")
+async def refresh_all_daily_usage(current_user = Depends(require_admin)):
+    """Recompute dailyUsage for every user from actual sent timestamps (admin only)."""
+    from utils.daily_limit import recalculate_daily_usage
+    
+    users = await db.users.find({}, {"_id": 0, "id": 1}).to_list(1000)
+    results = []
+    for u in users:
+        result = await recalculate_daily_usage(u['id'])
+        if result:
+            results.append(result)
+    
+    changed = [r for r in results if r['previousUsage'] != r['dailyUsage']]
+    return {
+        "message": f"Refreshed {len(results)} user(s), {len(changed)} corrected",
+        "corrected": changed,
+        "results": results,
+    }
+
+
+@router.post("/{user_id}/refresh-daily-usage")
+async def refresh_user_daily_usage(user_id: str, current_user = Depends(get_current_user)):
+    """Recompute one user's dailyUsage from actual sent timestamps."""
+    from utils.daily_limit import recalculate_daily_usage
+    
+    if current_user.role != Role.ADMIN and current_user.userId != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    result = await recalculate_daily_usage(user_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "Daily usage refreshed", **result}
+
+
 @router.get("/{user_id}")
 async def get_user(user_id: str, current_user = Depends(get_current_user)):
     """Get a specific user"""

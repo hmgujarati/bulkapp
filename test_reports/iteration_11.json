@@ -1,0 +1,30 @@
+{
+  "summary": "Focused re-test of the P0 'Refresh Daily Usage' fix. (1) Ran the standalone logic test /app/backend/tests/test_dailyusage_backfill.py -> ALL PASSED (all 5 cases: old campaign resumed today counted=40 with 7 failed refunded, pre-window sends excluded, all-failed campaign 3000->0, update_last_activity does not slide the window anchor, expired 24h window resets to 0). (2) Created /app/backend/tests/test_refresh_daily_usage.py (pytest, 10 tests) covering both new endpoints + RBAC + auth/me regression + a 2-recipient campaign -> 10/10 passed. (3) Admin UI flow on the public URL: login as qaadmin, header 'Refresh Daily Usage' button clickable -> toast 'Refreshed 17 user(s), 0 corrected', POST /api/users/refresh-daily-usage 200; 'Used Today' column renders 17 cells (e.g. '0 / 250'); per-row refresh icon -> toast 'Daily usage refreshed', POST /api/users/{id}/refresh-daily-usage 200. No console errors, no layout breakage.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin Dashboard users table", "issues": ["'Used Today' column is hidden below md breakpoint (hidden md:table-cell) so mobile admins cannot see or use the per-row refresh icon - acceptable but worth confirming it is intentional", "Used Today value uses light slate text (0 / 250 with the limit part in a lighter grey) - borderline contrast on white, consider darkening the limit portion", "Per-row refresh icon has no visible tooltip/aria-label, so its purpose is not discoverable"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_refresh_daily_usage.py",
+    "/app/backend/tests/test_dailyusage_backfill.py",
+    "/app/test_reports/pytest/refresh_daily_usage_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/users.py refresh_all_daily_usage caps users at .to_list(1000) and recalculates sequentially with one aggregation per user; fine at 17 users but will time out / silently skip users if the base grows past 1000 - consider pagination or a bulk aggregation.",
+    "recalculate_daily_usage pre-filters campaigns on updatedAt/completedAt/createdAt >= window_start (ISO string comparison). This is correct only while all three fields are stored as ISO-8601 UTC strings; a campaign whose recipients were sent in-window but whose updatedAt was never bumped would be missed. The send loop does bump updatedAt today, so no bug observed - just a coupling to note.",
+    "Endpoint route order (POST /refresh-daily-usage before GET /{user_id}) is correct; keep new literal routes above the /{user_id} catch-all."
+  ],
+  "updated_files": ["/app/backend/tests/test_refresh_daily_usage.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Transient: 5 throwaway users + campaigns created and deleted by test_dailyusage_backfill.py; one 2-recipient campaign 'TEST_usage_*' created via /api/messages/send on qatest and deleted afterwards (sentCount=0, failedCount=2 as expected with dummy BizChat creds).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": false,
+  "test_credentials": "qaadmin@example.com / Admin@12345 (admin), qatest@example.com / Test@12345 (user)",
+  "context_for_next_testing_agent": "Campaign creation is POST /api/messages/send (payload key is campaignName, not name) - there is NO POST /api/campaigns (returns 405). With dummy BizChat creds sends fail so dailyUsage is never incremented (update_last_activity is only called with sent_count of successful sends) - usage 0 -> 0 after refresh is the expected behaviour, not a bug. Reusable pytest: /app/backend/tests/test_refresh_daily_usage.py. Sonner toasts auto-dismiss in ~4s; poll for toast text instead of a single long wait.",
+  "rca_of_the_issue": "Original P0: dailyUsage recalc filtered on campaign.createdAt >= lastResetDateTime, so campaigns created on earlier days that sent messages today were ignored. Fix verified: recalculate_daily_usage now aggregates per-recipient sentAt inside the 24h window and update_last_activity only seeds lastResetDateTime when missing. Both behaviours confirmed by the standalone test and the API-level tests."
+}
