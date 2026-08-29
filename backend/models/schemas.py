@@ -13,6 +13,7 @@ class Role(str, Enum):
 
 class CampaignStatus(str, Enum):
     DRAFT = "draft"
+    QUEUED = "queued"
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -132,6 +133,11 @@ class Campaign(BaseModel):
     dripStartAt: Optional[str] = None       # ISO UTC anchor for daily windows
     dripWindowIndex: int = -1               # which 24h window we are currently in
     dripSentInWindow: int = 0               # messages sent inside the current window
+    # Split campaigns: a big list becomes several linked campaigns (day-wise or parts)
+    chainId: Optional[str] = None
+    chainSequence: Optional[int] = None
+    chainTotal: Optional[int] = None
+    chainLabel: Optional[str] = None         # "day" or "part"
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completedAt: Optional[datetime] = None
 
@@ -147,6 +153,10 @@ class SendMessageRequest(BaseModel):
     dripEnabled: bool = False
     dripDailyLimit: Optional[int] = None
     dripStartAt: Optional[datetime] = None
+    chainId: Optional[str] = None
+    chainSequence: Optional[int] = None
+    chainTotal: Optional[int] = None
+    chainLabel: Optional[str] = None
     templateParameters: Optional[Dict[str, Any]] = None
     # Media headers
     header_image: Optional[str] = None

@@ -461,6 +461,19 @@ const CampaignDetails = ({ user, onLogout }) => {
                 </p>
               </div>
             )}
+            {campaign.chainTotal > 1 && (
+              <div>
+                <p className="text-sm text-slate-600 mb-1">Part of a split campaign</p>
+                <p className="font-medium text-slate-900" data-testid="campaign-chain-info">
+                  {campaign.chainLabel === 'day' ? 'Day' : 'Part'} {campaign.chainSequence} of {campaign.chainTotal}
+                  <span className="text-slate-500 font-normal">
+                    {campaign.chainLabel === 'day'
+                      ? ' • each day runs as its own campaign'
+                      : ' • parts run one after another'}
+                  </span>
+                </p>
+              </div>
+            )}
             {campaign.dripEnabled && (
               <div>
                 <p className="text-sm text-slate-600 mb-1">Daily Sending Limit</p>

@@ -563,6 +563,45 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     
     await update_last_activity(campaign['userId'], sent_count)
     logger.info(f"Campaign {campaign_id} completed: {sent_count} sent, {failed_count} failed")
+    
+    await _start_next_in_chain(campaign)
+
+
+async def _start_next_in_chain(campaign: dict):
+    """Big lists run as several small campaigns — start the next queued part."""
+    chain_id = campaign.get('chainId')
+    sequence = campaign.get('chainSequence')
+    if not chain_id or not sequence:
+        return
+    
+    next_campaign = await db.campaigns.find_one(
+        {
+            "chainId": chain_id,
+            "chainSequence": sequence + 1,
+            "status": CampaignStatus.QUEUED.value
+        },
+        {"recipients": 0}
+    )
+    if not next_campaign:
+        return
+    
+    user = await db.users.find_one({"id": campaign['userId']})
+    if not user or not user.get('bizChatToken') or not user.get('bizChatVendorUID'):
+        logger.error(f"Chain {chain_id}: cannot start part {sequence + 1}, BizChat credentials missing")
+        return
+    
+    await db.campaigns.update_one(
+        {"id": next_campaign['id']},
+        {"$set": {
+            "status": CampaignStatus.PROCESSING.value,
+            "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    logger.info(f"Chain {chain_id}: starting part {sequence + 1} ({next_campaign['id']})")
+    asyncio.create_task(
+        process_campaign(next_campaign['id'], user['bizChatToken'], user['bizChatVendorUID'])
+    )
 
 
 def _send_defaults(request: SendMessageRequest) -> Dict[str, Any]:
@@ -678,6 +717,10 @@ async def init_campaign(
         dripEnabled=drip_enabled,
         dripDailyLimit=request.dripDailyLimit if drip_enabled else None,
         dripStartAt=drip_start_at,
+        chainId=request.chainId,
+        chainSequence=request.chainSequence,
+        chainTotal=request.chainTotal,
+        chainLabel=request.chainLabel,
         status=CampaignStatus.DRAFT
     )
 
@@ -737,9 +780,14 @@ async def append_recipients(
 async def start_uploaded_campaign(
     campaign_id: str,
     background_tasks: BackgroundTasks,
+    queued: bool = False,
     current_user = Depends(get_current_user)
 ):
-    """Step 3 of the chunked flow: start (or schedule) the uploaded campaign"""
+    """Step 3 of the chunked flow: start, schedule, or queue the uploaded campaign.
+
+    `queued=true` parks the campaign until the previous part of its chain finishes,
+    so a big list runs as several small campaigns one after another.
+    """
     campaign = await db.campaigns.find_one(
         {"id": campaign_id, "userId": current_user.userId},
         {"recipients": 0}
@@ -754,15 +802,22 @@ async def start_uploaded_campaign(
     user = await db.users.find_one({"id": current_user.userId})
     starts_later = bool(campaign.get('startsLater'))
 
+    if queued:
+        new_status = CampaignStatus.QUEUED.value
+    elif starts_later:
+        new_status = CampaignStatus.SCHEDULED.value
+    else:
+        new_status = CampaignStatus.PENDING.value
+
     await db.campaigns.update_one(
         {"id": campaign_id},
         {"$set": {
-            "status": CampaignStatus.SCHEDULED.value if starts_later else CampaignStatus.PENDING.value,
+            "status": new_status,
             "updatedAt": datetime.now(timezone.utc).isoformat()
         }}
     )
 
-    if not starts_later:
+    if new_status == CampaignStatus.PENDING.value:
         background_tasks.add_task(
             process_campaign,
             campaign_id,
@@ -773,7 +828,7 @@ async def start_uploaded_campaign(
     return {
         "message": "Campaign created successfully",
         "campaignId": campaign_id,
-        "status": "scheduled" if starts_later else "processing",
+        "status": "queued" if queued else ("scheduled" if starts_later else "processing"),
         "totalCount": campaign.get('totalCount', 0)
     }
 

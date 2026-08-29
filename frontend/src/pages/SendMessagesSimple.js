@@ -78,6 +78,7 @@ const TemplateFieldsCard = ({ fields, onFieldChange }) => (
 
 const CHUNK_THRESHOLD = 1000;
 const CHUNK_SIZE = 1000;
+const MAX_PER_CAMPAIGN = 3000;
 
 const localNowForInput = () => {  const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -127,6 +128,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   // UI state
   const [sending, setSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState('');
   const [accountDailyLimit, setAccountDailyLimit] = useState(undefined);
 
   useEffect(() => {
@@ -304,41 +306,79 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       }
 
       let campaignId;
-      if (recipientsWithData.length > CHUNK_THRESHOLD) {
-        // Large lists: create the campaign first, then upload recipients in
-        // chunks (a single 30k-recipient request gets rejected by proxies).
-        const initRes = await api.post('/messages/campaigns/init', {
-          ...payload,
-          recipients: [],
-          totalCount: recipientsWithData.length
-        });
-        campaignId = initRes.data.campaignId;
+      const perCampaign = dripEnabled ? dripPerDayNum : MAX_PER_CAMPAIGN;
+      const groups = [];
+      for (let i = 0; i < recipientsWithData.length; i += perCampaign) {
+        groups.push(recipientsWithData.slice(i, i + perCampaign));
+      }
 
-        for (let i = 0; i < recipientsWithData.length; i += CHUNK_SIZE) {
-          const chunk = recipientsWithData.slice(i, i + CHUNK_SIZE);
-          await api.post(`/messages/campaigns/${campaignId}/recipients`, { recipients: chunk }, { timeout: 120000 });
-          setUploadProgress(Math.min(i + chunk.length, recipientsWithData.length));
-        }
-
-        await api.post(`/messages/campaigns/${campaignId}/start`, {}, { timeout: 120000 });
-      } else {
+      if (groups.length === 1 && recipientsWithData.length <= CHUNK_THRESHOLD && !dripEnabled) {
         const response = await api.post('/messages/send', payload);
         campaignId = response.data.campaignId;
+      } else {
+        // Big list → several small campaigns (one per day when a daily limit is
+        // set, otherwise sequential parts). Each is uploaded in 1,000-row chunks.
+        const chainId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const label = dripEnabled ? 'day' : 'part';
+        const anchor = dripEnabled && dripStartDate ? new Date(dripStartDate) : null;
+
+        for (let g = 0; g < groups.length; g++) {
+          const group = groups[g];
+          setUploadStage(groups.length > 1 ? `${label === 'day' ? 'Day' : 'Part'} ${g + 1}/${groups.length}` : '');
+
+          let scheduledAt = null;
+          if (dripEnabled) {
+            if (anchor) scheduledAt = new Date(anchor.getTime() + g * 86400000).toISOString();
+            else if (g > 0) scheduledAt = new Date(Date.now() + g * 86400000).toISOString();
+          } else if (isScheduled && g === 0) {
+            scheduledAt = new Date(scheduledDate).toISOString();
+          }
+
+          const initRes = await api.post('/messages/campaigns/init', {
+            ...payload,
+            campaignName: groups.length > 1
+              ? `${campaignName} (${label === 'day' ? 'Day' : 'Part'} ${g + 1}/${groups.length})`
+              : campaignName,
+            recipients: [],
+            totalCount: group.length,
+            scheduledAt,
+            dripEnabled: false,
+            dripDailyLimit: null,
+            dripStartAt: null,
+            chainId: groups.length > 1 ? chainId : null,
+            chainSequence: groups.length > 1 ? g + 1 : null,
+            chainTotal: groups.length > 1 ? groups.length : null,
+            chainLabel: groups.length > 1 ? label : null
+          });
+          const thisId = initRes.data.campaignId;
+          if (g === 0) campaignId = thisId;
+
+          for (let i = 0; i < group.length; i += CHUNK_SIZE) {
+            const chunk = group.slice(i, i + CHUNK_SIZE);
+            await api.post(`/messages/campaigns/${thisId}/recipients`, { recipients: chunk }, { timeout: 120000 });
+            setUploadProgress(g * perCampaign + Math.min(i + chunk.length, group.length));
+          }
+
+          // Day-wise campaigns each run at their own time; parts run one after another
+          const queued = !dripEnabled && g > 0;
+          await api.post(`/messages/campaigns/${thisId}/start${queued ? '?queued=true' : ''}`, {}, { timeout: 120000 });
+        }
       }
 
       toast.success(
-        dripEnabled
-          ? `Campaign created! Sending ${dripPerDayNum.toLocaleString()}/day — finishes in ${dripDays} day${dripDays > 1 ? 's' : ''}`
-          : isScheduled 
-            ? 'Campaign scheduled successfully!' 
+        groups.length > 1
+          ? `Created ${groups.length} ${dripEnabled ? 'daily' : ''} campaigns of up to ${perCampaign.toLocaleString()} contacts each`
+          : isScheduled
+            ? 'Campaign scheduled successfully!'
             : `Campaign started for ${recipientsWithData.length.toLocaleString()} recipients`
       );
-      navigate(`/campaigns/${campaignId}`);
+      navigate(groups.length > 1 ? '/campaigns' : `/campaigns/${campaignId}`);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to send messages');
     } finally {
       setSending(false);
       setUploadProgress(0);
+      setUploadStage('');
     }
   };
 
@@ -626,6 +666,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                           {recipients.length.toLocaleString()} recipients at {dripPerDayNum.toLocaleString()}/day →{' '}
                           <strong>campaign will finish in {dripDays} day{dripDays > 1 ? 's' : ''}</strong>
                           {dripFinishDate && ` (around ${dripFinishDate.toLocaleDateString()})`}.
+                          {dripDays > 1 && ` This will be created as ${dripDays} separate daily campaigns (Day 1/${dripDays} … Day ${dripDays}/${dripDays}).`}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -705,7 +746,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                     <span className="flex items-center gap-2" data-testid="send-progress">
                       <span className="animate-spin">⏳</span>
                       {uploadProgress > 0
-                        ? `Uploading ${uploadProgress.toLocaleString()} / ${recipients.length.toLocaleString()}...`
+                        ? `${uploadStage ? uploadStage + ' · ' : ''}Uploading ${uploadProgress.toLocaleString()} / ${recipients.length.toLocaleString()}...`
                         : 'Processing...'}
                     </span>
                   ) : (
