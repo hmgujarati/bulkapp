@@ -12,6 +12,7 @@ class Role(str, Enum):
 
 
 class CampaignStatus(str, Enum):
+    DRAFT = "draft"
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -136,7 +137,8 @@ class Campaign(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
-    recipients: List[Dict[str, str]]
+    recipients: List[Dict[str, str]] = []
+    totalCount: Optional[int] = None  # used by the chunked upload flow (/campaigns/init)
     templateName: str
     campaignName: str
     templateReference: Optional[str] = None
@@ -157,6 +159,10 @@ class SendMessageRequest(BaseModel):
     location_longitude: Optional[str] = None
     location_name: Optional[str] = None
     location_address: Optional[str] = None
+
+
+class RecipientChunkRequest(BaseModel):
+    recipients: List[Dict[str, str]]
 
 
 # Template Models

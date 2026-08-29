@@ -18,7 +18,7 @@ async def get_campaigns(current_user = Depends(get_current_user)):
     huge (8000+ entries per campaign) and the list view doesn't display them.
     For full recipient details, use GET /campaigns/{campaign_id}.
     """
-    query = {}
+    query = {"status": {"$ne": CampaignStatus.DRAFT.value}}
     if current_user.role != Role.ADMIN:
         query['userId'] = current_user.userId
     
@@ -59,6 +59,7 @@ async def get_dashboard_summary(current_user = Depends(get_current_user)):
     up to 100 full campaigns just to display 5.
     """
     user_filter = {} if current_user.role == Role.ADMIN else {"userId": current_user.userId}
+    user_filter = {**user_filter, "status": {"$ne": CampaignStatus.DRAFT.value}}
     
     # Lifetime aggregate stats (across ALL campaigns of this user)
     pipeline = [

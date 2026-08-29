@@ -12,7 +12,7 @@ import io
 import pandas as pd
 
 from models.schemas import (
-    SendMessageRequest, Campaign, RecipientInfo, 
+    SendMessageRequest, RecipientChunkRequest, Campaign, RecipientInfo, 
     CampaignStatus, MessageStatus, Role
 )
 from utils.auth import get_current_user
@@ -565,13 +565,226 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     logger.info(f"Campaign {campaign_id} completed: {sent_count} sent, {failed_count} failed")
 
 
+def _send_defaults(request: SendMessageRequest) -> Dict[str, Any]:
+    """Campaign-level fields copied onto every recipient at send time."""
+    keys = [
+        'header_image', 'header_video', 'header_document', 'header_document_name',
+        'header_field_1', 'location_latitude', 'location_longitude',
+        'location_name', 'location_address'
+    ]
+    return {k: getattr(request, k) for k in keys if getattr(request, k)}
+
+
+def build_recipient_docs(raw_recipients, country_code, defaults: Dict[str, Any]):
+    """Normalize phones and attach per-campaign media/location fields."""
+    docs = []
+    for recipient in raw_recipients:
+        phone = normalize_phone_number(recipient['phone'], country_code)
+        doc = RecipientInfo(
+            phone=phone,
+            name=recipient.get('name', ''),
+            status=MessageStatus.PENDING
+        ).model_dump()
+        for key, value in recipient.items():
+            if key not in ['phone', 'name']:
+                doc[key] = value
+        doc.update(defaults)
+        docs.append(doc)
+    return docs
+
+
+async def _validate_campaign_request(request: SendMessageRequest, user_id: str, total_count: int):
+    """Shared validation for the single-shot and chunked create flows."""
+    if not (request.campaignName or '').strip():
+        raise HTTPException(status_code=400, detail="Campaign name is required")
+
+    user = await db.users.find_one({"id": user_id})
+    if not user or not user.get('bizChatToken'):
+        raise HTTPException(status_code=400, detail="BizChat API token not configured")
+    if not user.get('bizChatVendorUID'):
+        raise HTTPException(status_code=400, detail="BizChat Vendor UID not configured")
+
+    drip_enabled = bool(request.dripEnabled and request.dripDailyLimit)
+    if request.dripEnabled and (not request.dripDailyLimit or request.dripDailyLimit < 1):
+        raise HTTPException(status_code=400, detail="Please enter how many messages to send per day")
+    if drip_enabled:
+        account_limit = user.get('dailyLimit', 1000)
+        if account_limit != -1 and request.dripDailyLimit > account_limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Messages per day ({request.dripDailyLimit}) cannot exceed your account daily limit ({account_limit}). Please lower it or contact admin."
+            )
+
+    is_scheduled = request.scheduledAt is not None
+    daily_usage = user.get('dailyUsage', 0)
+    daily_limit = user.get('dailyLimit', 1000)
+
+    if not is_scheduled and not drip_enabled:
+        from utils.daily_limit import check_and_reset_daily_usage
+        user = await check_and_reset_daily_usage(user_id, user)
+        daily_usage = user.get('dailyUsage', 0)
+        daily_limit = user.get('dailyLimit', 1000)
+        remaining = user.get('remaining', daily_limit - daily_usage)
+
+        if daily_limit != -1 and total_count > remaining:
+            next_reset = user.get('nextResetAt', 'in 24 hours')
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot send campaign. You need {total_count} messages but only {remaining} available. Limit resets at {next_reset}"
+            )
+
+    drip_start_at = None
+    if drip_enabled:
+        drip_start_at = request.dripStartAt or datetime.now(timezone.utc)
+        if drip_start_at.tzinfo is None:
+            drip_start_at = drip_start_at.replace(tzinfo=timezone.utc)
+        drip_start_at = drip_start_at.isoformat()
+
+    starts_later = bool(request.scheduledAt) or (
+        drip_enabled and request.dripStartAt is not None and
+        datetime.fromisoformat(drip_start_at) > datetime.now(timezone.utc)
+    )
+
+    return user, drip_enabled, drip_start_at, starts_later, daily_usage, daily_limit
+
+
+@router.post("/campaigns/init")
+async def init_campaign(
+    request: SendMessageRequest,
+    current_user = Depends(get_current_user)
+):
+    """Step 1 of the chunked flow: create an empty campaign (for large lists).
+
+    Big lists (30k+) can't be posted in one request — proxies reject bodies over
+    ~1MB — so recipients are appended in chunks and the campaign starts last.
+    """
+    expected = request.totalCount or 0
+    if expected < 1:
+        raise HTTPException(status_code=400, detail="totalCount is required")
+
+    user, drip_enabled, drip_start_at, starts_later, _, _ = await _validate_campaign_request(
+        request, current_user.userId, expected
+    )
+
+    campaign = Campaign(
+        userId=current_user.userId,
+        name=request.campaignName.strip(),
+        templateName=request.templateName,
+        templateReference=(request.templateReference or '').strip() or None,
+        recipients=[],
+        totalCount=0,
+        pendingCount=0,
+        scheduledAt=request.scheduledAt,
+        dripEnabled=drip_enabled,
+        dripDailyLimit=request.dripDailyLimit if drip_enabled else None,
+        dripStartAt=drip_start_at,
+        status=CampaignStatus.DRAFT
+    )
+
+    campaign_dict = campaign.model_dump()
+    campaign_dict['createdAt'] = campaign_dict['createdAt'].isoformat()
+    if campaign_dict.get('scheduledAt'):
+        campaign_dict['scheduledAt'] = campaign_dict['scheduledAt'].isoformat()
+    elif starts_later:
+        campaign_dict['scheduledAt'] = drip_start_at
+    campaign_dict['completedAt'] = None
+    campaign_dict['recipients'] = []
+    campaign_dict['expectedCount'] = expected
+    campaign_dict['countryCode'] = request.countryCode
+    campaign_dict['sendDefaults'] = _send_defaults(request)
+    campaign_dict['startsLater'] = starts_later
+
+    await db.campaigns.insert_one(campaign_dict)
+    logger.info(f"Campaign {campaign.id} initialized for chunked upload of {expected} recipients")
+
+    return {"campaignId": campaign.id, "expectedCount": expected}
+
+
+@router.post("/campaigns/{campaign_id}/recipients")
+async def append_recipients(
+    campaign_id: str,
+    payload: RecipientChunkRequest,
+    current_user = Depends(get_current_user)
+):
+    """Step 2 of the chunked flow: append a chunk of recipients to a draft campaign"""
+    campaign = await db.campaigns.find_one(
+        {"id": campaign_id, "userId": current_user.userId},
+        {"recipients": 0}
+    )
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if campaign.get('status') != CampaignStatus.DRAFT.value:
+        raise HTTPException(status_code=400, detail="Campaign already started")
+
+    docs = build_recipient_docs(
+        payload.recipients,
+        campaign.get('countryCode'),
+        campaign.get('sendDefaults') or {}
+    )
+
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {
+            "$push": {"recipients": {"$each": docs}},
+            "$inc": {"totalCount": len(docs), "pendingCount": len(docs)}
+        }
+    )
+
+    return {"added": len(docs), "totalCount": campaign.get('totalCount', 0) + len(docs)}
+
+
+@router.post("/campaigns/{campaign_id}/start")
+async def start_uploaded_campaign(
+    campaign_id: str,
+    background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user)
+):
+    """Step 3 of the chunked flow: start (or schedule) the uploaded campaign"""
+    campaign = await db.campaigns.find_one(
+        {"id": campaign_id, "userId": current_user.userId},
+        {"recipients": 0}
+    )
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if campaign.get('status') != CampaignStatus.DRAFT.value:
+        raise HTTPException(status_code=400, detail="Campaign already started")
+    if campaign.get('totalCount', 0) < 1:
+        raise HTTPException(status_code=400, detail="No recipients were uploaded")
+
+    user = await db.users.find_one({"id": current_user.userId})
+    starts_later = bool(campaign.get('startsLater'))
+
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {
+            "status": CampaignStatus.SCHEDULED.value if starts_later else CampaignStatus.PENDING.value,
+            "updatedAt": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    if not starts_later:
+        background_tasks.add_task(
+            process_campaign,
+            campaign_id,
+            user['bizChatToken'],
+            user['bizChatVendorUID']
+        )
+
+    return {
+        "message": "Campaign created successfully",
+        "campaignId": campaign_id,
+        "status": "scheduled" if starts_later else "processing",
+        "totalCount": campaign.get('totalCount', 0)
+    }
+
+
 @router.post("/send")
 async def send_messages(
     request: SendMessageRequest,
     background_tasks: BackgroundTasks,
     current_user = Depends(get_current_user)
 ):
-    """Send a bulk message campaign"""
+    """Send a bulk message campaign in one request (small lists)"""
     if not (request.campaignName or '').strip():
         raise HTTPException(status_code=400, detail="Campaign name is required")
     

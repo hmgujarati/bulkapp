@@ -76,8 +76,10 @@ const TemplateFieldsCard = ({ fields, onFieldChange }) => (
   </Card>
 );
 
-const localNowForInput = () => {
-  const d = new Date();
+const CHUNK_THRESHOLD = 1000;
+const CHUNK_SIZE = 1000;
+
+const localNowForInput = () => {  const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
@@ -124,6 +126,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   
   // UI state
   const [sending, setSending] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [accountDailyLimit, setAccountDailyLimit] = useState(undefined);
 
   useEffect(() => {
@@ -300,19 +303,42 @@ const SendMessagesSimple = ({ user, onLogout }) => {
         if (locationAddress) payload.location_address = locationAddress;
       }
 
-      const response = await api.post('/messages/send', payload);
+      let campaignId;
+      if (recipientsWithData.length > CHUNK_THRESHOLD) {
+        // Large lists: create the campaign first, then upload recipients in
+        // chunks (a single 30k-recipient request gets rejected by proxies).
+        const initRes = await api.post('/messages/campaigns/init', {
+          ...payload,
+          recipients: [],
+          totalCount: recipientsWithData.length
+        });
+        campaignId = initRes.data.campaignId;
+
+        for (let i = 0; i < recipientsWithData.length; i += CHUNK_SIZE) {
+          const chunk = recipientsWithData.slice(i, i + CHUNK_SIZE);
+          await api.post(`/messages/campaigns/${campaignId}/recipients`, { recipients: chunk }, { timeout: 120000 });
+          setUploadProgress(Math.min(i + chunk.length, recipientsWithData.length));
+        }
+
+        await api.post(`/messages/campaigns/${campaignId}/start`, {}, { timeout: 120000 });
+      } else {
+        const response = await api.post('/messages/send', payload);
+        campaignId = response.data.campaignId;
+      }
+
       toast.success(
         dripEnabled
           ? `Campaign created! Sending ${dripPerDayNum.toLocaleString()}/day — finishes in ${dripDays} day${dripDays > 1 ? 's' : ''}`
           : isScheduled 
             ? 'Campaign scheduled successfully!' 
-            : `Campaign started! ${response.data.dailyUsage}/${response.data.dailyLimit} messages used today`
+            : `Campaign started for ${recipientsWithData.length.toLocaleString()} recipients`
       );
-      navigate(`/campaigns/${response.data.campaignId}`);
+      navigate(`/campaigns/${campaignId}`);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to send messages');
     } finally {
       setSending(false);
+      setUploadProgress(0);
     }
   };
 
@@ -676,8 +702,11 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                   data-testid="send-campaign-btn"
                 >
                   {sending ? (
-                    <span className="flex items-center gap-2">
-                      <span className="animate-spin">⏳</span> Processing...
+                    <span className="flex items-center gap-2" data-testid="send-progress">
+                      <span className="animate-spin">⏳</span>
+                      {uploadProgress > 0
+                        ? `Uploading ${uploadProgress.toLocaleString()} / ${recipients.length.toLocaleString()}...`
+                        : 'Processing...'}
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
