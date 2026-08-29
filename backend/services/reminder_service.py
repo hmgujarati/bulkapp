@@ -29,7 +29,7 @@ def format_reminder_message(title: str, message: str, scheduled_time: str, recip
         # Format time nicely (e.g., "4:30 PM")
         formatted_time = local_time.strftime("%I:%M %p").lstrip('0')
         formatted_date = local_time.strftime("%d %b %Y")
-    except:
+    except Exception:
         formatted_time = "your scheduled time"
         formatted_date = ""
     
@@ -143,7 +143,7 @@ async def send_reminder_message(
             # Parse response
             try:
                 data = response.json()
-            except:
+            except Exception:
                 data = {"raw_response": response_text}
             
             # Check for success - BizChat API may return 200 but with error in body
@@ -255,7 +255,7 @@ async def create_next_recurring_reminder(reminder: dict) -> bool:
     scheduled_str = reminder.get('scheduledAt', '')
     try:
         current_scheduled = datetime.fromisoformat(scheduled_str.replace('Z', '+00:00'))
-    except:
+    except Exception:
         logger.error(f"Failed to parse scheduled time for recurring reminder {reminder['id']}")
         return False
     

@@ -474,7 +474,7 @@ async def get_upcoming_events(
                         "daysUntil": days_until,
                         "age": this_year_bday.year - dob.year
                     })
-            except:
+            except Exception:
                 pass
         
         # Check anniversary
@@ -493,7 +493,7 @@ async def get_upcoming_events(
                         "daysUntil": days_until,
                         "years": this_year_anni.year - anni.year
                     })
-            except:
+            except Exception:
                 pass
     
     # Sort by days until

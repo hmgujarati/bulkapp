@@ -422,8 +422,14 @@ const CampaignDetails = ({ user, onLogout }) => {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-slate-600 mb-1">Template</p>
-              <p className="font-medium text-slate-900">{campaign.templateName}</p>
+              <p className="text-sm text-slate-600 mb-1">Template Name (Your Reference)</p>
+              <p className="font-medium text-slate-900" data-testid="campaign-template-reference">
+                {campaign.templateReference || '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-600 mb-1">BizChat Template Name</p>
+              <p className="font-medium text-slate-900" data-testid="campaign-template-name">{campaign.templateName}</p>
             </div>
             <div>
               <p className="text-sm text-slate-600 mb-1">Status</p>
@@ -447,9 +453,24 @@ const CampaignDetails = ({ user, onLogout }) => {
             )}
             {campaign.scheduledAt && (
               <div>
-                <p className="text-sm text-slate-600 mb-1">Scheduled For</p>
+                <p className="text-sm text-slate-600 mb-1">
+                  {campaign.dripEnabled ? 'Next Daily Batch' : 'Scheduled For'}
+                </p>
                 <p className="font-medium text-slate-900">
                   {format(new Date(campaign.scheduledAt), 'MMM d, yyyy HH:mm')}
+                </p>
+              </div>
+            )}
+            {campaign.dripEnabled && (
+              <div>
+                <p className="text-sm text-slate-600 mb-1">Daily Sending Limit</p>
+                <p className="font-medium text-slate-900" data-testid="campaign-drip-info">
+                  {(campaign.dripDailyLimit || 0).toLocaleString()} messages/day
+                  {campaign.pendingCount > 0 && campaign.dripDailyLimit ? (
+                    <span className="text-slate-500 font-normal">
+                      {' '}• {Math.ceil(campaign.pendingCount / campaign.dripDailyLimit)} day(s) left
+                    </span>
+                  ) : null}
                 </p>
               </div>
             )}

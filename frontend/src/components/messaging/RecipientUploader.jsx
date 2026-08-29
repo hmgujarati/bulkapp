@@ -45,8 +45,8 @@ const RecipientUploader = ({
       <CardContent className="space-y-4">
         <Tabs defaultValue="excel">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="excel">Excel Upload</TabsTrigger>
-            <TabsTrigger value="text">Text Input</TabsTrigger>
+            <TabsTrigger value="excel" data-testid="excel-tab">Excel Upload</TabsTrigger>
+            <TabsTrigger value="text" data-testid="text-tab">Text Input</TabsTrigger>
           </TabsList>
 
           <TabsContent value="excel" className="mt-4">

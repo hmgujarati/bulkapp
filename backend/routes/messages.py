@@ -1,6 +1,6 @@
 """Message sending routes and services"""
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, UploadFile, File
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 from pathlib import Path
 import httpx
@@ -191,7 +191,65 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     else:
         remaining = daily_limit - daily_usage
     
-    if daily_limit != -1 and len(pending_recipients) > remaining:
+    # === Drip campaigns: only send up to dripDailyLimit per 24h window ===
+    drip_enabled = bool(campaign.get('dripEnabled')) and campaign.get('dripDailyLimit')
+    send_cap = None
+    drip_window_index = None
+    drip_next_window_at = None
+    
+    if drip_enabled:
+        anchor_str = campaign.get('dripStartAt') or campaign.get('createdAt')
+        anchor = datetime.fromisoformat(str(anchor_str).replace('Z', '+00:00'))
+        if anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        
+        if now < anchor:
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {"$set": {
+                    "status": CampaignStatus.SCHEDULED.value,
+                    "scheduledAt": anchor.isoformat(),
+                    "updatedAt": now.isoformat()
+                }}
+            )
+            logger.info(f"Campaign {campaign_id}: drip not started yet, scheduled for {anchor.isoformat()}")
+            return
+        
+        drip_window_index = int((now - anchor).total_seconds() // 86400)
+        drip_next_window_at = anchor + timedelta(days=drip_window_index + 1)
+        sent_in_window = campaign.get('dripSentInWindow', 0) if campaign.get('dripWindowIndex') == drip_window_index else 0
+        if campaign.get('dripWindowIndex') != drip_window_index:
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {"$set": {"dripWindowIndex": drip_window_index, "dripSentInWindow": 0}}
+            )
+        
+        send_cap = int(campaign['dripDailyLimit']) - sent_in_window
+        if daily_limit != -1:
+            send_cap = min(send_cap, remaining)
+        
+        if send_cap <= 0:
+            next_at = drip_next_window_at
+            reset_at = user.get('nextResetAt')
+            if daily_limit != -1 and remaining <= 0 and reset_at:
+                try:
+                    reset_dt = datetime.fromisoformat(reset_at.replace('Z', '+00:00'))
+                    next_at = max(next_at, reset_dt)
+                except (ValueError, TypeError):
+                    pass
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {"$set": {
+                    "status": CampaignStatus.SCHEDULED.value,
+                    "scheduledAt": next_at.isoformat(),
+                    "updatedAt": now.isoformat()
+                }}
+            )
+            logger.info(f"Campaign {campaign_id}: daily drip quota used, next batch at {next_at.isoformat()}")
+            return
+    
+    if not drip_enabled and daily_limit != -1 and len(pending_recipients) > remaining:
         next_reset = user.get('nextResetAt', 'in 24 hours')
         logger.warning(f"Campaign {campaign_id}: Need {len(pending_recipients)} but only {remaining} available")
         await db.campaigns.update_one(
@@ -221,6 +279,9 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     PAUSE_CHECK_EVERY = 50
     
     pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
+    if send_cap is not None:
+        pending_indices = pending_indices[:send_cap]
+        logger.info(f"Campaign {campaign_id}: drip window {drip_window_index}, sending up to {len(pending_indices)} messages")
     
     # Connection pooling
     limits = httpx.Limits(max_connections=10, max_keepalive_connections=5, keepalive_expiry=60)
@@ -355,6 +416,8 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                     "failedCount": batch_failed_delta,
                     "pendingCount": -(batch_sent_delta + batch_failed_delta),
                 }
+                if drip_enabled and batch_sent_delta:
+                    update_doc["$inc"]["dripSentInWindow"] = batch_sent_delta
             await db.campaigns.update_one({"id": campaign_id}, update_doc)
             
             # Minimal delay between batches
@@ -468,6 +531,23 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
             {"$set": cleanup_set_ops}
         )
 
+    # Drip campaigns: if messages are still pending, park the campaign until the
+    # next daily window instead of marking it complete.
+    if drip_enabled:
+        still_pending = any(r['status'] == MessageStatus.PENDING.value for r in campaign['recipients'])
+        if still_pending:
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {"$set": {
+                    "status": CampaignStatus.SCHEDULED.value,
+                    "scheduledAt": drip_next_window_at.isoformat(),
+                    "updatedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            await update_last_activity(campaign['userId'], sent_count)
+            logger.info(f"Campaign {campaign_id}: daily batch done ({sent_count} sent), next batch at {drip_next_window_at.isoformat()}")
+            return
+    
     # Final update — only mark completion. Don't overwrite recipients/counts:
     # those have been maintained via per-index $set + $inc throughout, and
     # webhooks may have applied delivered/read/click updates we must preserve.
@@ -492,6 +572,9 @@ async def send_messages(
     current_user = Depends(get_current_user)
 ):
     """Send a bulk message campaign"""
+    if not (request.campaignName or '').strip():
+        raise HTTPException(status_code=400, detail="Campaign name is required")
+    
     # Get user's BizChat credentials
     user = await db.users.find_one({"id": current_user.userId})
     if not user or not user.get('bizChatToken'):
@@ -499,11 +582,25 @@ async def send_messages(
     if not user.get('bizChatVendorUID'):
         raise HTTPException(status_code=400, detail="BizChat Vendor UID not configured")
     
+    # Drip validation: per-day count must fit inside the account's daily limit
+    drip_enabled = bool(request.dripEnabled and request.dripDailyLimit)
+    if request.dripEnabled and (not request.dripDailyLimit or request.dripDailyLimit < 1):
+        raise HTTPException(status_code=400, detail="Please enter how many messages to send per day")
+    if drip_enabled:
+        account_limit = user.get('dailyLimit', 1000)
+        if account_limit != -1 and request.dripDailyLimit > account_limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Messages per day ({request.dripDailyLimit}) cannot exceed your account daily limit ({account_limit}). Please lower it or contact admin."
+            )
+    
     # Check daily limit ONLY for immediate campaigns, not scheduled ones
     # Scheduled campaigns will be checked when they actually run
     is_scheduled = request.scheduledAt is not None
+    daily_usage = user.get('dailyUsage', 0)
+    daily_limit = user.get('dailyLimit', 1000)
     
-    if not is_scheduled:
+    if not is_scheduled and not drip_enabled:
         from utils.daily_limit import check_and_reset_daily_usage
         
         # Check and reset daily usage if 24 hours have passed
@@ -558,22 +655,41 @@ async def send_messages(
         
         recipients.append(recipient_dict)
     
+    # Drip campaigns: anchor = chosen start time, or now for "start now"
+    drip_start_at = None
+    if drip_enabled:
+        drip_start_at = (request.dripStartAt or datetime.now(timezone.utc))
+        if drip_start_at.tzinfo is None:
+            drip_start_at = drip_start_at.replace(tzinfo=timezone.utc)
+        drip_start_at = drip_start_at.isoformat()
+    
+    starts_later = bool(request.scheduledAt) or (
+        drip_enabled and request.dripStartAt is not None and
+        datetime.fromisoformat(drip_start_at) > datetime.now(timezone.utc)
+    )
+    
     # Create campaign
     campaign = Campaign(
         userId=current_user.userId,
-        name=request.campaignName,
+        name=request.campaignName.strip(),
         templateName=request.templateName,
+        templateReference=(request.templateReference or '').strip() or None,
         recipients=[RecipientInfo(**r) for r in recipients],
         totalCount=len(recipients),
         pendingCount=len(recipients),
         scheduledAt=request.scheduledAt,
-        status=CampaignStatus.SCHEDULED if request.scheduledAt else CampaignStatus.PENDING
+        dripEnabled=drip_enabled,
+        dripDailyLimit=request.dripDailyLimit if drip_enabled else None,
+        dripStartAt=drip_start_at,
+        status=CampaignStatus.SCHEDULED if starts_later else CampaignStatus.PENDING
     )
     
     campaign_dict = campaign.model_dump()
     campaign_dict['createdAt'] = campaign_dict['createdAt'].isoformat()
     if campaign_dict.get('scheduledAt'):
         campaign_dict['scheduledAt'] = campaign_dict['scheduledAt'].isoformat()
+    elif starts_later:
+        campaign_dict['scheduledAt'] = drip_start_at
     if campaign_dict.get('completedAt'):
         campaign_dict['completedAt'] = campaign_dict['completedAt'].isoformat()
     
@@ -581,8 +697,8 @@ async def send_messages(
     
     await db.campaigns.insert_one(campaign_dict)
     
-    # Process immediately if not scheduled
-    if not request.scheduledAt:
+    # Process immediately if it isn't waiting for a start time
+    if not starts_later:
         background_tasks.add_task(
             process_campaign,
             campaign.id,
@@ -593,8 +709,8 @@ async def send_messages(
     return {
         "message": "Campaign created successfully",
         "campaignId": campaign.id,
-        "status": "processing" if not request.scheduledAt else "scheduled",
-        "dailyUsage": daily_usage + len(recipients),
+        "status": "scheduled" if starts_later else "processing",
+        "dailyUsage": daily_usage if drip_enabled else daily_usage + len(recipients),
         "dailyLimit": daily_limit
     }
 

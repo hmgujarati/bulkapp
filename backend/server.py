@@ -93,7 +93,6 @@ app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="api_uplo
 # Campaign resume endpoint (needs access to process_campaign from messages)
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from utils.auth import get_current_user
-from models.schemas import Role, CampaignStatus
 
 resume_router = APIRouter(prefix="/api/campaigns", tags=["Campaigns"])
 

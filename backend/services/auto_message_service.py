@@ -67,7 +67,7 @@ async def send_wish_message(
                 try:
                     data = response.json()
                     return {"success": True, "data": data}
-                except:
+                except Exception:
                     return {"success": True, "data": {"raw": response_text}}
             else:
                 return {"success": False, "error": f"HTTP {response.status_code}: {response_text[:300]}"}

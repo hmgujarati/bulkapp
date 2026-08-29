@@ -77,11 +77,10 @@ async def check_and_reset_daily_usage(user_id: str, user_data: dict = None) -> d
         except (ValueError, TypeError):
             pass
     
-    return {
-        **user_data,
-        'remaining': remaining,
-        'nextResetAt': next_reset
-    }
+    result = {k: v for k, v in user_data.items() if k != '_id'}
+    result['remaining'] = remaining
+    result['nextResetAt'] = next_reset
+    return result
 
 
 async def update_last_activity(user_id: str, messages_sent: int = 0):

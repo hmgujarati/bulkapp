@@ -1,0 +1,25 @@
+{
+  "summary": "Tested the 3 new features (mandatory campaign name, drip/Daily Sending Limit, Template Name (Your Reference)) end-to-end. Backend: new pytest suite /app/backend/tests/test_drip_and_campaign_name.py — 11/11 passed (blank/whitespace campaignName -> 400, drip without perDay -> 400, drip > account dailyLimit (2000) -> 400, drip == limit allowed, drip start-now -> processing with dripEnabled/dripDailyLimit/dripStartAt in /lite, drip future start -> scheduled with scheduledAt==dripStartAt, non-drip + scheduled regressions, no _id leaks). Frontend (Playwright, real UI as QA user): campaign-name-required-note + disabled send with empty name; saved-template load auto-fills template-reference-input; drip-toggle reveals drip-settings; estimate correct (20@5/day -> 'finish in 4 days', 20@3/day -> 'finish in 7 days'); 5000/day shows drip-limit-warning, hides estimate and keeps send disabled; schedule-toggle disabled + schedule-disabled-note; drip campaign created -> Campaign Details shows campaign-template-reference, campaign-template-name, 'Daily Sending Limit: 5 messages/day • 3 day(s) left', 'Next Daily Batch Aug 30 05:57' and status scheduled after first 5-message window (5 failed at BizChat as expected with dummy creds, 15 pending); future-start drip stays scheduled with 0 sent; non-drip campaign shows '—' reference and no drip block. No console errors, no API 5xx.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Send Messages – Daily Sending Limit card", "issues": ["drip-start-input uses min={new Date().toISOString().slice(0,16)} which is a UTC string while the input is local time — in negative-UTC-offset timezones this blocks valid near-future local times (and in positive offsets allows slightly-past times). Same pre-existing pattern on schedule-datetime. Cosmetic/validation-only; backend accepts and normalises."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_drip_and_campaign_name.py", "/app/backend/tests/cleanup_test_data.py", "/app/test_reports/pytest/drip_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/messages.py send_messages(): for drip campaigns the response reports dailyUsage = current usage + dripDailyLimit before anything is actually sent — cosmetic but slightly misleading if ever surfaced in a toast (the drip toast currently ignores it).",
+    "SendMessagesSimple.js: drip start-time min uses UTC ISO instead of local — use a local-time formatted min string for datetime-local inputs."
+  ],
+  "updated_files": ["/app/frontend/src/components/messaging/RecipientUploader.jsx (added data-testid=\"excel-tab\" / \"text-tab\" to the Recipients tabs for testability)", "/app/backend/tests/test_drip_and_campaign_name.py (new)", "/app/backend/tests/cleanup_test_data.py (new)"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% (all 8 requested flows verified)"},
+  "seed_data_creation": "Created + deleted saved template 'TEST_QA Saved Ref' and campaigns TEST_UI Drip Campaign / TEST_UI Drip Future / TEST_UI Normal Campaign plus pytest TEST_* campaigns; all cleaned up via /app/backend/tests/cleanup_test_data.py.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "qatest@example.com / Test@12345 (dailyLimit 2000, dummy BizChat token -> 'Invalid Token' per-recipient failures are expected)",
+  "context_for_next_testing_agent": "Recipients on /send are added via the Recipients card: click data-testid=text-tab then fill data-testid=text-input and click parse-text-btn (Excel tab is default). Saved templates list is empty for the QA user by default — create one via POST /api/saved-templates before testing the load-template flow. Run cleanup script after creating TEST_ data. Drip second-window behaviour (24h later) cannot be observed in a live session; main agent's /app/backend/tests/test_drip_campaign.py covers it.",
+  "rca_of_the_issue": "N/A — no functional defects found."
+}

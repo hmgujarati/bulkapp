@@ -40,6 +40,9 @@ async def get_campaigns(current_user = Depends(get_current_user)):
         "createdAt": 1,
         "completedAt": 1,
         "scheduledAt": 1,
+        "templateReference": 1,
+        "dripEnabled": 1,
+        "dripDailyLimit": 1,
         "lastHeartbeatAt": 1,
         "error": 1,
     }

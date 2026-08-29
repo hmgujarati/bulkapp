@@ -35,8 +35,7 @@ export const useMediaUpload = () => {
       });
 
       const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
-      const urlWithApi = response.data.url.replace('/uploads/', '/api/uploads/');
-      const fullUrl = backendUrl + urlWithApi;
+      const fullUrl = backendUrl + response.data.url;
 
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully`);
       return { url: fullUrl, fileName: file.name };

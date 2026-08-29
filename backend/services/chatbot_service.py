@@ -70,7 +70,7 @@ async def send_interactive_buttons(
             options_text = "\n".join([f"{k}. {v}" for k, v in buttons.items()])
             fallback = f"{body_text}\n\n{options_text}\n\n_Reply with the number of your choice_"
             return await send_text_message(phone, fallback, token, vendor_uid)
-        except:
+        except Exception:
             return False
 
 

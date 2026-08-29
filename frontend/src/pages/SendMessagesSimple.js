@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Clock, Save, AlertCircle, RefreshCw } from 'lucide-react';
+import { Send, Clock, Save, AlertCircle, RefreshCw, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -75,6 +75,11 @@ const TemplateFieldsCard = ({ fields, onFieldChange }) => (
   </Card>
 );
 
+const localNowForInput = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
 const SendMessagesSimple = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const { recipients, parseExcelFile, parseTextInput, addCountryCode, removeDuplicates, removeRecipient, clearRecipients } = useRecipients();
@@ -83,6 +88,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   // Campaign state
   const [campaignName, setCampaignName] = useState('');
   const [templateName, setTemplateName] = useState('');
+  const [templateReference, setTemplateReference] = useState('');
   const [templateLanguage, setTemplateLanguage] = useState('en');
   const [fields, setFields] = useState({ field1: '', field2: '', field3: '', field4: '', field5: '' });
   
@@ -101,6 +107,11 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   
+  // Drip (daily batch) state
+  const [dripEnabled, setDripEnabled] = useState(false);
+  const [dripPerDay, setDripPerDay] = useState('');
+  const [dripStartDate, setDripStartDate] = useState('');
+  
   // Saved templates
   const [savedTemplates, setSavedTemplates] = useState([]);
   const [selectedSavedTemplate, setSelectedSavedTemplate] = useState('');
@@ -112,9 +123,13 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   
   // UI state
   const [sending, setSending] = useState(false);
+  const [accountDailyLimit, setAccountDailyLimit] = useState(undefined);
 
   useEffect(() => {
     fetchSavedTemplates();
+    api.get('/auth/me')
+      .then(res => setAccountDailyLimit(res.data?.dailyLimit))
+      .catch(() => {});
   }, []);
 
   const fetchSavedTemplates = async () => {
@@ -163,6 +178,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
   const handleLoadTemplate = (template) => {
     setTemplateName(template.templateName);
+    setTemplateReference(template.name || '');
     setTemplateLanguage(template.templateLanguage);
     setFields({
       field1: template.field1 || '',
@@ -206,8 +222,20 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     }
   };
 
+  const dripPerDayNum = parseInt(dripPerDay, 10) || 0;
+  const accountLimit = accountDailyLimit !== undefined ? accountDailyLimit : user?.dailyLimit;
+  const dripExceedsAccount = dripEnabled && dripPerDayNum > 0 && accountLimit !== undefined && accountLimit !== -1 && dripPerDayNum > accountLimit;
+  const dripDays = dripEnabled && dripPerDayNum > 0 && recipients.length > 0 ? Math.ceil(recipients.length / dripPerDayNum) : 0;
+  const dripFinishDate = dripDays > 0
+    ? new Date((dripStartDate ? new Date(dripStartDate) : new Date()).getTime() + (dripDays - 1) * 86400000)
+    : null;
+
   const handleSendCampaign = async () => {
     // Validation
+    if (!campaignName.trim()) {
+      toast.error('Please enter a campaign name');
+      return;
+    }
     if (!templateName.trim()) {
       toast.error('Please enter template name');
       return;
@@ -219,6 +247,16 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     if (isScheduled && !scheduledDate) {
       toast.error('Please select schedule date');
       return;
+    }
+    if (dripEnabled) {
+      if (dripPerDayNum < 1) {
+        toast.error('Please enter how many messages to send per day');
+        return;
+      }
+      if (dripExceedsAccount) {
+        toast.error(`Messages per day (${dripPerDayNum}) cannot exceed your account daily limit (${accountLimit})`);
+        return;
+      }
     }
 
     setSending(true);
@@ -237,8 +275,12 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       const payload = {
         campaignName,
         templateName,
+        templateReference: templateReference || null,
         recipients: recipientsWithData,
-        scheduledAt: isScheduled ? new Date(scheduledDate).toISOString() : null
+        scheduledAt: isScheduled && !dripEnabled ? new Date(scheduledDate).toISOString() : null,
+        dripEnabled,
+        dripDailyLimit: dripEnabled ? dripPerDayNum : null,
+        dripStartAt: dripEnabled && dripStartDate ? new Date(dripStartDate).toISOString() : null
       };
 
       // Add media based on type
@@ -258,9 +300,11 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
       const response = await api.post('/messages/send', payload);
       toast.success(
-        isScheduled 
-          ? 'Campaign scheduled successfully!' 
-          : `Campaign started! ${response.data.dailyUsage}/${response.data.dailyLimit} messages used today`
+        dripEnabled
+          ? `Campaign created! Sending ${dripPerDayNum.toLocaleString()}/day — finishes in ${dripDays} day${dripDays > 1 ? 's' : ''}`
+          : isScheduled 
+            ? 'Campaign scheduled successfully!' 
+            : `Campaign started! ${response.data.dailyUsage}/${response.data.dailyLimit} messages used today`
       );
       navigate(`/campaigns/${response.data.campaignId}`);
     } catch (error) {
@@ -282,8 +326,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     try {
       const templateData = {
         name: templateNamePrompt,
-        templateName: templateName,
-        templateLanguage: templateLanguage,
+        templateName: templateName,        templateLanguage: templateLanguage,
         field1: fields.field1,
         field2: fields.field2,
         field3: fields.field3,
@@ -418,6 +461,20 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="templateReference">Template Name (Your Reference)</Label>
+                  <Input
+                    id="templateReference"
+                    placeholder="e.g., Diwali Offer – Gold Buyers"
+                    value={templateReference}
+                    onChange={(e) => setTemplateReference(e.target.value)}
+                    data-testid="template-reference-input"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Optional friendly name shown in Campaign Details next to the BizChat template name.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="templateLanguage">Template Language</Label>
                   <Select value={templateLanguage} onValueChange={setTemplateLanguage}>
                     <SelectTrigger data-testid="language-select">
@@ -466,6 +523,89 @@ const SendMessagesSimple = ({ user, onLogout }) => {
               </CardContent>
             </Card>
 
+            {/* Daily Batch (Drip) Sending */}
+            <Card className="shadow-lg border-0">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarClock className="h-5 w-5 text-emerald-600" />
+                  Daily Sending Limit
+                </CardTitle>
+                <CardDescription>
+                  Split a large list across multiple days — e.g. 3,000 per day out of 20,000 numbers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="drip-mode"
+                    checked={dripEnabled}
+                    onCheckedChange={setDripEnabled}
+                    data-testid="drip-toggle"
+                  />
+                  <Label htmlFor="drip-mode">Send only a set number of messages per day</Label>
+                </div>
+
+                {dripEnabled && (
+                  <div className="space-y-4" data-testid="drip-settings">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="dripPerDay">Messages per day *</Label>
+                        <Input
+                          id="dripPerDay"
+                          type="number"
+                          min="1"
+                          placeholder="e.g., 3000"
+                          value={dripPerDay}
+                          onChange={(e) => setDripPerDay(e.target.value)}
+                          data-testid="drip-per-day-input"
+                        />
+                        {accountLimit !== undefined && (
+                          <p className="text-xs text-slate-500">
+                            Your account limit: {accountLimit === -1 ? 'Unlimited' : accountLimit.toLocaleString()} / day
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="dripStartDate">Daily start time</Label>
+                        <Input
+                          id="dripStartDate"
+                          type="datetime-local"
+                          value={dripStartDate}
+                          onChange={(e) => setDripStartDate(e.target.value)}
+                          min={localNowForInput()}
+                          data-testid="drip-start-input"
+                        />
+                        <p className="text-xs text-slate-500">
+                          Leave empty to start now. Each following batch starts at this same time daily.
+                        </p>
+                      </div>
+                    </div>
+
+                    {dripExceedsAccount && (
+                      <Alert className="bg-red-50 border-red-200" data-testid="drip-limit-warning">
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                        <AlertDescription className="text-red-800">
+                          {dripPerDayNum.toLocaleString()} per day is more than your account daily limit of{' '}
+                          {accountLimit.toLocaleString()}. Lower it or ask the admin to raise your limit.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {dripDays > 0 && !dripExceedsAccount && (
+                      <Alert className="bg-emerald-50 border-emerald-200" data-testid="drip-estimate">
+                        <AlertCircle className="h-4 w-4 text-emerald-600" />
+                        <AlertDescription className="text-emerald-800">
+                          {recipients.length.toLocaleString()} recipients at {dripPerDayNum.toLocaleString()}/day →{' '}
+                          <strong>campaign will finish in {dripDays} day{dripDays > 1 ? 's' : ''}</strong>
+                          {dripFinishDate && ` (around ${dripFinishDate.toLocaleDateString()})`}.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Schedule Option */}
             <Card className="shadow-lg border-0">
               <CardHeader>
@@ -480,10 +620,16 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                     id="schedule-mode"
                     checked={isScheduled}
                     onCheckedChange={setIsScheduled}
+                    disabled={dripEnabled}
                     data-testid="schedule-toggle"
                   />
                   <Label htmlFor="schedule-mode">Schedule for later</Label>
                 </div>
+                {dripEnabled && (
+                  <p className="text-xs text-slate-500" data-testid="schedule-disabled-note">
+                    Disabled — the daily sending limit above controls when this campaign starts.
+                  </p>
+                )}
                 
                 {isScheduled && (
                   <div className="space-y-2">
@@ -493,7 +639,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                       type="datetime-local"
                       value={scheduledDate}
                       onChange={(e) => setScheduledDate(e.target.value)}
-                      min={new Date().toISOString().slice(0, 16)}
+                      min={localNowForInput()}
                       data-testid="schedule-datetime"
                     />
                   </div>
@@ -521,7 +667,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                   className="w-full"
                   size="lg"
                   onClick={handleSendCampaign}
-                  disabled={sending || uploading || recipients.length === 0}
+                  disabled={sending || uploading || recipients.length === 0 || !campaignName.trim() || dripExceedsAccount}
                   data-testid="send-campaign-btn"
                 >
                   {sending ? (
@@ -531,10 +677,17 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                   ) : (
                     <span className="flex items-center gap-2">
                       <Send className="h-4 w-4" />
-                      {isScheduled ? 'Schedule Campaign' : `Send to ${recipients.length} Recipients`}
+                      {dripEnabled && dripPerDayNum > 0
+                        ? `Send ${dripPerDayNum.toLocaleString()}/day to ${recipients.length.toLocaleString()}`
+                        : isScheduled ? 'Schedule Campaign' : `Send to ${recipients.length} Recipients`}
                     </span>
                   )}
                 </Button>
+                {!campaignName.trim() && (
+                  <p className="text-xs text-red-600" data-testid="campaign-name-required-note">
+                    Campaign name is required before sending.
+                  </p>
+                )}
                 
                 <Button
                   variant="outline"

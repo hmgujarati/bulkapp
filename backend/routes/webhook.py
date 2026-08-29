@@ -61,7 +61,7 @@ _- Your WhatsApp Assistant_"""
             scheduled_dt = datetime.fromisoformat(r['scheduledAt'].replace('Z', '+00:00'))
             local_time = scheduled_dt.astimezone(tz)
             time_str = local_time.strftime("%I:%M %p, %d %b").lstrip('0')
-        except:
+        except Exception:
             time_str = "Unknown time"
         
         # Add recurrence indicator
@@ -166,7 +166,7 @@ _- Your WhatsApp Assistant_"""
                 scheduled_dt = datetime.fromisoformat(r['scheduledAt'].replace('Z', '+00:00'))
                 local_time = scheduled_dt.astimezone(tz)
                 time_str = local_time.strftime("%I:%M %p, %d %b").lstrip('0')
-            except:
+            except Exception:
                 time_str = "Unknown"
             match_list.append(f"*{i}.* {r.get('title', 'Reminder')}\n    ⏰ {time_str}")
         
@@ -777,7 +777,7 @@ async def process_user_message(user_id: str, clean_phone: str, message_text: str
     # Create the reminder
     try:
         scheduled_dt = datetime.fromisoformat(parsed['scheduled_time'])
-    except:
+    except Exception:
         scheduled_dt = datetime.now(timezone.utc)
 
     recurrence_data = parsed.get('recurrence', {})

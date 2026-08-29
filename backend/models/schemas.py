@@ -115,6 +115,7 @@ class Campaign(BaseModel):
     userId: str
     name: str
     templateName: str
+    templateReference: Optional[str] = None  # user's own friendly name for the template
     recipients: List[RecipientInfo]
     totalCount: int
     sentCount: int = 0
@@ -124,6 +125,12 @@ class Campaign(BaseModel):
     pendingCount: int
     scheduledAt: Optional[datetime] = None
     status: CampaignStatus = CampaignStatus.PENDING
+    # Drip sending: send only N messages per day, starting at a fixed clock time
+    dripEnabled: bool = False
+    dripDailyLimit: Optional[int] = None
+    dripStartAt: Optional[str] = None       # ISO UTC anchor for daily windows
+    dripWindowIndex: int = -1               # which 24h window we are currently in
+    dripSentInWindow: int = 0               # messages sent inside the current window
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completedAt: Optional[datetime] = None
 
@@ -132,8 +139,12 @@ class SendMessageRequest(BaseModel):
     recipients: List[Dict[str, str]]
     templateName: str
     campaignName: str
+    templateReference: Optional[str] = None
     countryCode: Optional[str] = None
     scheduledAt: Optional[datetime] = None
+    dripEnabled: bool = False
+    dripDailyLimit: Optional[int] = None
+    dripStartAt: Optional[datetime] = None
     templateParameters: Optional[Dict[str, Any]] = None
     # Media headers
     header_image: Optional[str] = None

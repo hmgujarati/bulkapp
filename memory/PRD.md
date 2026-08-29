@@ -68,3 +68,17 @@ Build a WhatsApp platform for bulk messaging, AI reminders, lead qualification c
 - P1: Indiamart Pull API (deferred by user)
 - P2: Voice Call Reminders (deferred by user)
 - P3: Chatbot Analytics Dashboard (to be discussed)
+
+## Update — June 2026 (Daily Sending Limit / Drip)
+Implemented:
+- **Daily Sending Limit (drip) on Send Messages**: user sets messages/day + optional daily start time (browser local time, blank = start now). Live estimate: "N recipients at X/day -> campaign will finish in D days (around <date>)". Backend sends up to `dripDailyLimit` per rolling 24h window anchored at `dripStartAt`, then parks the campaign as `scheduled` for the next window (picked up by the existing scheduler). Fields on campaign: `dripEnabled, dripDailyLimit, dripStartAt, dripWindowIndex, dripSentInWindow`. Blocked at creation if messages/day > account dailyLimit. "Schedule for later" is disabled while drip is on.
+- **Campaign Name is now mandatory** (frontend disables send + red note; backend returns 400).
+- **Template Name (Your Reference)**: optional field on Send Messages (auto-filled when a Saved Template is loaded), stored as `campaign.templateReference`, shown in Campaign Details next to "BizChat Template Name".
+- Fixed datetime-local `min` to use local time instead of UTC.
+
+Tests: `/app/backend/tests/test_drip_campaign.py` (standalone async, window logic incl. completion), `/app/backend/tests/test_drip_and_campaign_name.py` (pytest, 11/11), frontend flows verified by testing agent (iteration_9.json, 100%).
+
+Still open:
+- (P0) "Refresh Daily Usage" admin utility misses messages sent today by campaigns created on earlier days (retried/resumed/drip campaigns). Needs a decision on tracking daily sends per campaign.
+- (P3) Nightly cron for the Daily Usage refresh.
+- **Media uploads moved to Emergent Object Storage** (Aug 29, 2026): `POST /api/upload/media` now stores files in object storage (`bizchat/uploads/{userId}/{uuid}.ext`), records metadata in `media_files`, and returns `/api/upload/media/{file_id}` — a public (unauthenticated) URL so WhatsApp/BizChat can fetch template media. Pod-local `uploads/` static mounts are kept only for older files. Verified with a round-trip upload + public fetch (bytes match).

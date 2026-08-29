@@ -67,7 +67,7 @@ async def send_lead_message(
                     if data.get('result') == 'failed':
                         return {"success": False, "error": data.get('message', 'Unknown error')}
                     return {"success": True, "data": data}
-                except:
+                except Exception:
                     return {"success": True, "data": {"raw": response_text}}
             else:
                 return {"success": False, "error": f"HTTP {response.status_code}: {response_text[:300]}"}
