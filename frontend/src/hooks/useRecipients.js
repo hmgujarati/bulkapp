@@ -1,12 +1,29 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { processRecipients } from '../utils/phoneValidator';
 
 export const useRecipients = () => {
   const [recipients, setRecipients] = useState([]);
+  const [country, setCountry] = useState('IN');
+  const [invalidNumbers, setInvalidNumbers] = useState([]);
+
+  // Normalize + drop numbers that can never be delivered
+  const applyList = useCallback((list, countryIso) => {
+    const { valid, invalid } = processRecipients(list, countryIso);
+    setRecipients(valid);
+    setInvalidNumbers(invalid);
+
+    if (invalid.length > 0) {
+      toast.success(`Loaded ${valid.length} valid recipients. Removed ${invalid.length} invalid number(s).`);
+    } else {
+      toast.success(`Loaded ${valid.length} recipients`);
+    }
+    return valid;
+  }, []);
 
   // Parse Excel file
-  const parseExcelFile = useCallback(async (file) => {
+  const parseExcelFile = useCallback(async (file, countryIso = country) => {
     if (!file) return;
 
     try {
@@ -29,64 +46,41 @@ export const useRecipients = () => {
         return;
       }
 
-      const formattedRecipients = jsonData.map(row => ({
+      const rows = jsonData.map(row => ({
         phone: String(row[phoneCol] || '').trim(),
         name: row[nameCol] ? String(row[nameCol]).trim() : ''
       })).filter(r => r.phone);
 
-      setRecipients(formattedRecipients);
-      toast.success(`Loaded ${formattedRecipients.length} recipients`);
+      applyList(rows, countryIso);
     } catch (error) {
       toast.error('Failed to parse Excel file');
     }
-  }, []);
+  }, [applyList, country]);
 
-  // Parse text input (comma-separated lines)
-  const parseTextInput = useCallback((text) => {
-    const lines = text.split('\n').filter(line => line.trim());
-    const parsed = lines.map(line => {
+  // Parse text input (one number per line, optional ", name")
+  const parseTextInput = useCallback((text, countryIso = country) => {
+    const rows = text.split('\n').filter(line => line.trim()).map(line => {
       const parts = line.split(',').map(p => p.trim());
-      return {
-        phone: parts[0] || '',
-        name: parts[1] || ''
-      };
+      return { phone: parts[0] || '', name: parts[1] || '' };
     }).filter(r => r.phone);
 
-    setRecipients(parsed);
-    toast.success(`Loaded ${parsed.length} recipients`);
-  }, []);
+    applyList(rows, countryIso);
+  }, [applyList, country]);
 
-  // Add country code to all numbers
-  const addCountryCode = useCallback((countryCode) => {
-    if (!countryCode) {
-      toast.error('Please enter a country code');
+  // Re-apply country code / validation to the current list (e.g. after changing country)
+  const reapplyCountry = useCallback((countryIso) => {
+    if (recipients.length === 0) {
+      toast.error('Add some numbers first');
       return;
     }
-
-    let addedCount = 0;
-    let skippedCount = 0;
-
-    const updated = recipients.map(r => {
-      const phone = r.phone.trim();
-      const digitsOnly = phone.replace(/\D/g, '');
-
-      if (phone.startsWith('+') || digitsOnly.startsWith(countryCode)) {
-        skippedCount++;
-        return r;
-      }
-
-      const cleanPhone = digitsOnly.replace(/^0+/, '');
-      addedCount++;
-      return { ...r, phone: `+${countryCode}${cleanPhone}` };
-    });
-
-    setRecipients(updated);
-
-    if (addedCount > 0) {
-      toast.success(`Country code +${countryCode} added to ${addedCount} number(s). ${skippedCount} already had it.`);
-    } else {
-      toast.info(`All ${skippedCount} numbers already have country code ${countryCode}`);
-    }
+    const { valid, invalid } = processRecipients(recipients, countryIso);
+    setRecipients(valid);
+    setInvalidNumbers(invalid);
+    toast.success(
+      invalid.length > 0
+        ? `${valid.length} numbers fixed for the selected country. Removed ${invalid.length} invalid.`
+        : `All ${valid.length} numbers are valid for the selected country`
+    );
   }, [recipients]);
 
   // Remove duplicates
@@ -104,22 +98,24 @@ export const useRecipients = () => {
     toast.success(`Removed ${removed} duplicate(s). ${unique.length} unique recipients.`);
   }, [recipients]);
 
-  // Remove a single recipient
   const removeRecipient = useCallback((index) => {
     setRecipients(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Clear all recipients
   const clearRecipients = useCallback(() => {
     setRecipients([]);
+    setInvalidNumbers([]);
   }, []);
 
   return {
     recipients,
     setRecipients,
+    country,
+    setCountry,
+    invalidNumbers,
     parseExcelFile,
     parseTextInput,
-    addCountryCode,
+    reapplyCountry,
     removeDuplicates,
     removeRecipient,
     clearRecipients

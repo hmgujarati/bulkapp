@@ -22,6 +22,7 @@ import Layout from '../components/Layout';
 import { RecipientUploader, MediaUploader, TemplateSelector } from '../components/messaging';
 import { useRecipients, useMediaUpload } from '../hooks';
 import api from '../utils/api';
+import { dialCodeFor } from '../utils/phoneValidator';
 
 const LANGUAGES = [
   { value: 'en', label: 'English (en)' },
@@ -82,7 +83,7 @@ const localNowForInput = () => {
 
 const SendMessagesSimple = ({ user, onLogout }) => {
   const navigate = useNavigate();
-  const { recipients, parseExcelFile, parseTextInput, addCountryCode, removeDuplicates, removeRecipient, clearRecipients } = useRecipients();
+  const { recipients, country, setCountry, invalidNumbers, parseExcelFile, parseTextInput, reapplyCountry, removeDuplicates, removeRecipient, clearRecipients } = useRecipients();
   const { uploadFile, uploading } = useMediaUpload();
 
   // Campaign state
@@ -276,6 +277,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
         campaignName,
         templateName,
         templateReference: templateReference || null,
+        countryCode: dialCodeFor(country),
         recipients: recipientsWithData,
         scheduledAt: isScheduled && !dripEnabled ? new Date(scheduledDate).toISOString() : null,
         dripEnabled,
@@ -652,9 +654,12 @@ const SendMessagesSimple = ({ user, onLogout }) => {
           <div className="space-y-6">
             <RecipientUploader
               recipients={recipients}
+              country={country}
+              onCountryChange={setCountry}
+              invalidNumbers={invalidNumbers}
               onParseExcel={parseExcelFile}
               onParseText={parseTextInput}
-              onAddCountryCode={addCountryCode}
+              onReapplyCountry={reapplyCountry}
               onRemoveDuplicates={removeDuplicates}
               onRemoveRecipient={removeRecipient}
               onClear={clearRecipients}

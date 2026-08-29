@@ -4,23 +4,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Globe, Trash2 } from 'lucide-react';
+import { Upload, Trash2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
+import { COUNTRY_OPTIONS } from '../../utils/phoneValidator';
 
 const RecipientUploader = ({
   recipients,
+  country,
+  onCountryChange,
+  invalidNumbers = [],
   onParseExcel,
   onParseText,
-  onAddCountryCode,
+  onReapplyCountry,
   onRemoveDuplicates,
   onRemoveRecipient,
   onClear
 }) => {
   const [textInput, setTextInput] = useState('');
-  const [countryCode, setCountryCode] = useState('91');
+  const [countryQuery, setCountryQuery] = useState('');
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: (files) => files[0] && onParseExcel(files[0]),
+    onDrop: (files) => files[0] && onParseExcel(files[0], country),
     accept: {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.ms-excel': ['.xls'],
@@ -29,9 +33,12 @@ const RecipientUploader = ({
     multiple: false
   });
 
-  const handleTextSubmit = () => {
-    onParseText(textInput);
-  };
+  const selected = COUNTRY_OPTIONS.find((c) => c.iso === country);
+  const filtered = countryQuery
+    ? COUNTRY_OPTIONS.filter((c) =>
+        c.name.toLowerCase().includes(countryQuery.toLowerCase()) || c.dial.includes(countryQuery.replace('+', ''))
+      )
+    : COUNTRY_OPTIONS;
 
   return (
     <Card data-testid="recipient-uploader">
@@ -40,9 +47,41 @@ const RecipientUploader = ({
           <Upload className="h-5 w-5 mr-2 text-blue-600" />
           Recipients
         </CardTitle>
-        <CardDescription>Upload phone numbers to send messages to</CardDescription>
+        <CardDescription>
+          Numbers are checked automatically — the country code is added and invalid numbers are removed
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Country selector — drives the code added to local numbers */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Country of these numbers</label>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search country or code"
+              value={countryQuery}
+              onChange={(e) => setCountryQuery(e.target.value)}
+              className="w-40"
+              data-testid="country-search-input"
+            />
+            <select
+              value={country}
+              onChange={(e) => onCountryChange(e.target.value)}
+              className="flex-1 h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+              data-testid="country-select"
+            >
+              {filtered.map((c) => (
+                <option key={c.iso} value={c.iso}>
+                  {c.name} (+{c.dial})
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-xs text-slate-500">
+            Local numbers get +{selected?.dial} added automatically. Numbers that already have a
+            country code are kept as they are.
+          </p>
+        </div>
+
         <Tabs defaultValue="excel">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="excel" data-testid="excel-tab">Excel Upload</TabsTrigger>
@@ -80,35 +119,36 @@ const RecipientUploader = ({
               rows={5}
               data-testid="text-input"
             />
-            <Button onClick={handleTextSubmit} variant="outline" className="w-full" data-testid="parse-text-btn">
+            <Button onClick={() => onParseText(textInput, country)} variant="outline" className="w-full" data-testid="parse-text-btn">
               Parse Numbers
             </Button>
           </TabsContent>
         </Tabs>
 
-        {/* Country Code & Actions */}
+        {invalidNumbers.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm" data-testid="invalid-numbers-alert">
+            <p className="flex items-center gap-2 font-medium text-amber-900">
+              <AlertTriangle className="h-4 w-4" />
+              {invalidNumbers.length} invalid number(s) removed automatically
+            </p>
+            <p className="mt-1 font-mono text-xs text-amber-800 break-all">
+              {invalidNumbers.slice(0, 8).join(', ')}
+              {invalidNumbers.length > 8 && ` +${invalidNumbers.length - 8} more`}
+            </p>
+          </div>
+        )}
+
         {recipients.length > 0 && (
           <div className="space-y-3 pt-4 border-t">
-            <div className="flex gap-2">
-              <div className="flex items-center gap-1">
-                <Globe className="h-4 w-4 text-slate-500" />
-                <span className="text-sm">+</span>
-                <Input
-                  type="text"
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-16"
-                  placeholder="91"
-                  data-testid="country-code-input"
-                />
-              </div>
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onAddCountryCode(countryCode)}
-                data-testid="add-country-code-btn"
+                onClick={() => onReapplyCountry(country)}
+                data-testid="reapply-country-btn"
               >
-                Add Code
+                <ShieldCheck className="h-4 w-4 mr-1" />
+                Re-check with +{selected?.dial}
               </Button>
               <Button
                 variant="outline"
@@ -120,7 +160,6 @@ const RecipientUploader = ({
               </Button>
             </div>
 
-            {/* Recipients List */}
             <div className="border rounded-lg max-h-48 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 sticky top-0">
@@ -159,9 +198,9 @@ const RecipientUploader = ({
 
             <div className="flex justify-between items-center text-sm">
               <span className="text-slate-600">
-                Total: <strong>{recipients.length}</strong> recipients
+                Total: <strong data-testid="recipient-count">{recipients.length}</strong> valid recipients
               </span>
-              <Button variant="ghost" size="sm" onClick={onClear} className="text-red-500">
+              <Button variant="ghost" size="sm" onClick={onClear} className="text-red-500" data-testid="clear-recipients-btn">
                 Clear All
               </Button>
             </div>
