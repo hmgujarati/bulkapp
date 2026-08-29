@@ -1,8 +1,9 @@
-"""File upload routes — media is stored in Emergent object storage."""
+"""File upload routes — object storage when configured, local disk otherwise."""
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Response
 from pathlib import Path
 from datetime import datetime, timezone
 import asyncio
+import os
 import uuid
 import logging
 
@@ -13,6 +14,13 @@ from utils.object_storage import put_object, get_object, APP_NAME
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
+
+# Local fallback (self-hosted servers with persistent disk and no EMERGENT_LLM_KEY)
+UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
+
+
+def _object_storage_available() -> bool:
+    return bool((os.environ.get("EMERGENT_LLM_KEY") or "").strip())
 
 MIME_TYPES = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
@@ -71,9 +79,30 @@ async def upload_media(
             client_type = MIME_TYPES.get(file_ext, "application/octet-stream")
         content_type = client_type
         file_id = f"{uuid.uuid4()}{file_ext}"
+
+        def _save_local():
+            local_dir = UPLOAD_DIR / f"{media_type}s"
+            local_dir.mkdir(parents=True, exist_ok=True)
+            (local_dir / file_id).write_bytes(file_content)
+            return {
+                "success": True,
+                "filename": file.filename,
+                "url": f"/api/uploads/{media_type}s/{file_id}",
+                "type": media_type
+            }
+
+        if not _object_storage_available():
+            # Self-hosted fallback: persistent local disk
+            logger.info(f"Object storage not configured, saving {media_type} locally: {file_id}")
+            return _save_local()
+
         storage_path = f"{APP_NAME}/uploads/{current_user.userId}/{file_id}"
 
-        result = await asyncio.to_thread(put_object, storage_path, file_content, content_type)
+        try:
+            result = await asyncio.to_thread(put_object, storage_path, file_content, content_type)
+        except Exception as e:
+            logger.error(f"Object storage upload failed ({e}), falling back to local disk")
+            return _save_local()
 
         await db.media_files.insert_one({
             "id": file_id,
