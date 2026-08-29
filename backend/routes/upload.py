@@ -66,7 +66,10 @@ async def upload_media(
                        f"Your file: {file_size / (1024 * 1024):.1f}MB"
             )
 
-        content_type = file.content_type or MIME_TYPES.get(file_ext, "application/octet-stream")
+        client_type = (file.content_type or "").strip().lower()
+        if not client_type or client_type == "application/octet-stream":
+            client_type = MIME_TYPES.get(file_ext, "application/octet-stream")
+        content_type = client_type
         file_id = f"{uuid.uuid4()}{file_ext}"
         storage_path = f"{APP_NAME}/uploads/{current_user.userId}/{file_id}"
 

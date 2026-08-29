@@ -85,7 +85,7 @@ const TemplateCard = ({ template, onEdit, onDelete }) => (
         })}
       </div>
       <div className="flex space-x-2">
-        <Button variant="outline" size="sm" className="flex-1" onClick={() => onEdit(template)}>
+        <Button variant="outline" size="sm" className="flex-1" onClick={() => onEdit(template)} data-testid={`edit-template-${template.id}`}>
           <Edit className="h-4 w-4 mr-1" /> Edit
         </Button>
         <Button
@@ -93,6 +93,7 @@ const TemplateCard = ({ template, onEdit, onDelete }) => (
           size="sm"
           className="text-red-600 hover:text-red-700 hover:bg-red-50"
           onClick={() => onDelete(template.id)}
+          data-testid={`delete-template-${template.id}`}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -291,21 +292,21 @@ const MyTemplates = ({ user, onLogout }) => {
                     mediaType={mediaType}
                     onMediaTypeChange={setMediaType}
                     headerImage={formData.header_image}
-                    onHeaderImageChange={(v) => setFormData({...formData, header_image: v})}
+                    onHeaderImageChange={(v) => setFormData(f => ({...f, header_image: v}))}
                     headerVideo={formData.header_video}
-                    onHeaderVideoChange={(v) => setFormData({...formData, header_video: v})}
+                    onHeaderVideoChange={(v) => setFormData(f => ({...f, header_video: v}))}
                     headerDocument={formData.header_document}
-                    onHeaderDocumentChange={(v) => setFormData({...formData, header_document: v})}
+                    onHeaderDocumentChange={(v) => setFormData(f => ({...f, header_document: v}))}
                     headerDocumentName={formData.header_document_name}
-                    onHeaderDocumentNameChange={(v) => setFormData({...formData, header_document_name: v})}
+                    onHeaderDocumentNameChange={(v) => setFormData(f => ({...f, header_document_name: v}))}
                     locationLatitude={formData.location_latitude}
-                    onLocationLatitudeChange={(v) => setFormData({...formData, location_latitude: v})}
+                    onLocationLatitudeChange={(v) => setFormData(f => ({...f, location_latitude: v}))}
                     locationLongitude={formData.location_longitude}
-                    onLocationLongitudeChange={(v) => setFormData({...formData, location_longitude: v})}
+                    onLocationLongitudeChange={(v) => setFormData(f => ({...f, location_longitude: v}))}
                     locationName={formData.location_name}
-                    onLocationNameChange={(v) => setFormData({...formData, location_name: v})}
+                    onLocationNameChange={(v) => setFormData(f => ({...f, location_name: v}))}
                     locationAddress={formData.location_address}
-                    onLocationAddressChange={(v) => setFormData({...formData, location_address: v})}
+                    onLocationAddressChange={(v) => setFormData(f => ({...f, location_address: v}))}
                   />
                 </div>
 

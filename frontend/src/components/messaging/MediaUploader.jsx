@@ -159,6 +159,7 @@ const MediaUploader = ({
             onChange={(e) => onHeaderDocumentChange(e.target.value)}
             data-testid="document-url-input"
           />
+          <Label className="text-xs text-slate-500">Document filename (shown to the recipient)</Label>
           <Input
             placeholder="Document filename (e.g., report.pdf)"
             value={headerDocumentName}

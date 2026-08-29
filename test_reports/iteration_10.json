@@ -1,0 +1,46 @@
+{
+  "summary": "Frontend-only UI testing of media (image/video/document) uploads after Emergent Object Storage migration, on both /send (SendMessagesSimple) and /my-templates (MyTemplates), plus oversize/wrong-type validation and campaign-creation regression. Logged in as qatest@example.com. RESULT: /send flows fully pass (all 3 types upload, URL populated, public URL returns 200 with correct content-type: image/jpeg, video/mp4, application/pdf). /my-templates image+video pass and persist, but DOCUMENT upload does NOT populate the document URL field (confirmed reproducible in isolation) - React stale-state bug in MyTemplates.js. Campaign regression with uploaded image header passes (campaign created, visible in Campaign History at /campaigns).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MyTemplates.js (media document upload)",
+        "issue": "After uploading a PDF in the template dialog with Media Type = Document, the 'Or paste document URL' field stays EMPTY while the filename field is filled with 'test_doc.pdf'. Saving therefore persists header_document = '' (document lost). Root cause: MediaUploader calls onHeaderDocumentChange(url) and onHeaderDocumentNameChange(fileName) back-to-back in the same tick, and MyTemplates passes non-functional object-spread setters ({...formData, header_document: v} then {...formData, header_document_name: v}) - the second call uses stale formData and wipes the just-set URL. Fix: use functional updates, e.g. setFormData(f => ({...f, header_document: v})) for ALL MediaUploader setters in MyTemplates.js (lines ~294-308). /send is unaffected because it uses individual useState setters.",
+        "selector": "[data-testid=\"document-url-input\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "MediaUploader - Document section",
+        "issues": [
+          "The 'Document filename' input has no visible Label (only a placeholder), so once filled with e.g. 'test_doc.pdf' it looks like a stray unlabeled field below the URL input. Add a Label for clarity."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "MyTemplates.js: convert all MediaUploader onChange handlers to functional setFormData updates so the document URL is not overwritten by the subsequent filename update (HIGH - document media is silently dropped when saving a template).",
+    "Optional: add a Label to the document filename input in MediaUploader.jsx."
+  ],
+  "critical_code_review_comments": [
+    "MyTemplates.js: handleFileUpload (lines 147-154) is dead code - MediaUploader performs the upload itself via useMediaUpload; the page-level uploadFile/uploading hook is only used for the submit button disabled state. Remove or consolidate to avoid two upload paths.",
+    "MyTemplates.js uses stale-closure object-spread setState for every MediaUploader callback; any pair of setters fired in the same tick will lose data (document URL case proven). Prefer functional updates everywhere.",
+    "MediaUploader: no client-side MIME/extension pre-check - a .txt selected under 'Image' is only rejected by the backend (400). Error toast is clear ('Invalid file type. Allowed: .jpg, .jpeg, .png, .gif, .webp') and no URL is set, so behaviour is acceptable but a client-side check would save a round trip."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/MyTemplates.js (added data-testid=\"edit-template-<id>\" and \"delete-template-<id>\" to template card buttons - test-only additions)"
+  ],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "83% (5 of 6 requested flows pass; My Templates document upload fails)"},
+  "seed_data_creation": "Created and then DELETED: saved template 'TEST_MediaTpl', campaign 'TEST_MediaCampaign' (2 dummy recipients, failed at BizChat with Invalid Token as expected). 'TEST_DocOnly' was never saved (dialog cancelled). Uploaded media objects remain in object storage (expected, no delete UI).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "qatest@example.com / Test@12345 (from /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "Verified via page.request.get(): /api/upload/media/<uuid>.jpg -> 200 image/jpeg 177961B, .mp4 -> 200 video/mp4 574823B, .pdf -> 200 application/pdf 13264B. Media Type control is data-testid=media-type-select (shadcn Select; use get_by_role('option', name='Image (Header)'/'Video (Header)'/'Document')). File inputs: image-upload-input / video-upload-input / document-upload-input; URL fields: image-url-input / video-url-input / document-url-input; document name: document-name-input. Campaign History route is /campaigns (NOT /campaign-history). Test files staged at /tmp/media/{test_image.jpg,test_video.mp4,test_doc.pdf,bad.txt}. Negative test (.txt as image) returns backend 400 + red toast and leaves URL empty in both pages - works.",
+  "rca_of_the_issue": "Document URL lost in /my-templates: MediaUploader.handleFileChange calls onHeaderDocumentChange(result.url) immediately followed by onHeaderDocumentNameChange(result.fileName). In MyTemplates.js both props are inline closures over the current `formData` object ({...formData, header_document: v}). React batches both setState calls, so the second one starts from the pre-upload `formData` snapshot (header_document = '') and overwrites the URL set by the first. Reproduction: /my-templates -> New Template -> Media Type 'Document' -> upload any PDF -> URL field empty, filename field populated. Mitigation: functional setState updates in MyTemplates.js."
+}
