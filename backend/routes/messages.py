@@ -1100,7 +1100,8 @@ async def retry_failed_messages(
                 "pendingCount": failed_count,
                 "status": CampaignStatus.PROCESSING.value,
                 "updatedAt": datetime.now(timezone.utc).isoformat()
-            }
+            },
+            "$unset": {"completedAt": "", "error": ""}
         }
     )
 

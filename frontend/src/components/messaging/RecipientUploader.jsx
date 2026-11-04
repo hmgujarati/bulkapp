@@ -55,18 +55,18 @@ const RecipientUploader = ({
         {/* Country selector — drives the code added to local numbers */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-slate-700">Country of these numbers</label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 max-w-xl">
             <Input
               placeholder="Search country or code"
               value={countryQuery}
               onChange={(e) => setCountryQuery(e.target.value)}
-              className="w-40"
+              className="w-40 shrink-0"
               data-testid="country-search-input"
             />
             <select
               value={country}
               onChange={(e) => onCountryChange(e.target.value)}
-              className="flex-1 h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+              className="flex-1 min-w-0 h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
               data-testid="country-select"
             >
               {filtered.map((c) => (

@@ -1,0 +1,31 @@
+{
+  "summary": "Tested the 4 user-reported bugs. Backend: test_usage_accounting, test_phone_normalization, test_dailyusage_backfill and test_campaign_chain all print ALL PASSED / CHAIN TEST PASSED. New pytest test_iter12_api.py (5/5): a mixed-country campaign stores +919876543210, +971501234567, +15551234567, +447911123456 (no wrong +91 prefix); retry-failed returns 200 with retryCount matching failedCount, and 404 for an unknown campaign; both refresh-daily-usage endpoints return 200. Frontend: Field 1-5 on Send Messages and template-field1-5 in the My Templates dialog are INPUTs. Pressing Enter adds no newline, does not submit and does not close the dialog. A real clipboard paste of 'Hello\\nWorld\\r\\nAgain' becomes 'Hello World Again'. The helper note is visible on both screens. The Campaign Details 'Resend Failed (2)' button shows on a completed all-failed campaign; clicking it opens a confirm, the success toast 'Retrying 2 failed messages' appears and the campaign goes to processing. A scheduled campaign shows scheduled-note, hides the retry button and shows 0.0% with no NaN.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/messages/campaigns/{id}/retry-failed", "issue": "Does not unset completedAt when it moves the campaign back to processing, so Campaign Details shows a stale 'Completed At' while it is running again."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Send Messages - Recipients card", "issues": ["The 'Country of these numbers' select is a native <select> and runs past the right edge of the Recipients card at 1920px (it ends near x=1370 while the card ends near x=1280). Constrain its width or use the shadcn Select."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iter12_api.py", "/app/backend/tests/iter12_seed_ui.py", "/app/test_reports/pytest/iter12.xml", "/app/backend/tests/test_usage_accounting.py", "/app/backend/tests/test_phone_normalization.py"],
+  "action_items": [
+    "Optional: $unset completedAt in retry_failed_messages",
+    "Optional: fix the country select overflowing the Recipients card on Send Messages"
+  ],
+  "critical_code_review_comments": [
+    "retry_failed_messages loads and rewrites the whole campaign.recipients array. This works for small campaigns but is heavy for 100k-recipient campaigns; use an update_many with an array filter or the recipients collection.",
+    "The browser's own <input> sanitization strips newlines on programmatic value sets before sanitizeTemplateField runs, so words can join (e.g. 'x\\ny' -> 'xy'). A real user paste in Chromium becomes spaces, so users are not affected."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter12_api.py", "/app/backend/tests/iter12_seed_ui.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Only temporary TEST_ campaigns on qatest, all deleted by id afterwards.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use qatest (dummy BizChat creds, sends fail with 'Invalid Token') for retry-failed tests. iter12_seed_ui.py creates one all-failed and one scheduled TEST_ campaign; delete them by id afterwards. The campaign create response returns campaignId."
+}
