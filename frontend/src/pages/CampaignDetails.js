@@ -6,11 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, CheckCircle, XCircle, Clock, Download, Pause, Play, X as CancelIcon, RefreshCw, CheckCheck, Eye, MousePointerClick } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Clock, Download, Pause, Play, X as CancelIcon, RefreshCw, RotateCcw, CheckCheck, Eye, MousePointerClick } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { format } from 'date-fns';
+
+// Safe percentage — campaigns can legitimately have 0 recipients while uploading
+const pct = (part, total) => (total > 0 ? ((part || 0) / total) * 100 : 0);
 
 const CampaignDetails = ({ user, onLogout }) => {
   const navigate = useNavigate();
@@ -18,6 +21,7 @@ const CampaignDetails = ({ user, onLogout }) => {
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [clickFilter, setClickFilter] = useState('all'); // 'all' | 'clicked' | 'not_clicked' | <button text>
   const [recipients, setRecipients] = useState([]);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
@@ -137,6 +141,21 @@ const CampaignDetails = ({ user, onLogout }) => {
       fetchCampaign(true);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to cancel campaign');
+    }
+  };
+
+  const handleRetryFailed = async () => {
+    if (!window.confirm(`Resend ${campaign.failedCount} failed message(s)?`)) return;
+    setRetrying(true);
+    try {
+      const response = await api.post(`/messages/campaigns/${id}/retry-failed`);
+      toast.success(response.data.message || 'Retrying failed messages');
+      fetchCampaign(true);
+      fetchRecipients(0, false);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to retry messages');
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -299,6 +318,20 @@ const CampaignDetails = ({ user, onLogout }) => {
               </Button>
             )}
             
+            {campaign.failedCount > 0 && !['processing', 'pending'].includes(campaign.status) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetryFailed}
+                disabled={retrying}
+                className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                data-testid="retry-failed-button"
+              >
+                <RotateCcw className={`h-4 w-4 mr-2 ${retrying ? 'animate-spin' : ''}`} />
+                Resend Failed ({campaign.failedCount})
+              </Button>
+            )}
+            
             <Button variant="outline" size="sm" onClick={downloadCSV} data-testid="download-csv-button">
               <Download className="h-4 w-4 mr-2" />
               Export CSV
@@ -316,13 +349,23 @@ const CampaignDetails = ({ user, onLogout }) => {
                   <span>{campaign.sentCount + campaign.failedCount}/{campaign.totalCount}</span>
                 </div>
                 <Progress 
-                  value={((campaign.sentCount + campaign.failedCount) / campaign.totalCount) * 100} 
+                  value={pct(campaign.sentCount + campaign.failedCount, campaign.totalCount)} 
                   className="h-2"
                 />
                 <p className="text-xs text-slate-600">
-                  Sending at 29 messages/second • Est. remaining: ~{Math.ceil(campaign.pendingCount / 29)}s
+                  {campaign.pendingCount} message(s) left • about {Math.max(1, Math.ceil(campaign.pendingCount / 60))} min remaining
                 </p>
               </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {campaign.status === 'scheduled' && (
+          <Alert className="bg-indigo-50 border-indigo-200">
+            <AlertDescription className="text-indigo-900" data-testid="scheduled-note">
+              {campaign.error
+                ? campaign.error
+                : `Campaign is scheduled${campaign.scheduledAt ? ` for ${format(new Date(campaign.scheduledAt), 'dd MMM yyyy, HH:mm')}` : ''}. Remaining messages send automatically.`}
             </AlertDescription>
           </Alert>
         )}
@@ -355,7 +398,7 @@ const CampaignDetails = ({ user, onLogout }) => {
             <CardContent>
               <div className="text-3xl font-bold text-green-900">{campaign.sentCount}</div>
               <p className="text-sm text-green-700 mt-1">
-                {((campaign.sentCount / campaign.totalCount) * 100).toFixed(1)}%
+                {pct(campaign.sentCount, campaign.totalCount).toFixed(1)}%
               </p>
             </CardContent>
           </Card>
@@ -397,7 +440,7 @@ const CampaignDetails = ({ user, onLogout }) => {
             <CardContent>
               <div className="text-3xl font-bold text-red-900">{campaign.failedCount}</div>
               <p className="text-sm text-red-700 mt-1">
-                {((campaign.failedCount / campaign.totalCount) * 100).toFixed(1)}%
+                {pct(campaign.failedCount, campaign.totalCount).toFixed(1)}%
               </p>
             </CardContent>
           </Card>

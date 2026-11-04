@@ -27,6 +27,7 @@ import Layout from '../components/Layout';
 import { MediaUploader } from '../components/messaging';
 import { useMediaUpload } from '../hooks';
 import api from '../utils/api';
+import { sanitizeTemplateField } from '../utils/templateText';
 
 const LANGUAGES = [
   { value: 'en', label: 'English (en)' },
@@ -105,14 +106,18 @@ const TemplateCard = ({ template, onEdit, onDelete }) => (
 // Template Fields Component
 const TemplateFields = ({ formData, onChange }) => (
   <div className="space-y-3">
+    <p className="text-xs text-slate-500">
+      WhatsApp does not allow line breaks inside template variables — each field stays on one line.
+    </p>
     {[1, 2, 3, 4, 5].map(i => (
       <div key={i} className="space-y-2">
         <Label htmlFor={`field${i}`}>Field {i}</Label>
-        <Textarea
+        <Input
           id={`field${i}`}
-          rows={2}
           value={formData[`field${i}`]}
-          onChange={(e) => onChange({ ...formData, [`field${i}`]: e.target.value })}
+          onChange={(e) => onChange({ ...formData, [`field${i}`]: sanitizeTemplateField(e.target.value) })}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+          data-testid={`template-field${i}-input`}
         />
       </div>
     ))}

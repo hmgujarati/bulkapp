@@ -42,6 +42,7 @@ packaging==25.0
 pandas==2.3.3
 passlib==1.7.4
 pathspec==0.12.1
+phonenumbers==9.0.42
 platformdirs==4.5.0
 pluggy==1.6.0
 propcache==0.4.1

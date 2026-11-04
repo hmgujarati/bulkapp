@@ -166,6 +166,19 @@ async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
         ACTIVE_CAMPAIGNS.discard(campaign_id)
 
 
+def _parse_iso(value):
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _next_reset_at(user: dict) -> datetime:
+    """When this user's daily quota frees up again."""
+    return _parse_iso(user.get('nextResetAt')) or datetime.now(timezone.utc) + timedelta(hours=24)
+
+
 async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: str):
     from utils.daily_limit import check_and_reset_daily_usage, update_last_activity
     
@@ -249,20 +262,27 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
             logger.info(f"Campaign {campaign_id}: daily drip quota used, next batch at {next_at.isoformat()}")
             return
     
+    # Non-drip campaigns bigger than today's remaining quota: send what the quota
+    # allows now and auto-resume after the limit resets (instead of pausing dead).
     if not drip_enabled and daily_limit != -1 and len(pending_recipients) > remaining:
-        next_reset = user.get('nextResetAt', 'in 24 hours')
-        logger.warning(f"Campaign {campaign_id}: Need {len(pending_recipients)} but only {remaining} available")
-        await db.campaigns.update_one(
-            {"id": campaign_id},
-            {
-                "$set": {
-                    "status": CampaignStatus.PAUSED.value,
-                    "error": f"Daily limit reached. Need {len(pending_recipients)} messages but only {remaining} available. Will resume after {next_reset}",
+        next_reset = _next_reset_at(user)
+        if remaining <= 0:
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {"$set": {
+                    "status": CampaignStatus.SCHEDULED.value,
+                    "scheduledAt": next_reset.isoformat(),
+                    "error": f"Daily limit reached — remaining messages resume automatically after {next_reset.isoformat()}",
                     "updatedAt": datetime.now(timezone.utc).isoformat()
-                }
-            }
+                }}
+            )
+            logger.info(f"Campaign {campaign_id}: daily limit used up, resuming at {next_reset.isoformat()}")
+            return
+        send_cap = remaining
+        logger.info(
+            f"Campaign {campaign_id}: {len(pending_recipients)} pending but only {remaining} left today — "
+            f"sending {remaining} now, rest resumes at {next_reset.isoformat()}"
         )
-        return
     
     await db.campaigns.update_one(
         {"id": campaign_id},
@@ -274,6 +294,10 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     
     sent_count = campaign.get('sentCount', 0)
     failed_count = campaign.get('failedCount', 0)
+    # Messages sent by THIS run only — daily usage must be charged per run, never
+    # with the campaign's cumulative sentCount (that double-charged the quota on
+    # every resume / retry / drip window and silently blocked the next day).
+    run_sent_delta = 0
     
     BATCH_SIZE = 5  # Conservative to avoid hosting firewall blocks
     PAUSE_CHECK_EVERY = 50
@@ -295,8 +319,10 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
         for batch_start in range(0, len(pending_indices), BATCH_SIZE):
             # Check pause status before every batch
             current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
-            if current and current.get('status') == CampaignStatus.PAUSED.value:
-                logger.info(f"Campaign {campaign_id} paused at {batch_start}/{len(pending_indices)}")
+            if current and current.get('status') in (CampaignStatus.PAUSED.value, CampaignStatus.CANCELLED.value):
+                logger.info(f"Campaign {campaign_id} {current.get('status')} at {batch_start}/{len(pending_indices)}")
+                if run_sent_delta:
+                    await update_last_activity(campaign['userId'], run_sent_delta)
                 # Just update heartbeat — counts/recipients were already saved by the previous batch
                 # (don't overwrite them now or we'll clobber any concurrent webhook updates)
                 await db.campaigns.update_one(
@@ -419,6 +445,7 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                 if drip_enabled and batch_sent_delta:
                     update_doc["$inc"]["dripSentInWindow"] = batch_sent_delta
             await db.campaigns.update_one({"id": campaign_id}, update_doc)
+            run_sent_delta += batch_sent_delta
             
             # Minimal delay between batches
             await asyncio.sleep(batch_delay)
@@ -505,6 +532,7 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                             "failedCount": -retry_sent_delta,
                         }
                     await db.campaigns.update_one({"id": campaign_id}, update_doc)
+                run_sent_delta += retry_sent_delta
                 
                 await asyncio.sleep(2.0)  # Slower pace for retries
         
@@ -544,8 +572,28 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
                     "updatedAt": datetime.now(timezone.utc).isoformat()
                 }}
             )
-            await update_last_activity(campaign['userId'], sent_count)
-            logger.info(f"Campaign {campaign_id}: daily batch done ({sent_count} sent), next batch at {drip_next_window_at.isoformat()}")
+            await update_last_activity(campaign['userId'], run_sent_delta)
+            logger.info(f"Campaign {campaign_id}: daily batch done ({run_sent_delta} sent), next batch at {drip_next_window_at.isoformat()}")
+            return
+    
+    # Non-drip campaign that ran out of today's quota mid-way: park it and let the
+    # scheduler pick it up once the daily limit resets.
+    if not drip_enabled and send_cap is not None:
+        still_pending = any(r['status'] == MessageStatus.PENDING.value for r in campaign['recipients'])
+        if still_pending:
+            fresh_user = await db.users.find_one({"id": campaign['userId']})
+            next_reset = _next_reset_at(await check_and_reset_daily_usage(campaign['userId'], fresh_user))
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {"$set": {
+                    "status": CampaignStatus.SCHEDULED.value,
+                    "scheduledAt": next_reset.isoformat(),
+                    "error": f"Daily limit reached — remaining messages resume automatically after {next_reset.isoformat()}",
+                    "updatedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            await update_last_activity(campaign['userId'], run_sent_delta)
+            logger.info(f"Campaign {campaign_id}: daily quota used ({run_sent_delta} sent), resuming at {next_reset.isoformat()}")
             return
     
     # Final update — only mark completion. Don't overwrite recipients/counts:
@@ -561,7 +609,7 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
         }
     )
     
-    await update_last_activity(campaign['userId'], sent_count)
+    await update_last_activity(campaign['userId'], run_sent_delta)
     logger.info(f"Campaign {campaign_id} completed: {sent_count} sent, {failed_count} failed")
     
     await _start_next_in_chain(campaign)

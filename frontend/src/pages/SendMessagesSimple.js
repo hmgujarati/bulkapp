@@ -23,6 +23,7 @@ import { RecipientUploader, MediaUploader, TemplateSelector } from '../component
 import { useRecipients, useMediaUpload } from '../hooks';
 import api from '../utils/api';
 import { dialCodeFor } from '../utils/phoneValidator';
+import { sanitizeTemplateField } from '../utils/templateText';
 
 const LANGUAGES = [
   { value: 'en', label: 'English (en)' },
@@ -62,16 +63,19 @@ const TemplateFieldsCard = ({ fields, onFieldChange }) => (
       {[1, 2, 3, 4, 5].map(i => (
         <div key={i} className="space-y-2">
           <Label htmlFor={`field${i}`}>Field {i}</Label>
-          <Textarea
+          <Input
             id={`field${i}`}
             placeholder={`Enter text for field ${i}`}
-            rows={2}
             value={fields[`field${i}`]}
-            onChange={(e) => onFieldChange(`field${i}`, e.target.value)}
+            onChange={(e) => onFieldChange(`field${i}`, sanitizeTemplateField(e.target.value))}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
             data-testid={`field${i}-input`}
           />
         </div>
       ))}
+      <p className="text-xs text-slate-500">
+        WhatsApp does not allow line breaks inside template variables — each field stays on one line.
+      </p>
     </CardContent>
   </Card>
 );
