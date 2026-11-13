@@ -26,6 +26,27 @@ router = APIRouter(prefix="/messages", tags=["Messages"])
 # BizChat API configuration
 BIZCHAT_API_BASE = os.environ.get('BIZCHAT_API_BASE', 'https://bizchatapi.in/api')
 
+# Global throttle shared by ALL campaigns and users — BizChat's shared hosting
+# returns HTTP 500 (DB connection refused) above ~5 parallel requests.
+BIZCHAT_MAX_CONCURRENT = int(os.environ.get('BIZCHAT_MAX_CONCURRENT', 5))
+BIZCHAT_BATCH_PAUSE = float(os.environ.get('BIZCHAT_BATCH_PAUSE', 0.5))
+BIZCHAT_SEMAPHORE = asyncio.Semaphore(BIZCHAT_MAX_CONCURRENT)
+_inflight = 0
+_inflight_peak = 0
+_http_client: httpx.AsyncClient = None
+_success_response_logged = False
+
+# Optional recipient fields forwarded to BizChat as-is
+PASSTHROUGH_FIELDS = (
+    'header_image', 'header_video', 'header_document', 'header_document_name', 'header_field_1',
+    'location_latitude', 'location_longitude', 'location_name', 'location_address',
+    'buttons', 'components',
+)
+# Internal tracking fields that must never be sent to BizChat
+INTERNAL_RECIPIENT_FIELDS = {
+    'status', 'sentAt', 'messageId', 'error', 'retryCount', 'phone', 'name', 'template_language',
+}
+
 # === Self-healing campaign worker registry ===
 # In-process set of campaign IDs currently being worked on by this python process.
 # Prevents the watchdog / startup-recovery from spawning duplicate workers
@@ -37,6 +58,65 @@ ROOT_DIR = Path(__file__).parent.parent
 UPLOAD_DIR = ROOT_DIR / "uploads"
 
 
+def get_http_client() -> httpx.AsyncClient:
+    """One shared keep-alive client for every BizChat request."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(
+                max_connections=BIZCHAT_MAX_CONCURRENT * 2,
+                max_keepalive_connections=BIZCHAT_MAX_CONCURRENT,
+                keepalive_expiry=60,
+            ),
+        )
+    return _http_client
+
+
+async def close_http_client():
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+    _http_client = None
+
+
+def _extract_message_id(data) -> str:
+    """Find the wamid wherever BizChat nests it."""
+    if not isinstance(data, dict):
+        return None
+    keys = ('wamid', 'message_id', 'messageId')
+    for container in (data, data.get('data')):
+        if not isinstance(container, dict):
+            continue
+        for k in keys:
+            if container.get(k):
+                return str(container[k])
+        messages = container.get('messages')
+        if isinstance(messages, list) and messages and isinstance(messages[0], dict) and messages[0].get('id'):
+            return str(messages[0]['id'])
+    return None
+
+
+def _build_payload(phone: str, template_name: str, recipient_data: Dict[str, Any]) -> Dict[str, Any]:
+    payload = {
+        "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
+        "template_name": template_name,
+        "template_language": recipient_data.get("template_language", "en_US")
+    }
+    recipient_name = recipient_data.get('name', '')
+    for i in range(1, 6):
+        field_key = f"field_{i}"
+        value = str(recipient_data.get(field_key) or '').strip()
+        if value:
+            if '{name}' in value and recipient_name:
+                value = value.replace('{name}', recipient_name)
+            payload[field_key] = value
+    for key in PASSTHROUGH_FIELDS:
+        if key not in INTERNAL_RECIPIENT_FIELDS and recipient_data.get(key):
+            payload[key] = recipient_data[key]
+    return payload
+
+
 async def send_whatsapp_message(
     phone: str,
     template_name: str,
@@ -45,96 +125,55 @@ async def send_whatsapp_message(
     recipient_data: Dict[str, Any],
     http_client: httpx.AsyncClient = None
 ) -> Dict[str, Any]:
-    """Send a WhatsApp message via BizChat API"""
+    """Send one WhatsApp template via BizChat.
+
+    Returns {success, retryable, error, message_id, data}.
+    Retryable: 429, 5xx, timeouts/connection errors. Permanent: result=failed/error, other 4xx.
+    """
+    global _inflight, _inflight_peak, _success_response_logged
+    url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
+    payload = _build_payload(phone, template_name, recipient_data)
+    client = http_client or get_http_client()
+
+    async with BIZCHAT_SEMAPHORE:
+        _inflight += 1
+        _inflight_peak = max(_inflight_peak, _inflight)
+        logger.info(f"BizChat send {phone} tpl={template_name} inflight={_inflight}/{BIZCHAT_MAX_CONCURRENT} peak={_inflight_peak}")
+        try:
+            response = await client.post(url, json=payload)
+        except (httpx.TimeoutException, httpx.TransportError) as e:
+            logger.warning(f"BizChat {type(e).__name__} for {phone}")
+            return {"success": False, "retryable": True, "error": f"Network error: {type(e).__name__}", "message_id": None}
+        except Exception as e:
+            logger.error(f"BizChat unexpected error for {phone}: {type(e).__name__}: {e}")
+            return {"success": False, "retryable": False, "error": f"{type(e).__name__}: {e}"[:200], "message_id": None}
+        finally:
+            _inflight -= 1
+
+    status = response.status_code
+    if status == 429 or status >= 500:
+        logger.warning(f"BizChat HTTP {status} for {phone} (retryable) | {response.text[:200]}")
+        return {"success": False, "retryable": True, "error": f"HTTP {status}", "message_id": None}
+
     try:
-        url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
-        
-        logger.info(f"BizChat API URL: {BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message")
-        
-        # Build payload according to BizChat API documentation
-        payload = {
-            "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
-            "template_name": template_name,
-            "template_language": recipient_data.get("template_language", "en_US")
-        }
-        
-        # Add direct field_1 through field_5 parameters (only if they have values)
-        recipient_name = recipient_data.get('name', '')
-        
-        for i in range(1, 6):
-            field_key = f"field_{i}"
-            if field_key in recipient_data and recipient_data[field_key]:
-                value = str(recipient_data[field_key]).strip()
-                if value:
-                    # Replace {name} placeholder with actual name
-                    if '{name}' in value and recipient_name:
-                        value = value.replace('{name}', recipient_name)
-                    payload[field_key] = value
-        
-        # Add media headers if present
-        if recipient_data.get('header_image'):
-            payload['header_image'] = recipient_data['header_image']
-        if recipient_data.get('header_video'):
-            payload['header_video'] = recipient_data['header_video']
-        if recipient_data.get('header_document'):
-            payload['header_document'] = recipient_data['header_document']
-        if recipient_data.get('header_document_name'):
-            payload['header_document_name'] = recipient_data['header_document_name']
-        if recipient_data.get('header_field_1'):
-            payload['header_field_1'] = recipient_data['header_field_1']
-        
-        # Add location if present
-        if recipient_data.get('location_latitude'):
-            payload['location_latitude'] = recipient_data['location_latitude']
-        if recipient_data.get('location_longitude'):
-            payload['location_longitude'] = recipient_data['location_longitude']
-        if recipient_data.get('location_name'):
-            payload['location_name'] = recipient_data['location_name']
-        if recipient_data.get('location_address'):
-            payload['location_address'] = recipient_data['location_address']
-        
-        logger.info(f"Sending to BizChat - Phone: {phone}, Template: {template_name}")
-        
-        # Only retry 429s inline. Timeouts/errors fail fast — retried after campaign ends.
-        max_429_retries = 5
-        for attempt in range(max_429_retries):
-            try:
-                if http_client:
-                    response = await http_client.post(url, json=payload, timeout=30.0)
-                else:
-                    async with httpx.AsyncClient() as client:
-                        response = await client.post(url, json=payload, timeout=30.0)
-                
-                if response.status_code in [200, 201]:
-                    data = response.json()
-                    if data.get('result') == 'failed':
-                        error_msg = data.get('message', 'Unknown error from BizChat')
-                        logger.error(f"BizChat returned failure: {error_msg}")
-                        return {"success": False, "error": error_msg}
-                    return {"success": True, "data": data}
-                elif response.status_code == 429:
-                    wait_time = min((attempt + 1) * 3, 15)
-                    logger.warning(f"429 for {phone}, waiting {wait_time}s (attempt {attempt + 1}/{max_429_retries})")
-                    await asyncio.sleep(wait_time)
-                    continue
-                elif response.status_code == 403:
-                    # Hosting firewall/rate limit — mark as retryable, don't waste time retrying now
-                    logger.warning(f"403 Forbidden for {phone} — server blocking")
-                    return {"success": False, "error": "TIMEOUT_RETRY", "retryable": True}
-                else:
-                    error_msg = f"HTTP {response.status_code}"
-                    logger.error(f"BizChat API Error [{response.status_code}] | Response: {response.text[:300]}")
-                    return {"success": False, "error": error_msg}
-            except Exception as e:
-                error_type = type(e).__name__
-                logger.warning(f"Message to {phone} failed: {error_type}")
-                return {"success": False, "error": "TIMEOUT_RETRY", "retryable": True}
-        
-        return {"success": False, "error": "429_RETRY", "retryable": True}
-    except Exception as e:
-        error_msg = f"Exception sending message: {type(e).__name__}: {str(e)}"
-        logger.error(error_msg)
-        return {"success": False, "error": error_msg}
+        data = response.json()
+    except ValueError:
+        data = None
+
+    if status not in (200, 201):
+        msg = data.get('message') if isinstance(data, dict) and data.get('message') else response.text[:150]
+        logger.error(f"BizChat HTTP {status} for {phone} (permanent) | {response.text[:300]}")
+        return {"success": False, "retryable": False, "error": f"HTTP {status}: {msg}"[:200], "message_id": None}
+
+    if isinstance(data, dict) and str(data.get('result', '')).lower() in ('failed', 'error'):
+        error_msg = str(data.get('message') or 'Unknown error from BizChat')
+        logger.error(f"BizChat returned failure for {phone} (permanent): {error_msg}")
+        return {"success": False, "retryable": False, "error": error_msg[:200], "message_id": None}
+
+    if not _success_response_logged:
+        _success_response_logged = True
+        logger.info(f"BizChat sample success response: {response.text[:2000]}")
+    return {"success": True, "retryable": False, "error": None, "message_id": _extract_message_id(data), "data": data}
 
 
 async def process_campaign(campaign_id: str, user_token: str, vendor_uid: str):
@@ -292,272 +331,134 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
         }}
     )
     
-    sent_count = campaign.get('sentCount', 0)
-    failed_count = campaign.get('failedCount', 0)
-    # Messages sent by THIS run only — daily usage must be charged per run, never
-    # with the campaign's cumulative sentCount (that double-charged the quota on
-    # every resume / retry / drip window and silently blocked the next day).
+    recipients = campaign['recipients']
+    sent_statuses = {MessageStatus.SENT.value, MessageStatus.DELIVERED.value, MessageStatus.READ.value}
+    # Messages sent by THIS run only — daily usage is charged per run.
     run_sent_delta = 0
+    unsaved_sent_delta = 0
+    pending_set_ops: dict = {}
+    retry_indices: set = set()
     
-    BATCH_SIZE = 5  # Conservative to avoid hosting firewall blocks
-    PAUSE_CHECK_EVERY = 50
-    
-    pending_indices = [i for i, r in enumerate(campaign['recipients']) if r['status'] == MessageStatus.PENDING.value]
+    pending_indices = [i for i, r in enumerate(recipients) if r['status'] == MessageStatus.PENDING.value]
     if send_cap is not None:
         pending_indices = pending_indices[:send_cap]
-        logger.info(f"Campaign {campaign_id}: drip window {drip_window_index}, sending up to {len(pending_indices)} messages")
+        logger.info(f"Campaign {campaign_id}: cap {send_cap}, sending up to {len(pending_indices)} messages")
     
-    # Connection pooling
-    limits = httpx.Limits(max_connections=10, max_keepalive_connections=5, keepalive_expiry=60)
-    transport = httpx.AsyncHTTPTransport(retries=3)
+    def set_field(idx, field, value):
+        recipients[idx][field] = value
+        pending_set_ops[f"recipients.{idx}.{field}"] = value
     
-    messages_since_db_save = 0
-    batch_delay = 1.0  # 1 second between batches to avoid firewall triggers
-    consecutive_errors = 0
+    async def save_progress():
+        """Flush per-index changes and recompute counts from the recipients list."""
+        nonlocal unsaved_sent_delta
+        now_iso = datetime.now(timezone.utc).isoformat()
+        sent = sum(1 for r in recipients if r.get('status') in sent_statuses)
+        failed = sum(1 for r in recipients if r.get('status') == MessageStatus.FAILED.value)
+        pending = sum(1 for r in recipients if r.get('status') == MessageStatus.PENDING.value)
+        update_doc = {"$set": {
+            **pending_set_ops,
+            "sentCount": sent,
+            "failedCount": failed,
+            "pendingCount": pending,
+            "lastHeartbeatAt": now_iso,
+            "updatedAt": now_iso,
+        }}
+        if drip_enabled and unsaved_sent_delta:
+            update_doc["$inc"] = {"dripSentInWindow": unsaved_sent_delta}
+        await db.campaigns.update_one({"id": campaign_id}, update_doc)
+        pending_set_ops.clear()
+        unsaved_sent_delta = 0
+        return sent, failed, pending
     
-    async with httpx.AsyncClient(limits=limits, transport=transport, timeout=30.0) as http_client:
-        for batch_start in range(0, len(pending_indices), BATCH_SIZE):
-            # Check pause status before every batch
-            current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
-            if current and current.get('status') in (CampaignStatus.PAUSED.value, CampaignStatus.CANCELLED.value):
-                logger.info(f"Campaign {campaign_id} {current.get('status')} at {batch_start}/{len(pending_indices)}")
-                if run_sent_delta:
-                    await update_last_activity(campaign['userId'], run_sent_delta)
-                # Just update heartbeat — counts/recipients were already saved by the previous batch
-                # (don't overwrite them now or we'll clobber any concurrent webhook updates)
-                await db.campaigns.update_one(
-                    {"id": campaign_id},
-                    {"$set": {
-                        "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
-                        "updatedAt": datetime.now(timezone.utc).isoformat()
-                    }}
-                )
-                return
-            
-            batch_indices = pending_indices[batch_start:batch_start + BATCH_SIZE]
-            
-            # Fire all requests in this batch concurrently
-            tasks = []
-            for idx in batch_indices:
-                recipient = campaign['recipients'][idx]
-                tasks.append(send_whatsapp_message(
-                    recipient['phone'],
-                    campaign['templateName'],
-                    user_token,
-                    vendor_uid,
-                    recipient,
-                    http_client=http_client
-                ))
-            
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Process results — track per-index changes so we can write targeted updates
-            # instead of overwriting the whole recipients array (which would clobber any
-            # delivered/read/click webhook updates that arrived during this batch).
-            batch_errors = 0
-            batch_set_ops = {}  # {f"recipients.{idx}.field": value}
-            batch_sent_delta = 0
-            batch_failed_delta = 0
-            for j, (idx, result) in enumerate(zip(batch_indices, results)):
-                if isinstance(result, Exception):
-                    failed_count += 1
-                    batch_failed_delta += 1
-                    batch_errors += 1
-                    err_text = str(result)[:200]
-                    campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
-                    campaign['recipients'][idx]['error'] = err_text
-                    batch_set_ops[f"recipients.{idx}.status"] = MessageStatus.FAILED.value
-                    batch_set_ops[f"recipients.{idx}.error"] = err_text
-                    logger.error(f"Message to {campaign['recipients'][idx]['phone']} raised exception: {result}")
-                elif result.get('success'):
-                    sent_count += 1
-                    batch_sent_delta += 1
-                    sent_at = datetime.now(timezone.utc).isoformat()
-                    # BizChat returns the WhatsApp message ID under data.data.wamid
-                    # Shape: {"result": "success", "data": {"wamid": "...", "log_uid": "...", ...}}
-                    # Be defensive: try the nested location first, then top-level fallbacks.
-                    full_resp = result.get('data', {}) or {}
-                    inner = full_resp.get('data') if isinstance(full_resp.get('data'), dict) else {}
-                    msg_id = (
-                        inner.get('wamid')
-                        or inner.get('whatsapp_message_id')
-                        or inner.get('message_id')
-                        or inner.get('id')
-                        or full_resp.get('wamid')
-                        or full_resp.get('whatsapp_message_id')
-                        or full_resp.get('message_id')
-                    )
-                    campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
-                    campaign['recipients'][idx]['sentAt'] = sent_at
-                    campaign['recipients'][idx]['messageId'] = msg_id
-                    batch_set_ops[f"recipients.{idx}.status"] = MessageStatus.SENT.value
-                    batch_set_ops[f"recipients.{idx}.sentAt"] = sent_at
-                    if msg_id:
-                        batch_set_ops[f"recipients.{idx}.messageId"] = msg_id
-                else:
-                    failed_count += 1
-                    batch_failed_delta += 1
-                    batch_errors += 1
-                    err_text = result.get('error', 'Unknown error')[:200]
-                    campaign['recipients'][idx]['status'] = MessageStatus.FAILED.value
-                    campaign['recipients'][idx]['error'] = err_text
-                    batch_set_ops[f"recipients.{idx}.status"] = MessageStatus.FAILED.value
-                    batch_set_ops[f"recipients.{idx}.error"] = err_text
-            
-            # Smart back-off: if server/hosting is struggling, slow down temporarily
-            if batch_errors > len(batch_indices) * 0.5:
-                consecutive_errors += 1
-                batch_delay = min(1.0 * consecutive_errors, 10)
-                logger.warning(f"Campaign {campaign_id}: High error rate ({batch_errors}/{len(batch_indices)}), delay={batch_delay}s")
-                
-                # Circuit breaker: if 3+ consecutive full-fail batches, server likely blocked us
-                # Wait 60s then try again
-                if consecutive_errors >= 3:
-                    logger.warning(f"Campaign {campaign_id}: Circuit breaker triggered — server blocking. Waiting 60s...")
-                    await asyncio.sleep(60)
-                    consecutive_errors = 1  # Reset but keep cautious delay
-                    batch_delay = 2.0
-            elif consecutive_errors > 0:
-                consecutive_errors = max(consecutive_errors - 1, 0)
-                batch_delay = max(0.2, batch_delay * 0.7)
+    async def send_batch(batch_indices) -> bool:
+        """Send one batch; returns True if any message hit a retryable error."""
+        nonlocal run_sent_delta, unsaved_sent_delta
+        results = await asyncio.gather(*[
+            send_whatsapp_message(recipients[idx]['phone'], campaign['templateName'], user_token, vendor_uid, recipients[idx])
+            for idx in batch_indices
+        ], return_exceptions=True)
+        had_retryable = False
+        for idx, result in zip(batch_indices, results):
+            if isinstance(result, Exception):
+                result = {"success": False, "retryable": False, "error": str(result)[:200]}
+            if result['success']:
+                set_field(idx, 'status', MessageStatus.SENT.value)
+                set_field(idx, 'sentAt', datetime.now(timezone.utc).isoformat())
+                set_field(idx, 'messageId', result.get('message_id'))
+                set_field(idx, 'error', None)
+                retry_indices.discard(idx)
+                run_sent_delta += 1
+                unsaved_sent_delta += 1
+            elif result.get('retryable'):
+                had_retryable = True
+                retry_indices.add(idx)
+                set_field(idx, 'retryCount', int(recipients[idx].get('retryCount') or 0) + 1)
+                set_field(idx, 'error', result.get('error'))
             else:
-                batch_delay = 0.2
-            
-            # Save to DB after EVERY batch — real-time progress + heartbeat.
-            # IMPORTANT: We use TARGETED per-index $set ops + $inc for counters
-            # instead of overwriting the entire `recipients` array. This is critical
-            # because webhook handlers (delivered/read/clicks) write to specific
-            # recipient indices concurrently — overwriting the whole array would
-            # clobber those updates.
-            now_iso = datetime.now(timezone.utc).isoformat()
-            update_set_ops = {
-                **batch_set_ops,
-                "lastHeartbeatAt": now_iso,
-                "updatedAt": now_iso,
-            }
-            update_doc = {"$set": update_set_ops}
-            if batch_sent_delta or batch_failed_delta:
-                update_doc["$inc"] = {
-                    "sentCount": batch_sent_delta,
-                    "failedCount": batch_failed_delta,
-                    "pendingCount": -(batch_sent_delta + batch_failed_delta),
-                }
-                if drip_enabled and batch_sent_delta:
-                    update_doc["$inc"]["dripSentInWindow"] = batch_sent_delta
-            await db.campaigns.update_one({"id": campaign_id}, update_doc)
-            run_sent_delta += batch_sent_delta
-            
-            # Minimal delay between batches
-            await asyncio.sleep(batch_delay)
+                retry_indices.discard(idx)
+                set_field(idx, 'status', MessageStatus.FAILED.value)
+                set_field(idx, 'error', result.get('error') or 'Unknown error')
+        return had_retryable
     
-    # === Auto-retry failed messages (timeouts + 429s) ===
-    RETRY_BATCH = 5  # Smaller batches for retries
+    async def run_indices(indices) -> bool:
+        """Send indices in batches with backoff. Returns False if paused/cancelled."""
+        processed = 0
+        next_threshold = 25
+        backoff_step = 0
+        last_save = asyncio.get_event_loop().time()
+        for batch_start in range(0, len(indices), BIZCHAT_MAX_CONCURRENT):
+            batch = indices[batch_start:batch_start + BIZCHAT_MAX_CONCURRENT]
+            had_retryable = await send_batch(batch)
+            processed += len(batch)
+            
+            if processed >= next_threshold or batch_start + BIZCHAT_MAX_CONCURRENT >= len(indices) \
+                    or asyncio.get_event_loop().time() - last_save > 30:
+                while processed >= next_threshold:
+                    next_threshold += 25
+                sent, failed, pending = await save_progress()
+                last_save = asyncio.get_event_loop().time()
+                logger.info(f"Campaign {campaign_id}: progress {processed}/{len(indices)} — sent={sent} failed={failed} pending={pending}")
+                current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
+                if current and current.get('status') in (CampaignStatus.PAUSED.value, CampaignStatus.CANCELLED.value):
+                    logger.info(f"Campaign {campaign_id} {current.get('status')} at {processed}/{len(indices)}")
+                    return False
+            
+            if had_retryable:
+                backoff_step += 1
+                delay = min(3 * backoff_step, 30)
+                logger.warning(f"Campaign {campaign_id}: retryable errors in batch, backing off {delay}s")
+            else:
+                backoff_step = 0
+                delay = BIZCHAT_BATCH_PAUSE
+            await asyncio.sleep(delay)
+        return True
+    
+    async def stop_paused():
+        await save_progress()
+        if run_sent_delta:
+            await update_last_activity(campaign['userId'], run_sent_delta)
+    
+    if not await run_indices(pending_indices):
+        return await stop_paused()
+    
+    # === Retry rounds for retryable failures (429 / 5xx / network) ===
     MAX_RETRY_ROUNDS = 3
-    for retry_round in range(MAX_RETRY_ROUNDS):
-        retryable_indices = [
-            i for i, r in enumerate(campaign['recipients'])
-            if r.get('status') == MessageStatus.FAILED.value and r.get('error') in ['429_RETRY', 'TIMEOUT_RETRY']
-        ]
-        if not retryable_indices:
+    for retry_round in range(1, MAX_RETRY_ROUNDS + 1):
+        if not retry_indices:
             break
-        
-        logger.info(f"Campaign {campaign_id}: Auto-retrying {len(retryable_indices)} failed messages (round {retry_round + 1}/{MAX_RETRY_ROUNDS})")
-        
-        # Wait before retry round — give the server time to recover
-        await asyncio.sleep(10 * (retry_round + 1))
-        
-        async with httpx.AsyncClient(limits=limits, transport=transport, timeout=15.0) as http_client:
-            for batch_start in range(0, len(retryable_indices), RETRY_BATCH):
-                batch_indices = retryable_indices[batch_start:batch_start + RETRY_BATCH]
-                tasks = []
-                for idx in batch_indices:
-                    recipient = campaign['recipients'][idx]
-                    tasks.append(send_whatsapp_message(
-                        recipient['phone'], campaign['templateName'],
-                        user_token, vendor_uid, recipient, http_client=http_client
-                    ))
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                # Track per-index ops for THIS retry batch
-                retry_set_ops = {}
-                retry_sent_delta = 0
-                
-                for idx, result in zip(batch_indices, results):
-                    if isinstance(result, Exception):
-                        err_text = str(result)[:200]
-                        campaign['recipients'][idx]['error'] = err_text
-                        retry_set_ops[f"recipients.{idx}.error"] = err_text
-                    elif result.get('success'):
-                        sent_at = datetime.now(timezone.utc).isoformat()
-                        full_resp = result.get('data', {}) or {}
-                        inner = full_resp.get('data') if isinstance(full_resp.get('data'), dict) else {}
-                        msg_id = (
-                            inner.get('wamid')
-                            or inner.get('whatsapp_message_id')
-                            or inner.get('message_id')
-                            or full_resp.get('wamid')
-                            or full_resp.get('whatsapp_message_id')
-                        )
-                        campaign['recipients'][idx]['status'] = MessageStatus.SENT.value
-                        campaign['recipients'][idx]['sentAt'] = sent_at
-                        campaign['recipients'][idx]['messageId'] = msg_id
-                        campaign['recipients'][idx].pop('error', None)
-                        retry_set_ops[f"recipients.{idx}.status"] = MessageStatus.SENT.value
-                        retry_set_ops[f"recipients.{idx}.sentAt"] = sent_at
-                        if msg_id:
-                            retry_set_ops[f"recipients.{idx}.messageId"] = msg_id
-                        # Use $unset for the error field
-                        retry_set_ops[f"recipients.{idx}.error"] = ""  # blank it; cleaner than $unset for our use
-                        sent_count += 1
-                        failed_count -= 1
-                        retry_sent_delta += 1
-                    elif result.get('retryable'):
-                        pass  # Still failing, will retry next round
-                    else:
-                        err_text = result.get('error', 'Unknown')[:200]
-                        campaign['recipients'][idx]['error'] = err_text
-                        retry_set_ops[f"recipients.{idx}.error"] = err_text
-                
-                # Apply this retry-batch's targeted updates
-                if retry_set_ops or retry_sent_delta:
-                    now_iso = datetime.now(timezone.utc).isoformat()
-                    update_doc = {"$set": {
-                        **retry_set_ops,
-                        "lastHeartbeatAt": now_iso,
-                        "updatedAt": now_iso,
-                    }}
-                    if retry_sent_delta:
-                        update_doc["$inc"] = {
-                            "sentCount": retry_sent_delta,
-                            "failedCount": -retry_sent_delta,
-                        }
-                    await db.campaigns.update_one({"id": campaign_id}, update_doc)
-                run_sent_delta += retry_sent_delta
-                
-                await asyncio.sleep(2.0)  # Slower pace for retries
-        
-        # Heartbeat after the retry round (no need to rewrite counts/recipients)
-        await db.campaigns.update_one(
-            {"id": campaign_id},
-            {"$set": {
-                "lastHeartbeatAt": datetime.now(timezone.utc).isoformat(),
-                "updatedAt": datetime.now(timezone.utc).isoformat()
-            }}
-        )
+        wait = 5 * retry_round
+        logger.info(f"Campaign {campaign_id}: retry round {retry_round}/{MAX_RETRY_ROUNDS} for {len(retry_indices)} messages in {wait}s")
+        await save_progress()
+        await asyncio.sleep(wait)
+        if not await run_indices(sorted(retry_indices)):
+            return await stop_paused()
     
-    # Mark any remaining retryable as clean failure message — using targeted $set ops
-    cleanup_set_ops = {}
-    for idx, r in enumerate(campaign['recipients']):
-        if r.get('error') in ['429_RETRY', 'TIMEOUT_RETRY']:
-            new_err = 'Server busy - retry manually'
-            r['error'] = new_err
-            cleanup_set_ops[f"recipients.{idx}.error"] = new_err
-    
-    if cleanup_set_ops:
-        await db.campaigns.update_one(
-            {"id": campaign_id},
-            {"$set": cleanup_set_ops}
-        )
+    # Anything still pending after all retry rounds is FAILED (so "retry failed" can resend it)
+    for idx in sorted(retry_indices):
+        set_field(idx, 'status', MessageStatus.FAILED.value)
+        set_field(idx, 'error', f"{recipients[idx].get('error') or 'Server busy'} — gave up after {MAX_RETRY_ROUNDS} retries")
+    retry_indices.clear()
+    sent_count, failed_count, _ = await save_progress()
 
     # Drip campaigns: if messages are still pending, park the campaign until the
     # next daily window instead of marking it complete.

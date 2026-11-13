@@ -21,7 +21,7 @@ from routes.auth import router as auth_router
 from routes.users import router as users_router
 from routes.templates import router as templates_router
 from routes.campaigns import router as campaigns_router
-from routes.messages import router as messages_router, process_campaign
+from routes.messages import router as messages_router, process_campaign, get_http_client, close_http_client
 from routes.upload import router as upload_router
 from routes.reminder_numbers import router as reminder_numbers_router
 from routes.reminders import router as reminders_router
@@ -361,6 +361,9 @@ async def startup_event():
         await db.users.insert_one(admin_dict)
         logger.info(f"Default admin user created: {SUPER_ADMIN_EMAIL} / admin123")
     
+    get_http_client()
+    logger.info("Shared BizChat HTTP client initialised")
+    
     # Start scheduled campaigns checker
     asyncio.create_task(check_scheduled_campaigns())
     logger.info("Scheduled campaigns checker started")
@@ -393,6 +396,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
+    await close_http_client()
     await close_db_connection()
 
 

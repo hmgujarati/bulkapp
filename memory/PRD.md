@@ -58,3 +58,11 @@ Build a WhatsApp platform for bulk messaging, AI reminders, lead qualification c
 
 ## Test Credentials
 See `/app/memory/test_credentials.md` (qaadmin@example.com / Admin@12345, qatest@example.com / Test@12345).
+
+## 2026-06 — Bulk-send reliability overhaul (backend only)
+- routes/messages.py: global asyncio.Semaphore (BIZCHAT_MAX_CONCURRENT, default 5) across all campaigns/users; shared httpx.AsyncClient (closed on shutdown in server.py); BIZCHAT_BATCH_PAUSE (default 0.5s)
+- Fake-200 detection (result=failed/error → permanent FAILED with BizChat message); retryable = 429/5xx/network; permanent = other 4xx
+- Batch backoff 3/6/9…≤30s; 3 retry rounds (5s×round); leftovers marked FAILED
+- wamid extraction (top-level / data / data.messages[0].id); one sample success response logged
+- Counts recalculated from recipients at every save (threshold every 25 processed); payload excludes internal fields
+- Test: backend/tests/test_bulk_send_concurrency.py (MOCK BizChat server, 2 concurrent campaigns) — ALL PASSED; diff in memory/bulk_send_refactor.diff
