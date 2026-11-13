@@ -66,3 +66,4 @@ See `/app/memory/test_credentials.md` (qaadmin@example.com / Admin@12345, qatest
 - wamid extraction (top-level / data / data.messages[0].id); one sample success response logged
 - Counts recalculated from recipients at every save (threshold every 25 processed); payload excludes internal fields
 - Test: backend/tests/test_bulk_send_concurrency.py (MOCK BizChat server, 2 concurrent campaigns) — ALL PASSED; diff in memory/bulk_send_refactor.diff
+- 2026-06 review fixes: results written to MongoDB after EVERY batch (messageId first, then conditional SENT only if still pending — never downgrades delivered/read); sentCount/failedCount/pendingCount via $inc deltas (no in-memory recompute); 403 retryable; confirmed uvicorn --workers 1. Test extended with real /api/webhook delivered callbacks 1s after send + forced race — ALL PASSED. Diff: memory/bulk_send_review_fixes.diff

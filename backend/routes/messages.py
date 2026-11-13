@@ -128,7 +128,7 @@ async def send_whatsapp_message(
     """Send one WhatsApp template via BizChat.
 
     Returns {success, retryable, error, message_id, data}.
-    Retryable: 429, 5xx, timeouts/connection errors. Permanent: result=failed/error, other 4xx.
+    Retryable: 403, 429, 5xx, timeouts/connection errors. Permanent: result=failed/error, other 4xx.
     """
     global _inflight, _inflight_peak, _success_response_logged
     url = f"{BIZCHAT_API_BASE}/{vendor_uid}/contact/send-template-message?token={token}"
@@ -151,7 +151,7 @@ async def send_whatsapp_message(
             _inflight -= 1
 
     status = response.status_code
-    if status == 429 or status >= 500:
+    if status in (403, 429) or status >= 500:
         logger.warning(f"BizChat HTTP {status} for {phone} (retryable) | {response.text[:200]}")
         return {"success": False, "retryable": True, "error": f"HTTP {status}", "message_id": None}
 
@@ -332,11 +332,8 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     )
     
     recipients = campaign['recipients']
-    sent_statuses = {MessageStatus.SENT.value, MessageStatus.DELIVERED.value, MessageStatus.READ.value}
     # Messages sent by THIS run only — daily usage is charged per run.
     run_sent_delta = 0
-    unsaved_sent_delta = 0
-    pending_set_ops: dict = {}
     retry_indices: set = set()
     
     pending_indices = [i for i, r in enumerate(recipients) if r['status'] == MessageStatus.PENDING.value]
@@ -344,60 +341,77 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
         pending_indices = pending_indices[:send_cap]
         logger.info(f"Campaign {campaign_id}: cap {send_cap}, sending up to {len(pending_indices)} messages")
     
-    def set_field(idx, field, value):
-        recipients[idx][field] = value
-        pending_set_ops[f"recipients.{idx}.{field}"] = value
+    async def mark_sent(idx):
+        """Set SENT only if the webhook hasn't already moved this recipient on; counts via $inc."""
+        res = await db.campaigns.update_one(
+            {"id": campaign_id, f"recipients.{idx}.status": MessageStatus.PENDING.value},
+            {"$set": {f"recipients.{idx}.status": MessageStatus.SENT.value},
+             "$inc": {"sentCount": 1, "pendingCount": -1}}
+        )
+        if res.matched_count:
+            return
+        # Webhook got there first (delivered/read): keep its status, still count it as sent
+        res = await db.campaigns.update_one(
+            {"id": campaign_id, f"recipients.{idx}.status": {"$in": [MessageStatus.DELIVERED.value, MessageStatus.READ.value]}},
+            {"$inc": {"sentCount": 1, "pendingCount": -1}}
+        )
+        if not res.matched_count:
+            # Webhook reported failed (it already incremented failedCount)
+            await db.campaigns.update_one({"id": campaign_id}, {"$inc": {"pendingCount": -1}})
     
-    async def save_progress():
-        """Flush per-index changes and recompute counts from the recipients list."""
-        nonlocal unsaved_sent_delta
-        now_iso = datetime.now(timezone.utc).isoformat()
-        sent = sum(1 for r in recipients if r.get('status') in sent_statuses)
-        failed = sum(1 for r in recipients if r.get('status') == MessageStatus.FAILED.value)
-        pending = sum(1 for r in recipients if r.get('status') == MessageStatus.PENDING.value)
-        update_doc = {"$set": {
-            **pending_set_ops,
-            "sentCount": sent,
-            "failedCount": failed,
-            "pendingCount": pending,
-            "lastHeartbeatAt": now_iso,
-            "updatedAt": now_iso,
-        }}
-        if drip_enabled and unsaved_sent_delta:
-            update_doc["$inc"] = {"dripSentInWindow": unsaved_sent_delta}
-        await db.campaigns.update_one({"id": campaign_id}, update_doc)
-        pending_set_ops.clear()
-        unsaved_sent_delta = 0
-        return sent, failed, pending
+    async def mark_failed(indices, error_for):
+        if not indices:
+            return
+        set_ops = {}
+        for idx in indices:
+            recipients[idx]['status'] = MessageStatus.FAILED.value
+            recipients[idx]['error'] = error_for(idx)
+            set_ops[f"recipients.{idx}.status"] = MessageStatus.FAILED.value
+            set_ops[f"recipients.{idx}.error"] = recipients[idx]['error']
+        await db.campaigns.update_one(
+            {"id": campaign_id},
+            {"$set": set_ops, "$inc": {"failedCount": len(indices), "pendingCount": -len(indices)}}
+        )
     
     async def send_batch(batch_indices) -> bool:
-        """Send one batch; returns True if any message hit a retryable error."""
-        nonlocal run_sent_delta, unsaved_sent_delta
+        """Send one batch and write results to MongoDB immediately. True if any error was retryable."""
+        nonlocal run_sent_delta
         results = await asyncio.gather(*[
             send_whatsapp_message(recipients[idx]['phone'], campaign['templateName'], user_token, vendor_uid, recipients[idx])
             for idx in batch_indices
         ], return_exceptions=True)
-        had_retryable = False
+        now_iso = datetime.now(timezone.utc).isoformat()
+        set_ops = {"lastHeartbeatAt": now_iso, "updatedAt": now_iso}
+        sent_idx, failed_errors, had_retryable = [], {}, False
         for idx, result in zip(batch_indices, results):
             if isinstance(result, Exception):
                 result = {"success": False, "retryable": False, "error": str(result)[:200]}
             if result['success']:
-                set_field(idx, 'status', MessageStatus.SENT.value)
-                set_field(idx, 'sentAt', datetime.now(timezone.utc).isoformat())
-                set_field(idx, 'messageId', result.get('message_id'))
-                set_field(idx, 'error', None)
+                sent_idx.append(idx)
                 retry_indices.discard(idx)
-                run_sent_delta += 1
-                unsaved_sent_delta += 1
+                recipients[idx].update(status=MessageStatus.SENT.value, sentAt=now_iso,
+                                       messageId=result.get('message_id'), error=None)
+                for f in ('sentAt', 'messageId', 'error'):
+                    set_ops[f"recipients.{idx}.{f}"] = recipients[idx][f]
             elif result.get('retryable'):
                 had_retryable = True
                 retry_indices.add(idx)
-                set_field(idx, 'retryCount', int(recipients[idx].get('retryCount') or 0) + 1)
-                set_field(idx, 'error', result.get('error'))
+                recipients[idx]['retryCount'] = int(recipients[idx].get('retryCount') or 0) + 1
+                recipients[idx]['error'] = result.get('error')
+                set_ops[f"recipients.{idx}.retryCount"] = recipients[idx]['retryCount']
+                set_ops[f"recipients.{idx}.error"] = recipients[idx]['error']
             else:
                 retry_indices.discard(idx)
-                set_field(idx, 'status', MessageStatus.FAILED.value)
-                set_field(idx, 'error', result.get('error') or 'Unknown error')
+                failed_errors[idx] = result.get('error') or 'Unknown error'
+        
+        # messageId first so delivered/read webhooks can find the recipient right away
+        update_doc = {"$set": set_ops}
+        if drip_enabled and sent_idx:
+            update_doc["$inc"] = {"dripSentInWindow": len(sent_idx)}
+        await db.campaigns.update_one({"id": campaign_id}, update_doc)
+        await asyncio.gather(*[mark_sent(idx) for idx in sent_idx])
+        await mark_failed(list(failed_errors), failed_errors.get)
+        run_sent_delta += len(sent_idx)
         return had_retryable
     
     async def run_indices(indices) -> bool:
@@ -405,19 +419,15 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
         processed = 0
         next_threshold = 25
         backoff_step = 0
-        last_save = asyncio.get_event_loop().time()
         for batch_start in range(0, len(indices), BIZCHAT_MAX_CONCURRENT):
             batch = indices[batch_start:batch_start + BIZCHAT_MAX_CONCURRENT]
             had_retryable = await send_batch(batch)
             processed += len(batch)
             
-            if processed >= next_threshold or batch_start + BIZCHAT_MAX_CONCURRENT >= len(indices) \
-                    or asyncio.get_event_loop().time() - last_save > 30:
+            if processed >= next_threshold:
                 while processed >= next_threshold:
                     next_threshold += 25
-                sent, failed, pending = await save_progress()
-                last_save = asyncio.get_event_loop().time()
-                logger.info(f"Campaign {campaign_id}: progress {processed}/{len(indices)} — sent={sent} failed={failed} pending={pending}")
+                logger.info(f"Campaign {campaign_id}: progress {processed}/{len(indices)}")
                 current = await db.campaigns.find_one({"id": campaign_id}, {"status": 1})
                 if current and current.get('status') in (CampaignStatus.PAUSED.value, CampaignStatus.CANCELLED.value):
                     logger.info(f"Campaign {campaign_id} {current.get('status')} at {processed}/{len(indices)}")
@@ -434,31 +444,30 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
         return True
     
     async def stop_paused():
-        await save_progress()
         if run_sent_delta:
             await update_last_activity(campaign['userId'], run_sent_delta)
     
     if not await run_indices(pending_indices):
         return await stop_paused()
     
-    # === Retry rounds for retryable failures (429 / 5xx / network) ===
+    # === Retry rounds for retryable failures (429 / 403 / 5xx / network) ===
     MAX_RETRY_ROUNDS = 3
     for retry_round in range(1, MAX_RETRY_ROUNDS + 1):
         if not retry_indices:
             break
         wait = 5 * retry_round
         logger.info(f"Campaign {campaign_id}: retry round {retry_round}/{MAX_RETRY_ROUNDS} for {len(retry_indices)} messages in {wait}s")
-        await save_progress()
+        await db.campaigns.update_one({"id": campaign_id}, {"$set": {"lastHeartbeatAt": datetime.now(timezone.utc).isoformat()}})
         await asyncio.sleep(wait)
         if not await run_indices(sorted(retry_indices)):
             return await stop_paused()
     
     # Anything still pending after all retry rounds is FAILED (so "retry failed" can resend it)
-    for idx in sorted(retry_indices):
-        set_field(idx, 'status', MessageStatus.FAILED.value)
-        set_field(idx, 'error', f"{recipients[idx].get('error') or 'Server busy'} — gave up after {MAX_RETRY_ROUNDS} retries")
+    await mark_failed(
+        sorted(retry_indices),
+        lambda idx: f"{recipients[idx].get('error') or 'Server busy'} — gave up after {MAX_RETRY_ROUNDS} retries"
+    )
     retry_indices.clear()
-    sent_count, failed_count, _ = await save_progress()
 
     # Drip campaigns: if messages are still pending, park the campaign until the
     # next daily window instead of marking it complete.
@@ -511,7 +520,8 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     )
     
     await update_last_activity(campaign['userId'], run_sent_delta)
-    logger.info(f"Campaign {campaign_id} completed: {sent_count} sent, {failed_count} failed")
+    final = await db.campaigns.find_one({"id": campaign_id}, {"sentCount": 1, "failedCount": 1})
+    logger.info(f"Campaign {campaign_id} completed: {final.get('sentCount')} sent, {final.get('failedCount')} failed")
     
     await _start_next_in_chain(campaign)
 
