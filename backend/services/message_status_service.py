@@ -7,7 +7,7 @@ Status precedence (never downgrade):
     pending(0) -> sent(1) -> delivered(2) -> read(3)
     `failed` is terminal — never overridden by later events.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 
 from utils.database import db
@@ -47,6 +47,27 @@ def _normalize_status(raw: str) -> str:
         'undeliverable': 'failed',
     }
     return aliases.get(s)
+
+
+def _is_status_not_incoming(msg: dict, status: str) -> bool:
+    """wamid + status = status update. A body/text is allowed when it is a failure
+    reason or BizChat flags the event as not-new; otherwise it's a real incoming message."""
+    has_body = bool(msg.get('body') or msg.get('text'))
+    return not has_body or status == MessageStatus.FAILED.value or msg.get('is_new_message') is False
+
+
+def _error_text(obj: dict, status: str):
+    if not isinstance(obj, dict):
+        return None
+    err = obj.get('error') or obj.get('error_message') or obj.get('errors')
+    if isinstance(err, list):
+        err = err[0] if err else None
+    if isinstance(err, dict):
+        err = err.get('title') or err.get('message') or err.get('details') or str(err)
+    if not err and status == MessageStatus.FAILED.value:
+        text = obj.get('body') or obj.get('text')
+        err = text.get('body') if isinstance(text, dict) else text
+    return str(err)[:200] if err else None
 
 
 def extract_status_data(body: dict):
@@ -92,15 +113,12 @@ def extract_status_data(body: dict):
             wamid = msg.get('whatsapp_message_id') or msg.get('id') or msg.get('message_id')
             raw_status = msg.get('status')
             status = _normalize_status(raw_status)
-            # Only treat as status update if there's NO message text body
-            # (true incoming messages have body or text populated)
-            has_body = bool(msg.get('body') or msg.get('text'))
-            if wamid and status and not has_body:
+            if wamid and status and _is_status_not_incoming(msg, status):
                 results.append({
                     'wamid': wamid,
                     'status': status,
                     'timestamp': msg.get('timestamp'),
-                    'error': msg.get('error') or msg.get('error_message'),
+                    'error': _error_text(msg, status),
                 })
     
     # 2 / 5. Flat or event-type style
@@ -117,12 +135,13 @@ def extract_status_data(body: dict):
             or body.get('event_type') if str(body.get('event_type', '')).lower() in ('sent','delivered','read','failed') else body.get('status')
         )
         # Don't pick up a regular incoming message — those have message.body
-        if wamid and status and not (isinstance(body.get('message'), dict) and (body['message'].get('body') or body['message'].get('text'))):
+        msg = body.get('message') if isinstance(body.get('message'), dict) else {}
+        if wamid and status and _is_status_not_incoming(msg, status):
             results.append({
                 'wamid': wamid,
                 'status': status,
                 'timestamp': body.get('timestamp'),
-                'error': body.get('error'),
+                'error': _error_text(body, status) or _error_text(msg, status),
             })
     
     # 4. BizChat-nested "data" key
@@ -136,134 +155,150 @@ def extract_status_data(body: dict):
                     'wamid': wamid,
                     'status': status,
                     'timestamp': data.get('timestamp'),
-                    'error': data.get('error'),
+                    'error': _error_text(data, status),
                 })
     
     return results
 
 
+_TERMINAL_SENT = (MessageStatus.SENT.value, MessageStatus.DELIVERED.value, MessageStatus.READ.value)
+_DELIVERED_OR_READ = (MessageStatus.DELIVERED.value, MessageStatus.READ.value)
+PENDING_STATUS_TTL = timedelta(hours=24)
+_pending_index_ready = False
+
+
+def _transition(cur: str, new: str):
+    """Return the $inc doc for cur -> new, or None if the transition must be ignored."""
+    if cur == MessageStatus.FAILED.value:
+        return None
+    if new != MessageStatus.FAILED.value and _STATUS_RANK.get(new, -1) <= _STATUS_RANK.get(cur, 0):
+        return None
+    was_delivered, was_read = cur in _DELIVERED_OR_READ, cur == MessageStatus.READ.value
+    inc = {}
+    if new == MessageStatus.DELIVERED.value and not was_delivered:
+        inc["deliveredCount"] = 1
+    elif new == MessageStatus.READ.value:
+        if not was_delivered:
+            inc["deliveredCount"] = 1
+        inc["readCount"] = 1
+    elif new == MessageStatus.FAILED.value:
+        inc["failedCount"] = 1
+        if cur in _TERMINAL_SENT:
+            inc["sentCount"] = -1
+        if was_delivered:
+            inc["deliveredCount"] = -1
+        if was_read:
+            inc["readCount"] = -1
+    return inc
+
+
 async def update_message_status(user_id: str, wamid: str, new_status: str, timestamp: str = None, error: str = None) -> bool:
-    """Find the campaign recipient with this wamid (under this user) and update its status.
-    
-    Respects status precedence: never downgrades a higher status to a lower one,
-    and never overrides a `failed` recipient.
-    
-    Returns True if a recipient was updated, False otherwise.
-    """
-    # Find the campaign that contains this wamid
-    campaign = await db.campaigns.find_one(
-        {"userId": user_id, "recipients.messageId": wamid},
-        {"_id": 0}
-    )
-    
-    if not campaign:
-        # wamid not found — likely a non-campaign message (reminder/chatbot reply)
-        return False
-    
-    # Locate the recipient
-    recipients = campaign.get('recipients', [])
-    target_idx = None
-    for i, r in enumerate(recipients):
-        if r.get('messageId') == wamid:
-            target_idx = i
-            break
-    
-    if target_idx is None:
-        return False
-    
-    current = recipients[target_idx]
-    current_status = current.get('status') or MessageStatus.PENDING.value
-    
-    # Don't override terminal failure
-    if current_status == MessageStatus.FAILED.value and new_status != MessageStatus.FAILED.value:
-        return False
-    
-    # Don't downgrade
-    cur_rank = _STATUS_RANK.get(current_status, 0)
-    new_rank = _STATUS_RANK.get(new_status, -1)
-    if new_status != MessageStatus.FAILED.value and new_rank <= cur_rank:
-        return False
-    
-    # Build update
-    now_iso = datetime.now(timezone.utc).isoformat()
-    set_ops = {
-        f"recipients.{target_idx}.status": new_status,
-    }
-    if new_status == MessageStatus.DELIVERED.value:
-        set_ops[f"recipients.{target_idx}.deliveredAt"] = now_iso
-    elif new_status == MessageStatus.READ.value:
-        set_ops[f"recipients.{target_idx}.readAt"] = now_iso
-        # If we somehow missed a delivered event, backfill deliveredAt too
-        if not current.get('deliveredAt'):
-            set_ops[f"recipients.{target_idx}.deliveredAt"] = now_iso
-    elif new_status == MessageStatus.FAILED.value and error:
-        set_ops[f"recipients.{target_idx}.error"] = str(error)[:200]
-    
-    set_ops["updatedAt"] = now_iso
-    
-    # Recompute aggregate counts after the change
-    updated_recipients = list(recipients)
-    updated_recipients[target_idx] = {
-        **current,
-        'status': new_status,
-        **({k.split('.')[-1]: v for k, v in set_ops.items() if k.startswith(f"recipients.{target_idx}.")}),
-    }
-    
-    delivered_count = sum(
-        1 for r in updated_recipients
-        if r.get('status') in (MessageStatus.DELIVERED.value, MessageStatus.READ.value)
-    )
-    read_count = sum(1 for r in updated_recipients if r.get('status') == MessageStatus.READ.value)
-    
-    set_ops["deliveredCount"] = delivered_count
-    set_ops["readCount"] = read_count
-    # NOTE: We deliberately do NOT recompute/write failedCount here.
-    # The campaign worker is the canonical writer for sent/failed counts (uses $inc).
-    # Recomputing failedCount from the array here would race with concurrent worker
-    # updates and clobber them. Webhooks that report a "failed" status should $inc
-    # failedCount instead — handled below if needed.
-    if new_status == MessageStatus.FAILED.value and current_status != MessageStatus.FAILED.value:
-        # Rare path — webhook reporting a failure for a previously-sent message.
-        # Use $inc so we don't race with the worker's failedCount tracking.
-        pass  # Implemented as $inc below
-    
-    update_doc = {"$set": set_ops}
-    if new_status == MessageStatus.FAILED.value and current_status != MessageStatus.FAILED.value:
-        update_doc["$inc"] = {"failedCount": 1}
-        # Decrement sent if we're flipping a sent message to failed
-        if current_status in (MessageStatus.SENT.value, MessageStatus.DELIVERED.value, MessageStatus.READ.value):
-            update_doc["$inc"]["sentCount"] = -1
-    
-    await db.campaigns.update_one(
-        {"id": campaign['id']},
-        update_doc
-    )
-    
-    logger.info(
-        f"Status update: campaign={campaign['id']} wamid={wamid} "
-        f"{current_status} -> {new_status} (delivered={delivered_count}, read={read_count})"
-    )
+    """Apply a status to the recipient with this wamid. Never downgrades; failed is terminal.
+    The $set is conditional on the status we read, so concurrent webhooks can't double-apply.
+    Returns True if the recipient was found (and updated or already at/above this status)."""
+    query = {"recipients.messageId": wamid}
+    if user_id:
+        query["userId"] = user_id
+    for _ in range(5):
+        campaign = await db.campaigns.find_one(
+            query, {"_id": 0, "id": 1, "recipients.messageId": 1, "recipients.status": 1, "recipients.deliveredAt": 1}
+        )
+        if not campaign:
+            return False
+        idx = next((i for i, r in enumerate(campaign.get('recipients', [])) if r.get('messageId') == wamid), None)
+        if idx is None:
+            return False
+        current = campaign['recipients'][idx]
+        stored_status = current.get('status')
+        cur = stored_status or MessageStatus.PENDING.value
+        
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if cur == MessageStatus.FAILED.value:
+            if new_status == MessageStatus.FAILED.value and error:
+                await db.campaigns.update_one(
+                    {"id": campaign['id'], f"recipients.{idx}.status": MessageStatus.FAILED.value},
+                    {"$set": {f"recipients.{idx}.error": str(error)[:200]}}
+                )
+            return True
+        inc = _transition(cur, new_status)
+        if inc is None:
+            return True
+        
+        set_ops = {f"recipients.{idx}.status": new_status, "updatedAt": now_iso}
+        if new_status == MessageStatus.DELIVERED.value:
+            set_ops[f"recipients.{idx}.deliveredAt"] = now_iso
+        elif new_status == MessageStatus.READ.value:
+            set_ops[f"recipients.{idx}.readAt"] = now_iso
+            if not current.get('deliveredAt'):
+                set_ops[f"recipients.{idx}.deliveredAt"] = now_iso
+        elif new_status == MessageStatus.FAILED.value:
+            set_ops[f"recipients.{idx}.error"] = str(error or 'Failed (reported by WhatsApp)')[:200]
+        
+        update_doc = {"$set": set_ops}
+        if inc:
+            update_doc["$inc"] = inc
+        res = await db.campaigns.update_one(
+            {"id": campaign['id'], f"recipients.{idx}.status": stored_status}, update_doc
+        )
+        if res.matched_count:
+            logger.info(f"Status update: campaign={campaign['id']} wamid={wamid} {cur} -> {new_status} inc={inc}")
+            return True
+        # Another webhook / the worker changed this recipient meanwhile — re-read and re-evaluate
+    logger.warning(f"Status update for {wamid} -> {new_status} gave up after repeated conflicts")
     return True
 
 
-async def process_status_payload(user_id: str, body: dict) -> int:
-    """Top-level entry called from the webhook. Extracts all statuses
-    from the payload and applies them. Returns the number of recipients updated.
-    """
-    statuses = extract_status_data(body)
-    if not statuses:
+async def _ensure_pending_index():
+    global _pending_index_ready
+    if not _pending_index_ready:
+        await db.pending_statuses.create_index("wamid")
+        _pending_index_ready = True
+
+
+async def queue_pending_status(s: dict, user_id: str = None) -> bool:
+    """wamid not in any campaign yet (worker hasn't saved messageId): park the status.
+    Returns True if it was applied after all (worker saved the messageId meanwhile)."""
+    await _ensure_pending_index()
+    now = datetime.now(timezone.utc)
+    await db.pending_statuses.delete_many({"receivedAt": {"$lt": (now - PENDING_STATUS_TTL).isoformat()}})
+    inserted = await db.pending_statuses.insert_one({
+        "wamid": s['wamid'], "status": s['status'], "error": s.get('error'), "receivedAt": now.isoformat(),
+    })
+    # Close the race with the worker's apply step: retry once after parking
+    if await update_message_status(user_id, s['wamid'], s['status'], s.get('timestamp'), s.get('error')):
+        await db.pending_statuses.delete_one({"_id": inserted.inserted_id})
+        logger.info(f"Pending status {s['wamid']} -> {s['status']} applied immediately after queueing")
+        return True
+    logger.info(f"Queued pending status {s['wamid']} -> {s['status']} (no campaign recipient yet)")
+    return False
+
+
+async def apply_pending_statuses(user_id: str, wamids: list) -> int:
+    """Called by the campaign worker right after it saves messageIds."""
+    if not wamids:
         return 0
-    
-    updated = 0
+    await _ensure_pending_index()
+    entries = await db.pending_statuses.find({"wamid": {"$in": wamids}}).sort("receivedAt", 1).to_list(None)
+    applied = 0
+    for e in entries:
+        if await update_message_status(user_id, e['wamid'], e['status'], error=e.get('error')):
+            applied += 1
+            await db.pending_statuses.delete_one({"_id": e['_id']})
+    if applied:
+        logger.info(f"Applied {applied} queued status(es) for {len(wamids)} new messageIds")
+    return applied
+
+
+async def process_status_payload(user_id: str, body: dict, statuses: list = None) -> int:
+    """Apply every status in the payload; unmatched ones are queued in pending_statuses.
+    Returns the number of statuses found (applied or queued)."""
+    statuses = extract_status_data(body) if statuses is None else statuses
     for s in statuses:
-        ok = await update_message_status(
-            user_id=user_id,
-            wamid=s['wamid'],
-            new_status=s['status'],
-            timestamp=s.get('timestamp'),
-            error=s.get('error'),
+        matched = await update_message_status(
+            user_id=user_id, wamid=s['wamid'], new_status=s['status'],
+            timestamp=s.get('timestamp'), error=s.get('error'),
         )
-        if ok:
-            updated += 1
-    
-    return updated
+        logger.info(f"[webhook-status] wamid={s['wamid']} status={s['status']} error={s.get('error')} matched={matched}")
+        if not matched:
+            await queue_pending_status(s, user_id)
+    return len(statuses)

@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhook", tags=["Webhook"])
 
+# Temporary diagnostics: log full raw webhook bodies for 24h after process start
+FULL_WEBHOOK_LOG_UNTIL = datetime.now(timezone.utc) + timedelta(hours=24)
+
+
+def log_raw_webhook(source: str, body):
+    if datetime.now(timezone.utc) < FULL_WEBHOOK_LOG_UNTIL:
+        logger.info(f"[webhook-raw] {source}: {json.dumps(body, ensure_ascii=False)}")
+
 
 # Commands that users can send via WhatsApp
 LIST_COMMANDS = ['show reminders', 'list reminders', 'my reminders', 'reminders', 'show my reminders', 'pending reminders']
@@ -464,23 +472,15 @@ async def handle_bizchat_webhook(request: Request):
     try:
         body = await request.json()
         logger.info(f"Received legacy webhook: {json.dumps(body)[:500]}")
+        log_raw_webhook("legacy", body)
 
         # === STATUS UPDATE (delivery / read receipts) ===
-        # If the payload is a status update, route to status processor.
-        # Legacy webhook doesn't carry a user_id, so we resolve it from the wamid.
+        # Legacy webhook doesn't carry a user_id — resolve from the wamid; unknown wamids get queued.
         statuses = extract_status_data(body)
+        logger.info(f"[webhook-status] legacy: extract_status_data found {len(statuses)} status(es)")
         if statuses:
-            updated_total = 0
-            for s in statuses:
-                # Find which user owns this wamid
-                campaign = await db.campaigns.find_one(
-                    {"recipients.messageId": s['wamid']},
-                    {"userId": 1, "_id": 0}
-                )
-                if campaign:
-                    n = await process_status_payload(campaign['userId'], {"statuses": [s]})
-                    updated_total += n
-            return {"status": "success", "type": "status_update", "updated": updated_total}
+            n = await process_status_payload(None, body, statuses)
+            return {"status": "success", "type": "status_update", "updated": n}
 
         # === BUTTON CLICK on a campaign message ===
         click = extract_button_click(body)
@@ -544,9 +544,12 @@ async def handle_universal_webhook(user_id: str, request: Request):
 
         body = await request.json()
         logger.info(f"Universal webhook for user {user_id}: {json.dumps(body)[:500]}")
+        log_raw_webhook(f"user {user_id}", body)
 
         # === STATUS UPDATE (delivery / read receipts) ===
-        statuses_updated = await process_status_payload(user_id, body)
+        statuses = extract_status_data(body)
+        logger.info(f"[webhook-status] user {user_id}: extract_status_data found {len(statuses)} status(es)")
+        statuses_updated = await process_status_payload(user_id, body, statuses)
         if statuses_updated > 0:
             return {"status": "success", "type": "status_update", "updated": statuses_updated}
 

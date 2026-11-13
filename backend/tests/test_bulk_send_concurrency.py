@@ -84,9 +84,9 @@ async def main():
     race = {"done": False, "skipped": False}
 
     async def racing_update(self, flt, update, *a, **kw):
-        if not race["done"] and flt.get("recipients.18.status") == "pending":
+        if not race["done"] and "recipients.18.status" in flt and "sentCount" in update.get("$inc", {}):
             race["done"] = True
-            await orig_update(self, {"id": flt["id"]}, {"$set": {"recipients.18.status": "delivered"}})
+            await orig_update(self, {"id": flt["id"]}, {"$set": {"recipients.18.status": "delivered"}, "$inc": {"deliveredCount": 1}})
             res = await orig_update(self, flt, update, *a, **kw)
             race["skipped"] = res.matched_count == 0
             return res

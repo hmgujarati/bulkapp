@@ -18,6 +18,7 @@ from models.schemas import (
 from utils.auth import get_current_user
 from utils.database import db
 from utils.helpers import normalize_phone_number
+from services.message_status_service import apply_pending_statuses
 
 logger = logging.getLogger(__name__)
 
@@ -344,7 +345,7 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
     async def mark_sent(idx):
         """Set SENT only if the webhook hasn't already moved this recipient on; counts via $inc."""
         res = await db.campaigns.update_one(
-            {"id": campaign_id, f"recipients.{idx}.status": MessageStatus.PENDING.value},
+            {"id": campaign_id, f"recipients.{idx}.status": {"$in": [MessageStatus.PENDING.value, MessageStatus.SENT.value]}},
             {"$set": {f"recipients.{idx}.status": MessageStatus.SENT.value},
              "$inc": {"sentCount": 1, "pendingCount": -1}}
         )
@@ -410,6 +411,7 @@ async def _process_campaign_impl(campaign_id: str, user_token: str, vendor_uid: 
             update_doc["$inc"] = {"dripSentInWindow": len(sent_idx)}
         await db.campaigns.update_one({"id": campaign_id}, update_doc)
         await asyncio.gather(*[mark_sent(idx) for idx in sent_idx])
+        await apply_pending_statuses(campaign['userId'], [recipients[i]['messageId'] for i in sent_idx if recipients[i]['messageId']])
         await mark_failed(list(failed_errors), failed_errors.get)
         run_sent_delta += len(sent_idx)
         return had_retryable
