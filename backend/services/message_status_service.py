@@ -252,6 +252,7 @@ async def _ensure_pending_index():
     global _pending_index_ready
     if not _pending_index_ready:
         await db.pending_statuses.create_index("wamid")
+        await db.pending_statuses.create_index("receivedAt", expireAfterSeconds=int(PENDING_STATUS_TTL.total_seconds()))
         _pending_index_ready = True
 
 
@@ -259,10 +260,8 @@ async def queue_pending_status(s: dict, user_id: str = None) -> bool:
     """wamid not in any campaign yet (worker hasn't saved messageId): park the status.
     Returns True if it was applied after all (worker saved the messageId meanwhile)."""
     await _ensure_pending_index()
-    now = datetime.now(timezone.utc)
-    await db.pending_statuses.delete_many({"receivedAt": {"$lt": (now - PENDING_STATUS_TTL).isoformat()}})
     inserted = await db.pending_statuses.insert_one({
-        "wamid": s['wamid'], "status": s['status'], "error": s.get('error'), "receivedAt": now.isoformat(),
+        "wamid": s['wamid'], "status": s['status'], "error": s.get('error'), "receivedAt": datetime.now(timezone.utc),
     })
     # Close the race with the worker's apply step: retry once after parking
     if await update_message_status(user_id, s['wamid'], s['status'], s.get('timestamp'), s.get('error')):
