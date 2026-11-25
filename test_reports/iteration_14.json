@@ -1,0 +1,24 @@
+{
+  "summary": "Tested the 'Rename file to each contact's name' (document_name_from_contact) feature on the backend and frontend. Backend: 13/13 pytest pass. That covers 7 unit tests of _build_payload/_document_name_for_contact (contact name + original ext, empty/None/whitespace/illegal-only name falls back to the original name, illegal chars removed, flag never in the payload, ext taken from the URL when there is no filename, .DOCX lowercased, no effect for image), plus /api/messages/send flag ON/OFF, the chunked init->recipients->start flow flag ON/OFF (sendDefaults puts the flag on every appended recipient), and saved-templates create/GET/list/PUT persistence with default false. Frontend: the switch appears only for Document (not none/image/video/location) and is OFF by default. Sending from /send with the switch ON put document_name_from_contact=true plus header_document/header_document_name in the request, and the stored recipients had the flag. Save-as-template from /send sent document_name_from_contact=true. In My Templates, create with Document + switch ON persisted it and edit reopened with the switch ON. The Edit dialog of the template saved from /send also showed the switch ON. Loading the saved template on /send turned the switch ON there with the URL and filename filled. Regression passed: 15 variable boxes (add button hidden at 15, field15 persists), document file upload fills the URL and filename, and the filename input is editable. No bugs found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Send Messages - Schedule", "issues": ["Schedule date/time uses the browser's native datetime-local picker, not the shadcn calendar (already there before this change)"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_document_name_from_contact.py", "/app/test_reports/pytest/pytest_docname.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SendMessagesSimple.handleLoadTemplate only sets documentNameFromContact in the document branch. If a user loads a document template with the switch ON, then loads an image or no-media template and picks Document by hand, the switch stays ON. Consider resetting it to false in the other branches. Low impact: the payload only sends the flag when mediaType is document.",
+    "_document_name_for_contact uses '.pdf' when no extension can be found (or it is longer than 6 chars). That is fine, but it is undocumented.",
+    "messages.py is about 1050 lines; consider splitting it (send/chunked/worker)."
+  ],
+  "updated_files": ["/app/backend/tests/test_document_name_from_contact.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None kept. Test campaigns (TEST_docname_*, TEST_ui_docname_send) and templates (TEST_docname_tpl_*, TEST_ui_docname_saveas, TEST_ui_docname_mytpl) were deleted by id. One uploaded test file (TEST_doc.pdf, /api/upload/media/d534a2b5-...pdf) is left on the server because there is no delete API for uploads.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run pytest /app/backend/tests/test_document_name_from_contact.py (it imports routes.messages directly for the unit tests). Use qatest@example.com/Test@12345 and schedule for 2030 so nothing dispatches. Switch testid: document-name-from-contact-switch. The Send page save-as-template uses window.prompt, so accept the dialog in Playwright."
+}
