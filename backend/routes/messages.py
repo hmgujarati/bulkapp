@@ -8,6 +8,7 @@ import asyncio
 import logging
 import uuid
 import os
+import re
 import io
 import pandas as pd
 
@@ -100,6 +101,17 @@ def _extract_message_id(data) -> str:
     return None
 
 
+def _document_name_for_contact(contact_name: str, original_name: str, document_url: str):
+    """'Ravi Kumar' + 'price list.pdf' -> 'Ravi Kumar.pdf'. None when the contact has no name."""
+    clean = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '', str(contact_name or ''))
+    clean = re.sub(r'\s+', ' ', clean).strip(' .')[:80]
+    if not clean:
+        return None
+    source = original_name or document_url.split('?')[0].rsplit('/', 1)[-1]
+    ext = Path(source).suffix.lower()
+    return f"{clean}{ext if 1 < len(ext) <= 6 else '.pdf'}"
+
+
 def _build_payload(phone: str, template_name: str, recipient_data: Dict[str, Any]) -> Dict[str, Any]:
     payload = {
         "phone_number": phone.replace('+', '').replace('-', '').replace(' ', ''),
@@ -117,6 +129,10 @@ def _build_payload(phone: str, template_name: str, recipient_data: Dict[str, Any
     for key in PASSTHROUGH_FIELDS:
         if key not in INTERNAL_RECIPIENT_FIELDS and recipient_data.get(key):
             payload[key] = recipient_data[key]
+    if recipient_data.get('document_name_from_contact') and payload.get('header_document'):
+        contact_name = _document_name_for_contact(recipient_name, payload.get('header_document_name'), payload['header_document'])
+        if contact_name:
+            payload['header_document_name'] = contact_name
     return payload
 
 
@@ -572,7 +588,7 @@ def _send_defaults(request: SendMessageRequest) -> Dict[str, Any]:
     keys = [
         'header_image', 'header_video', 'header_document', 'header_document_name',
         'header_field_1', 'location_latitude', 'location_longitude',
-        'location_name', 'location_address'
+        'location_name', 'location_address', 'document_name_from_contact'
     ]
     return {k: getattr(request, k) for k in keys if getattr(request, k)}
 
@@ -873,6 +889,8 @@ async def send_messages(
             recipient_dict['header_document'] = request.header_document
         if request.header_document_name:
             recipient_dict['header_document_name'] = request.header_document_name
+        if request.document_name_from_contact:
+            recipient_dict['document_name_from_contact'] = True
         if request.header_field_1:
             recipient_dict['header_field_1'] = request.header_field_1
         if request.location_latitude:

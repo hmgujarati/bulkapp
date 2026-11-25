@@ -1,6 +1,7 @@
 import React from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Globe, Loader2 } from 'lucide-react';
 import useMediaUpload from '../../hooks/useMediaUpload';
@@ -24,6 +25,8 @@ const MediaUploader = ({
   onHeaderDocumentChange,
   headerDocumentName,
   onHeaderDocumentNameChange,
+  documentNameFromContact,
+  onDocumentNameFromContactChange,
   locationLatitude,
   onLocationLatitudeChange,
   locationLongitude,
@@ -166,6 +169,22 @@ const MediaUploader = ({
             onChange={(e) => onHeaderDocumentNameChange?.(e.target.value)}
             data-testid="document-name-input"
           />
+          {onDocumentNameFromContactChange && (
+            <div className="flex items-start justify-between gap-3 rounded-lg border p-3 bg-slate-50">
+              <div>
+                <Label htmlFor="document-name-from-contact" className="text-sm">Rename file to each contact's name</Label>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  e.g. "Ravi Kumar.pdf". Contacts without a name get the filename above.
+                </p>
+              </div>
+              <Switch
+                id="document-name-from-contact"
+                checked={!!documentNameFromContact}
+                onCheckedChange={onDocumentNameFromContactChange}
+                data-testid="document-name-from-contact-switch"
+              />
+            </div>
+          )}
         </div>
       )}
 

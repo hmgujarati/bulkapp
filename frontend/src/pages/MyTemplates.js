@@ -58,7 +58,7 @@ const INITIAL_FORM_DATA = {
   templateLanguage: 'en',
   ...emptyFields(),
   header_image: '', header_video: '', header_document: '',
-  header_document_name: '', header_field_1: '',
+  header_document_name: '', document_name_from_contact: false, header_field_1: '',
   location_latitude: '', location_longitude: '',
   location_name: '', location_address: ''
 };
@@ -215,6 +215,7 @@ const MyTemplates = ({ user, onLogout }) => {
         header_video: template.header_video || '',
         header_document: template.header_document || '',
         header_document_name: template.header_document_name || '',
+        document_name_from_contact: !!template.document_name_from_contact,
         header_field_1: template.header_field_1 || '',
         location_latitude: template.location_latitude || '',
         location_longitude: template.location_longitude || '',
@@ -344,6 +345,8 @@ const MyTemplates = ({ user, onLogout }) => {
                     onHeaderDocumentChange={(v) => setFormData(f => ({...f, header_document: v}))}
                     headerDocumentName={formData.header_document_name}
                     onHeaderDocumentNameChange={(v) => setFormData(f => ({...f, header_document_name: v}))}
+                    documentNameFromContact={formData.document_name_from_contact}
+                    onDocumentNameFromContactChange={(v) => setFormData(f => ({...f, document_name_from_contact: v}))}
                     locationLatitude={formData.location_latitude}
                     onLocationLatitudeChange={(v) => setFormData(f => ({...f, location_latitude: v}))}
                     locationLongitude={formData.location_longitude}

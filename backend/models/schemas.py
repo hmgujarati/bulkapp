@@ -163,6 +163,7 @@ class SendMessageRequest(BaseModel):
     header_video: Optional[str] = None
     header_document: Optional[str] = None
     header_document_name: Optional[str] = None
+    document_name_from_contact: bool = False
     header_field_1: Optional[str] = None
     # Location data
     location_latitude: Optional[str] = None
@@ -203,6 +204,7 @@ class SavedTemplate(BaseModel):
     header_video: Optional[str] = None
     header_document: Optional[str] = None
     header_document_name: Optional[str] = None
+    document_name_from_contact: bool = False
     header_field_1: Optional[str] = None
     # Location fields
     location_latitude: Optional[str] = None
@@ -237,6 +239,7 @@ class SavedTemplateCreate(BaseModel):
     header_video: Optional[str] = None
     header_document: Optional[str] = None
     header_document_name: Optional[str] = None
+    document_name_from_contact: bool = False
     header_field_1: Optional[str] = None
     # Location fields
     location_latitude: Optional[str] = None

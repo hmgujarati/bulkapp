@@ -100,6 +100,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [headerVideo, setHeaderVideo] = useState('');
   const [headerDocument, setHeaderDocument] = useState('');
   const [headerDocumentName, setHeaderDocumentName] = useState('');
+  const [documentNameFromContact, setDocumentNameFromContact] = useState(false);
   const [locationLatitude, setLocationLatitude] = useState('');
   const [locationLongitude, setLocationLongitude] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -198,6 +199,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       setMediaType('document');
       setHeaderDocument(template.header_document);
       setHeaderDocumentName(template.header_document_name || '');
+      setDocumentNameFromContact(!!template.document_name_from_contact);
     } else if (template.location_latitude && template.location_longitude) {
       setMediaType('location');
       setLocationLatitude(template.location_latitude);
@@ -292,6 +294,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       } else if (mediaType === 'document' && headerDocument) {
         payload.header_document = headerDocument;
         if (headerDocumentName) payload.header_document_name = headerDocumentName;
+        if (documentNameFromContact) payload.document_name_from_contact = true;
       } else if (mediaType === 'location' && locationLatitude && locationLongitude) {
         payload.location_latitude = locationLatitude;
         payload.location_longitude = locationLongitude;
@@ -400,6 +403,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       } else if (mediaType === 'document' && headerDocument) {
         templateData.header_document = headerDocument;
         if (headerDocumentName) templateData.header_document_name = headerDocumentName;
+        templateData.document_name_from_contact = documentNameFromContact;
       } else if (mediaType === 'location' && locationLatitude && locationLongitude) {
         templateData.location_latitude = locationLatitude;
         templateData.location_longitude = locationLongitude;
@@ -569,6 +573,8 @@ const SendMessagesSimple = ({ user, onLogout }) => {
                   onHeaderDocumentChange={setHeaderDocument}
                   headerDocumentName={headerDocumentName}
                   onHeaderDocumentNameChange={setHeaderDocumentName}
+                  documentNameFromContact={documentNameFromContact}
+                  onDocumentNameFromContactChange={setDocumentNameFromContact}
                   locationLatitude={locationLatitude}
                   onLocationLatitudeChange={setLocationLatitude}
                   locationLongitude={locationLongitude}
