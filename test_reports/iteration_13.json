@@ -1,0 +1,30 @@
+{
+  "summary": "Tested the 15-variable template feature on both backend and frontend as qatest. Backend: 5/5 pytest pass. Saved-templates POST/PUT/GET keep field6..field15. Legacy 5-field templates still work. POST /api/messages/send (scheduled for 2030, +919000000001) stores field_12 on the recipient. A unit test of _build_payload confirms it forwards field_1..15 when non-empty, skips empty and field_16+ keys, and still replaces {name}. Frontend: the My Templates dialog opens with 5 boxes and 'Add variable (5/15)'. Adding goes up to 15 boxes and the button then disappears. Remove clears the last box's value and stops at 5. Saving with field 1/6/12 works. Edit reopens with 12 boxes and the values kept; updating field12 is saved. A legacy 5-field template opens with 5 boxes and updates fine. Enter does not submit and pasted newlines become spaces. GET /api/templates returned 200 and showed no error toast. Send page: 5 boxes by default with no add button. Loading the saved template shows 12 boxes filled. The send request contains field_1..5, field_6 and field_12 only, and the stored campaign keeps field_12. One UX bug on the Send page (see ui_bugs). All test data was deleted.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "SendMessagesSimple TemplateFieldsCard", "issue": "The number of boxes is worked out on every keystroke as max(5, highest filled field). If a user loads a 12-field template and clears field 12 to retype it, boxes 7-12 vanish at once (confirmed: 12 boxes -> 6 after clearing field12). Focus is lost and the user cannot re-enter field 12 without reloading the template. The Send page also has no Add button, so there is no way back. Fix: keep a separate fieldCount state (set from highestFilledField when a template is loaded) instead of deriving it from current values, or let the count grow but never shrink while editing.", "selector": "[data-testid=field12-input]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "My Templates card", "issues": ["The card preview only shows fields 1-3, so templates with up to 15 fields give no hint of how many variables they have (optional: add an 'N variables' badge)"]},
+      {"screen": "Send Messages schedule", "issues": ["The schedule field uses the browser's native datetime-local picker, not the shadcn calendar (existed before this change)"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_template_15_fields.py", "/app/test_reports/pytest/iter13_results.xml"],
+  "action_items": [
+    "SendMessagesSimple: stop the field boxes from collapsing when a field above 5 is cleared during editing. Keep the count in state, set it on template load, and don't shrink it on input change."
+  ],
+  "critical_code_review_comments": [
+    "MyTemplates detection useEffect is missing formData from its dependencies (it uses highestFilledField(formData)). It works in practice but will trigger an eslint exhaustive-deps warning.",
+    "SendMessagesSimple.js is 775 lines (over 700); consider splitting out the send/chunk logic.",
+    "The bizchatTemplates cache in MyTemplates is never refreshed after the first dialog open. A template created in BizChat during the session won't be detected until the page reloads.",
+    "Detection only increases the box count (max with the current count). If the user switches the BizChat template name to one with fewer variables, the extra boxes stay. Acceptable, but worth noting."
+  ],
+  "updated_files": ["/app/backend/tests/test_template_15_fields.py"],
+  "success_rate": {"backend": "100%", "frontend": "95% (1 medium UX bug)"},
+  "seed_data_creation": "None kept. Created TEST_15f_*, TEST_5f_*, TEST_UI15_23281 and TEST_legacy5 saved templates and TEST_* scheduled campaigns (2030, +919000000001). All were deleted by id; the DB check shows 0 left.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Routes: /my-templates (MyTemplates) and /send (SendMessagesSimple). qatest has dummy BizChat creds. /api/templates returns 200 with no matching templates, so the detection hint (template-detected-variables) could not be tested. To test sends safely, use a scheduled date in 2030 so nothing is dispatched. Regression test: backend/tests/test_template_15_fields.py (run with -p no:xdist)."
+}

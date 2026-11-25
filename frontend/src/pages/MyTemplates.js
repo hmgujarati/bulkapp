@@ -73,6 +73,11 @@ const TemplateCard = ({ template, onEdit, onDelete }) => (
           <CardDescription className="mt-1">
             {template.templateName} ({template.templateLanguage})
           </CardDescription>
+          {highestFilledField(template) > 0 && (
+            <span className="inline-block mt-2 text-xs bg-slate-100 text-slate-700 rounded-full px-2 py-0.5" data-testid={`template-variable-count-${template.id}`}>
+              {highestFilledField(template)} variable{highestFilledField(template) > 1 ? 's' : ''}
+            </span>
+          )}
         </div>
       </div>
     </CardHeader>

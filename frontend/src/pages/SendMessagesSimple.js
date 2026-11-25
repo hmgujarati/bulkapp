@@ -47,7 +47,7 @@ const LANGUAGES = [
 ];
 
 // Template Fields Component
-const TemplateFieldsCard = ({ fields, onFieldChange }) => (
+const TemplateFieldsCard = ({ fields, count, onFieldChange }) => (
   <Card className="shadow-lg border-0">
     <CardHeader>
       <CardTitle>Template Fields</CardTitle>
@@ -63,7 +63,7 @@ const TemplateFieldsCard = ({ fields, onFieldChange }) => (
       {/* Shows more than 5 boxes only when a loaded saved template uses them */}
       <TemplateVariableInputs
         fields={fields}
-        count={Math.max(MIN_TEMPLATE_FIELDS, highestFilledField(fields))}
+        count={count}
         onChange={onFieldChange}
       />
       <p className="text-xs text-slate-500">
@@ -92,6 +92,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [templateReference, setTemplateReference] = useState('');
   const [templateLanguage, setTemplateLanguage] = useState('en');
   const [fields, setFields] = useState(emptyFields);
+  const [fieldCount, setFieldCount] = useState(MIN_TEMPLATE_FIELDS);
   
   // Media state
   const [mediaType, setMediaType] = useState('none');
@@ -184,6 +185,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     setTemplateReference(template.name || '');
     setTemplateLanguage(template.templateLanguage);
     setFields(fieldsFromTemplate(template));
+    setFieldCount(Math.max(MIN_TEMPLATE_FIELDS, highestFilledField(template)));
     
     // Set media
     if (template.header_image) {
@@ -547,7 +549,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
             </Card>
 
             {/* Template Fields */}
-            <TemplateFieldsCard fields={fields} onFieldChange={handleFieldChange} />
+            <TemplateFieldsCard fields={fields} count={fieldCount} onFieldChange={handleFieldChange} />
 
             {/* Media Section */}
             <Card className="shadow-lg border-0">
