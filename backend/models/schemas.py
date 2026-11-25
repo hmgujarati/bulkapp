@@ -188,6 +188,16 @@ class SavedTemplate(BaseModel):
     field3: Optional[str] = None
     field4: Optional[str] = None
     field5: Optional[str] = None
+    field6: Optional[str] = None
+    field7: Optional[str] = None
+    field8: Optional[str] = None
+    field9: Optional[str] = None
+    field10: Optional[str] = None
+    field11: Optional[str] = None
+    field12: Optional[str] = None
+    field13: Optional[str] = None
+    field14: Optional[str] = None
+    field15: Optional[str] = None
     # Media fields
     header_image: Optional[str] = None
     header_video: Optional[str] = None
@@ -212,6 +222,16 @@ class SavedTemplateCreate(BaseModel):
     field3: Optional[str] = None
     field4: Optional[str] = None
     field5: Optional[str] = None
+    field6: Optional[str] = None
+    field7: Optional[str] = None
+    field8: Optional[str] = None
+    field9: Optional[str] = None
+    field10: Optional[str] = None
+    field11: Optional[str] = None
+    field12: Optional[str] = None
+    field13: Optional[str] = None
+    field14: Optional[str] = None
+    field15: Optional[str] = None
     # Media fields
     header_image: Optional[str] = None
     header_video: Optional[str] = None

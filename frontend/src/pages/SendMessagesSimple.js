@@ -19,11 +19,11 @@ import {
 } from "@/components/ui/select";
 
 import Layout from '../components/Layout';
-import { RecipientUploader, MediaUploader, TemplateSelector } from '../components/messaging';
+import { RecipientUploader, MediaUploader, TemplateSelector, TemplateVariableInputs } from '../components/messaging';
 import { useRecipients, useMediaUpload } from '../hooks';
 import api from '../utils/api';
 import { dialCodeFor } from '../utils/phoneValidator';
-import { sanitizeTemplateField } from '../utils/templateText';
+import { emptyFields, fieldsFromTemplate, highestFilledField, FIELD_NUMBERS, MIN_TEMPLATE_FIELDS } from '../utils/templateText';
 
 const LANGUAGES = [
   { value: 'en', label: 'English (en)' },
@@ -60,19 +60,12 @@ const TemplateFieldsCard = ({ fields, onFieldChange }) => (
           <strong>Personalization:</strong> Use <code className="bg-emerald-100 px-1 rounded">{'{name}'}</code> to insert recipient's name from Excel.
         </AlertDescription>
       </Alert>
-      {[1, 2, 3, 4, 5].map(i => (
-        <div key={i} className="space-y-2">
-          <Label htmlFor={`field${i}`}>Field {i}</Label>
-          <Input
-            id={`field${i}`}
-            placeholder={`Enter text for field ${i}`}
-            value={fields[`field${i}`]}
-            onChange={(e) => onFieldChange(`field${i}`, sanitizeTemplateField(e.target.value))}
-            onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-            data-testid={`field${i}-input`}
-          />
-        </div>
-      ))}
+      {/* Shows more than 5 boxes only when a loaded saved template uses them */}
+      <TemplateVariableInputs
+        fields={fields}
+        count={Math.max(MIN_TEMPLATE_FIELDS, highestFilledField(fields))}
+        onChange={onFieldChange}
+      />
       <p className="text-xs text-slate-500">
         WhatsApp does not allow line breaks inside template variables — each field stays on one line.
       </p>
@@ -98,7 +91,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
   const [templateName, setTemplateName] = useState('');
   const [templateReference, setTemplateReference] = useState('');
   const [templateLanguage, setTemplateLanguage] = useState('en');
-  const [fields, setFields] = useState({ field1: '', field2: '', field3: '', field4: '', field5: '' });
+  const [fields, setFields] = useState(emptyFields);
   
   // Media state
   const [mediaType, setMediaType] = useState('none');
@@ -190,13 +183,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
     setTemplateName(template.templateName);
     setTemplateReference(template.name || '');
     setTemplateLanguage(template.templateLanguage);
-    setFields({
-      field1: template.field1 || '',
-      field2: template.field2 || '',
-      field3: template.field3 || '',
-      field4: template.field4 || '',
-      field5: template.field5 || ''
-    });
+    setFields(fieldsFromTemplate(template));
     
     // Set media
     if (template.header_image) {
@@ -271,15 +258,16 @@ const SendMessagesSimple = ({ user, onLogout }) => {
 
     setSending(true);
     try {
+      // field_1..5 always sent (existing format); field_6..15 only when used
+      const fieldValues = {};
+      FIELD_NUMBERS.forEach(i => {
+        if (i <= 5 || fields[`field${i}`]) fieldValues[`field_${i}`] = fields[`field${i}`] || '';
+      });
       const recipientsWithData = recipients.map(r => ({
         phone: r.phone,
         name: r.name,
         template_language: templateLanguage,
-        field_1: fields.field1 || '',
-        field_2: fields.field2 || '',
-        field_3: fields.field3 || '',
-        field_4: fields.field4 || '',
-        field_5: fields.field5 || ''
+        ...fieldValues
       }));
 
       const payload = {
@@ -399,11 +387,7 @@ const SendMessagesSimple = ({ user, onLogout }) => {
       const templateData = {
         name: templateNamePrompt,
         templateName: templateName,        templateLanguage: templateLanguage,
-        field1: fields.field1,
-        field2: fields.field2,
-        field3: fields.field3,
-        field4: fields.field4,
-        field5: fields.field5
+        ...fields
       };
 
       // Add media

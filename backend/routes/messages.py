@@ -37,6 +37,8 @@ _inflight_peak = 0
 _http_client: httpx.AsyncClient = None
 _success_response_logged = False
 
+MAX_TEMPLATE_FIELDS = 15
+
 # Optional recipient fields forwarded to BizChat as-is
 PASSTHROUGH_FIELDS = (
     'header_image', 'header_video', 'header_document', 'header_document_name', 'header_field_1',
@@ -105,7 +107,7 @@ def _build_payload(phone: str, template_name: str, recipient_data: Dict[str, Any
         "template_language": recipient_data.get("template_language", "en_US")
     }
     recipient_name = recipient_data.get('name', '')
-    for i in range(1, 6):
+    for i in range(1, MAX_TEMPLATE_FIELDS + 1):
         field_key = f"field_{i}"
         value = str(recipient_data.get(field_key) or '').strip()
         if value:

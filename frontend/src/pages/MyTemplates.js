@@ -24,10 +24,13 @@ import {
 } from "@/components/ui/dialog";
 
 import Layout from '../components/Layout';
-import { MediaUploader } from '../components/messaging';
+import { MediaUploader, TemplateVariableInputs } from '../components/messaging';
 import { useMediaUpload } from '../hooks';
 import api from '../utils/api';
-import { sanitizeTemplateField } from '../utils/templateText';
+import {
+  emptyFields, fieldsFromTemplate, highestFilledField, countTemplateVariables,
+  MIN_TEMPLATE_FIELDS, MAX_TEMPLATE_FIELDS,
+} from '../utils/templateText';
 
 const LANGUAGES = [
   { value: 'en', label: 'English (en)' },
@@ -53,7 +56,7 @@ const INITIAL_FORM_DATA = {
   name: '',
   templateName: '',
   templateLanguage: 'en',
-  field1: '', field2: '', field3: '', field4: '', field5: '',
+  ...emptyFields(),
   header_image: '', header_video: '', header_document: '',
   header_document_name: '', header_field_1: '',
   location_latitude: '', location_longitude: '',
@@ -104,23 +107,27 @@ const TemplateCard = ({ template, onEdit, onDelete }) => (
 );
 
 // Template Fields Component
-const TemplateFields = ({ formData, onChange }) => (
+const TemplateFields = ({ formData, onChange, count, setCount, detectedCount }) => (
   <div className="space-y-3">
     <p className="text-xs text-slate-500">
       WhatsApp does not allow line breaks inside template variables — each field stays on one line.
     </p>
-    {[1, 2, 3, 4, 5].map(i => (
-      <div key={i} className="space-y-2">
-        <Label htmlFor={`field${i}`}>Field {i}</Label>
-        <Input
-          id={`field${i}`}
-          value={formData[`field${i}`]}
-          onChange={(e) => onChange({ ...formData, [`field${i}`]: sanitizeTemplateField(e.target.value) })}
-          onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-          data-testid={`template-field${i}-input`}
-        />
-      </div>
-    ))}
+    {detectedCount ? (
+      <p className="text-xs text-emerald-700 bg-emerald-50 rounded px-2 py-1" data-testid="template-detected-variables">
+        This BizChat template uses {detectedCount} variable{detectedCount > 1 ? 's' : ''}.
+      </p>
+    ) : null}
+    <TemplateVariableInputs
+      fields={formData}
+      count={count}
+      testIdPrefix="template-field"
+      onChange={(key, value) => onChange(f => ({ ...f, [key]: value }))}
+      onAdd={() => setCount(c => Math.min(c + 1, MAX_TEMPLATE_FIELDS))}
+      onRemoveLast={() => {
+        onChange(f => ({ ...f, [`field${count}`]: '' }));
+        setCount(c => Math.max(c - 1, MIN_TEMPLATE_FIELDS));
+      }}
+    />
   </div>
 );
 
@@ -131,11 +138,33 @@ const MyTemplates = ({ user, onLogout }) => {
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [mediaType, setMediaType] = useState('none');
+  const [fieldCount, setFieldCount] = useState(MIN_TEMPLATE_FIELDS);
+  const [bizchatTemplates, setBizchatTemplates] = useState(null);
+  const [detectedCount, setDetectedCount] = useState(null);
   const { uploadFile, uploading } = useMediaUpload();
 
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  // Load BizChat templates once the dialog opens (used to detect variable count)
+  useEffect(() => {
+    if (!dialogOpen || bizchatTemplates) return;
+    api.get('/templates')
+      .then(res => setBizchatTemplates(res.data?.templates || []))
+      .catch(() => setBizchatTemplates([]));
+  }, [dialogOpen, bizchatTemplates]);
+
+  useEffect(() => {
+    const name = formData.templateName.trim();
+    const matches = (bizchatTemplates || []).filter(t => t.name === name);
+    const match = matches.find(t => t.language === formData.templateLanguage) || matches[0];
+    const detected = match ? countTemplateVariables(match.components) : null;
+    setDetectedCount(detected);
+    if (detected) {
+      setFieldCount(Math.max(MIN_TEMPLATE_FIELDS, detected, highestFilledField(formData)));
+    }
+  }, [formData.templateName, formData.templateLanguage, bizchatTemplates]);
 
   const fetchTemplates = async () => {
     try {
@@ -171,13 +200,12 @@ const MyTemplates = ({ user, onLogout }) => {
     if (template) {
       setEditingTemplate(template);
       setMediaType(detectMediaType(template));
+      setFieldCount(Math.max(MIN_TEMPLATE_FIELDS, highestFilledField(template)));
       setFormData({
         name: template.name,
         templateName: template.templateName,
         templateLanguage: template.templateLanguage,
-        field1: template.field1 || '', field2: template.field2 || '',
-        field3: template.field3 || '', field4: template.field4 || '',
-        field5: template.field5 || '',
+        ...fieldsFromTemplate(template),
         header_image: template.header_image || '',
         header_video: template.header_video || '',
         header_document: template.header_document || '',
@@ -192,6 +220,7 @@ const MyTemplates = ({ user, onLogout }) => {
       setEditingTemplate(null);
       setMediaType('none');
       setFormData(INITIAL_FORM_DATA);
+      setFieldCount(MIN_TEMPLATE_FIELDS);
     }
     setDialogOpen(true);
   };
@@ -287,7 +316,13 @@ const MyTemplates = ({ user, onLogout }) => {
                 {/* Template Fields */}
                 <div className="border-t pt-4">
                   <h3 className="font-medium mb-3">Template Fields</h3>
-                  <TemplateFields formData={formData} onChange={setFormData} />
+                  <TemplateFields
+                    formData={formData}
+                    onChange={setFormData}
+                    count={fieldCount}
+                    setCount={setFieldCount}
+                    detectedCount={detectedCount}
+                  />
                 </div>
 
                 {/* Media Section */}
